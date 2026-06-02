@@ -408,7 +408,8 @@ final class BoxIconCache {
             return cached
         }
 
-        if let thumbnail = downsampledImage(at: url, maxPixelSize: px) {
+          if isLikelyImageURL(url),
+              let thumbnail = downsampledImage(at: url, maxPixelSize: px) {
             let cost = max(1, px * px * 4)
             previewCache.setObject(thumbnail, forKey: nsKey, cost: cost)
             stateLock.lock()
@@ -417,7 +418,8 @@ final class BoxIconCache {
             return thumbnail
         }
 
-        if let videoThumbnail = videoThumbnailImage(at: url, maxPixelSize: px) {
+          if isLikelyVideoURL(url),
+              let videoThumbnail = videoThumbnailImage(at: url, maxPixelSize: px) {
             let cost = max(1, px * px * 4)
             previewCache.setObject(videoThumbnail, forKey: nsKey, cost: cost)
             stateLock.lock()
@@ -452,7 +454,19 @@ final class BoxIconCache {
         generator.maximumSize = CGSize(width: maxPixelSize, height: maxPixelSize)
 
         let sampleTime = CMTime(seconds: 0.1, preferredTimescale: 600)
-        guard let cgImage = try? generator.copyCGImage(at: sampleTime, actualTime: nil) else {
+        let semaphore = DispatchSemaphore(value: 0)
+        var generatedImage: CGImage?
+        generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: sampleTime)]) { _, image, _, result, _ in
+            if result == .succeeded {
+                generatedImage = image
+            }
+            semaphore.signal()
+        }
+        let waitResult = semaphore.wait(timeout: .now() + 0.5)
+        if waitResult == .timedOut {
+            generator.cancelAllCGImageGeneration()
+        }
+        guard let cgImage = generatedImage else {
             return nil
         }
         return NSImage(cgImage: cgImage, size: NSSize(width: CGFloat(cgImage.width), height: CGFloat(cgImage.height)))
@@ -3106,8 +3120,6 @@ private func makeStatusMenu() -> NSMenu {
         }
         lastMouseEvaluationTime = now
         
-        let screenRect = screen.frame
-        let mouseX = globalPoint.x
         let mouseY = globalPoint.y
 
         let notchEdgeRect = zones.notchEdgeRect
@@ -3186,7 +3198,10 @@ private func makeStatusMenu() -> NSMenu {
             if window.alphaValue != 1.0 {
                 window.alphaValue = 1.0
             }
-            window.ignoresMouseEvents = !(isFileDrag && approachRect.contains(globalPoint))
+            let shouldIgnoreMouseEvents = !(isFileDrag && approachRect.contains(globalPoint))
+            if window.ignoresMouseEvents != shouldIgnoreMouseEvents {
+                window.ignoresMouseEvents = shouldIgnoreMouseEvents
+            }
 
             if isDirectHoverOverNotch {
                 let isFileDrag = isDraggingFile()
@@ -3962,10 +3977,12 @@ struct UnifiedNotchContainer: View {
             || abs(clipboardContentHeight - contentHeight) > 0.5
             || abs(clipboardViewportHeight - viewportHeight) > 0.5
         guard didChange else { return }
-        clipboardScrollOffset = scrollOffset
-        clipboardContentHeight = contentHeight
-        clipboardViewportHeight = viewportHeight
-        syncVerticalSwipeGate()
+        DispatchQueue.main.async {
+            clipboardScrollOffset = scrollOffset
+            clipboardContentHeight = contentHeight
+            clipboardViewportHeight = viewportHeight
+            syncVerticalSwipeGate()
+        }
     }
 
     private func updateJotScrollGate(scrollOffset: CGFloat, contentHeight: CGFloat, viewportHeight: CGFloat) {
@@ -3973,10 +3990,12 @@ struct UnifiedNotchContainer: View {
             || abs(jotContentHeight - contentHeight) > 0.5
             || abs(jotViewportHeight - viewportHeight) > 0.5
         guard didChange else { return }
-        jotScrollOffset = scrollOffset
-        jotContentHeight = contentHeight
-        jotViewportHeight = viewportHeight
-        syncVerticalSwipeGate()
+        DispatchQueue.main.async {
+            jotScrollOffset = scrollOffset
+            jotContentHeight = contentHeight
+            jotViewportHeight = viewportHeight
+            syncVerticalSwipeGate()
+        }
     }
 
     private func updateBoxScrollGate(scrollOffset: CGFloat, contentHeight: CGFloat, viewportHeight: CGFloat) {
@@ -3984,10 +4003,12 @@ struct UnifiedNotchContainer: View {
             || abs(boxContentHeight - contentHeight) > 0.5
             || abs(boxViewportHeight - viewportHeight) > 0.5
         guard didChange else { return }
-        boxScrollOffset = scrollOffset
-        boxContentHeight = contentHeight
-        boxViewportHeight = viewportHeight
-        syncVerticalSwipeGate()
+        DispatchQueue.main.async {
+            boxScrollOffset = scrollOffset
+            boxContentHeight = contentHeight
+            boxViewportHeight = viewportHeight
+            syncVerticalSwipeGate()
+        }
     }
 
     private func updateJotEditorScrollGate(scrollOffset: CGFloat, contentHeight: CGFloat, viewportHeight: CGFloat) {
@@ -3997,11 +4018,13 @@ struct UnifiedNotchContainer: View {
             || abs(jotEditorViewportHeight - viewportHeight) > 0.5
             || jotEditorAtBottom != nextAtBottom
         guard didChange else { return }
-        jotEditorScrollOffset = scrollOffset
-        jotEditorContentHeight = contentHeight
-        jotEditorViewportHeight = viewportHeight
-        jotEditorAtBottom = nextAtBottom
-        syncVerticalSwipeGate()
+        DispatchQueue.main.async {
+            jotEditorScrollOffset = scrollOffset
+            jotEditorContentHeight = contentHeight
+            jotEditorViewportHeight = viewportHeight
+            jotEditorAtBottom = nextAtBottom
+            syncVerticalSwipeGate()
+        }
     }
 
     private func closeNotchFromSwipe() {
@@ -4940,26 +4963,73 @@ struct UnifiedNotchContainer: View {
     private func jotCard(_ note: JotNote, cellWidth: CGFloat) -> some View {
         let accentColor = Color(settings.accentColor)
         let cardHeight = estimatedJotCardHeight(for: note, cellWidth: cellWidth)
-        return Button {
-            model.activeJotID = note.id
-        } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(jotNotePreview(note))
-                    .font(.subheadline)
-                    .fontWeight(note.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .regular : .semibold)
-                    .foregroundColor(.white)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        return JotNoteCardView(
+            note: note,
+            cardHeight: cardHeight,
+            accentColor: accentColor,
+            previewText: jotNotePreview(note),
+            isEmpty: note.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            onOpen: {
+                model.activeJotID = note.id
+            },
+            onDelete: {
+                withAnimation {
+                    model.jotNotes.removeAll { $0.id == note.id }
+                    if model.activeJotID == note.id {
+                        model.activeJotID = nil
+                    }
+                }
             }
-            .padding(10)
-            .frame(maxWidth: .infinity, minHeight: cardHeight, alignment: .topLeading)
-            .background(Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(accentColor.opacity(0.18), lineWidth: 1)
-            )
+        )
+    }
+
+    private struct JotNoteCardView: View {
+        let note: JotNote
+        let cardHeight: CGFloat
+        let accentColor: Color
+        let previewText: String
+        let isEmpty: Bool
+        let onOpen: () -> Void
+        let onDelete: () -> Void
+
+        @State private var isHovering = false
+
+        var body: some View {
+            ZStack(alignment: .topTrailing) {
+                Button(action: onOpen) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(previewText)
+                            .font(.subheadline)
+                            .fontWeight(isEmpty ? .regular : .semibold)
+                            .foregroundColor(.white)
+                            .lineLimit(2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, minHeight: cardHeight, alignment: .topLeading)
+                    .background(Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(accentColor.opacity(0.18), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+
+                if isHovering {
+                    Button(action: onDelete) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.white)
+                            .background(Circle().fill(Color.black.opacity(0.5)))
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(6)
+                }
+            }
+            .onHover { hovering in
+                isHovering = hovering
+            }
         }
-        .buttonStyle(.plain)
     }
 
     private func jotEditor(activeID: UUID, width: CGFloat, height: CGFloat) -> some View {
@@ -5308,6 +5378,11 @@ struct UnifiedNotchContainer: View {
             DispatchQueue.main.async {
                 let hostingWidth = safeDimension(scrollView.contentSize.width, fallback: 1)
                 let hostingHeight = safeDimension(hostingView.fittingSize.height, fallback: 1)
+                let currentSize = hostingView.frame.size
+                if abs(currentSize.width - hostingWidth) < 0.5,
+                   abs(currentSize.height - hostingHeight) < 0.5 {
+                    return
+                }
                 hostingView.frame = NSRect(x: 0, y: 0, width: hostingWidth, height: hostingHeight)
             }
         }
