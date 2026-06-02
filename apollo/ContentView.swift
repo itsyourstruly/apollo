@@ -1406,8 +1406,6 @@ private struct SettingsView: View {
 @State private var selectedTitlePage: IslandPage = .clipboard
     @State private var showTitleOverrides = false
     @State private var showAdvancedAnimation = false
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
-    @State private var preferredCompactColumn: NavigationSplitViewColumn = .detail
 
     private static let numberFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
@@ -1419,16 +1417,14 @@ private struct SettingsView: View {
 
     var body: some View {
         let accent = Color(settings.accentColor)
-        NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: $preferredCompactColumn) {
+        HSplitView {
             List(SettingsSection.allCases, selection: $selection) { section in
                 Label(section.rawValue, systemImage: section.symbolName)
                     .tag(section)
             }
             .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
-            .finderSidebarStyle()
-            .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 260)
-        } detail: {
+            .frame(minWidth: 140, idealWidth: 210, maxWidth: 250)
+
             Group {
                 switch selection ?? .general {
                 case .general:
@@ -1439,25 +1435,14 @@ private struct SettingsView: View {
                     advancedSettings
                 }
             }
-            .scrollContentBackground(.hidden)
-            .finderDetailStyle()
-            .navigationSplitViewColumnWidth(min: 520, ideal: 700, max: 900)
+            .frame(minWidth: 320, idealWidth: 560, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .ignoresSafeArea(.container, edges: .top)
         }
-        .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 820, minHeight: 620)
+        .frame(minWidth: 520, minHeight: 420)
         .tint(accent)
         .controlSize(.regular)
         .toggleStyle(.switch)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(settings.backgroundColor).opacity(0.35),
-                    Color(settings.backgroundColor).opacity(0.16)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
+        .background(SettingsWindowChromeConfigurator())
         .onAppear {
             settings.showHoverPreviews = true
         }
@@ -1579,7 +1564,7 @@ if settings.clipboardActionOption == .paste {
                 }
             }
         }
-        .finderFormStyle()
+        .nativeSettingsFormStyle()
     }
 
     private var appearanceSettings: some View {
@@ -1701,7 +1686,7 @@ if settings.clipboardActionOption == .paste {
                 Toggle("Show pagers", isOn: $settings.showPagers)
             }
         }
-        .finderFormStyle()
+        .nativeSettingsFormStyle()
     }
 
     private var advancedSettings: some View {
@@ -1873,7 +1858,7 @@ if settings.clipboardActionOption == .paste {
                     .help("Only opens when directly hovering over the notch")
             }
         }
-        .finderFormStyle()
+        .nativeSettingsFormStyle()
     }
 
     private func setPreviewFocus(_ focus: HoverPreviewFocus, isEditing: Bool) {
@@ -2033,34 +2018,65 @@ if settings.clipboardActionOption == .paste {
     }
 }
 
+private struct SettingsWindowChromeConfigurator: NSViewRepresentable {
+    private static var focusedWindowNumbers = Set<Int>()
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        DispatchQueue.main.async {
+            configureWindowIfAvailable(from: view)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            configureWindowIfAvailable(from: nsView)
+        }
+    }
+
+    private func configureWindowIfAvailable(from view: NSView) {
+        guard let window = view.window else { return }
+        let standardWindowMask: NSWindow.StyleMask = [
+            .titled,
+            .closable,
+            .miniaturizable,
+            .resizable,
+            .fullSizeContentView
+        ]
+        window.styleMask.formUnion(standardWindowMask)
+
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.title = ""
+
+        window.standardWindowButton(.closeButton)?.isHidden = false
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+        window.standardWindowButton(.zoomButton)?.isHidden = false
+        window.standardWindowButton(.toolbarButton)?.isHidden = true
+        window.toolbar = nil
+        if #available(macOS 11.0, *) {
+            window.titlebarSeparatorStyle = .none
+        }
+
+        if !Self.focusedWindowNumbers.contains(window.windowNumber) {
+            Self.focusedWindowNumbers.insert(window.windowNumber)
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+        }
+    }
+}
+
 private func loadClipboardHistory() -> [ClipboardEntry] {
     let savedTexts = UserDefaults.standard.stringArray(forKey: AppStorageKey.clipboardHistory) ?? []
     return savedTexts.map { ClipboardEntry(text: $0) }
 }
 
 private extension View {
-    func finderSidebarStyle() -> some View {
-        background(.thinMaterial)
-            .overlay(alignment: .trailing) {
-                Divider().opacity(0.6)
-            }
-            .padding(.leading, 6)
-            .padding(.vertical, 6)
-    }
-
-    func finderDetailStyle() -> some View {
-        background(.regularMaterial)
-            .overlay(alignment: .top) {
-                Divider().opacity(0.5)
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
-    }
-
-    func finderFormStyle() -> some View {
+    func nativeSettingsFormStyle() -> some View {
         formStyle(.grouped)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 14)
     }
 }
 
