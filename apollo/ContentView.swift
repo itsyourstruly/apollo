@@ -9,7 +9,7 @@ import Combine
 import MediaPlayer
 
 // MARK: - Lightweight Page Models
-enum NotchPage: Int, CaseIterable {
+enum IslandPage: Int, CaseIterable {
     case clipboard = 0
     case nowPlaying = 1
     case box = 2
@@ -141,7 +141,7 @@ final class NowPlayingObserver: ObservableObject {
 
 // MARK: - App Main Entry
 @main
-struct NotchHubApp: App {
+struct ApolloApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var body: some Scene {
@@ -272,15 +272,32 @@ private let baseNotchHeight: CGFloat = 32
 private let toastPanelHeight: CGFloat = 260
 private let toastPanelWidth: CGFloat = 180
 
-private func hardwareNotchDimensions(for screen: NSScreen?) -> (width: CGFloat, height: CGFloat) {
+private func hardwareNotchDimensions(for screen: NSScreen?) -> (x: CGFloat, width: CGFloat, height: CGFloat) {
     guard let screen else {
-        return (baseNotchWidth, baseNotchHeight)
+        return (0, baseNotchWidth, baseNotchHeight)
     }
+    let screenRect = screen.frame
     let topInset = screen.safeAreaInsets.top
-    let horizontalDifferential = screen.frame.width - screen.visibleFrame.width
-    let width = (horizontalDifferential > 0 && horizontalDifferential < 500) ? horizontalDifferential : baseNotchWidth
+    let leftAux = screen.auxiliaryTopLeftArea
+    let rightAux = screen.auxiliaryTopRightArea
+
+    let auxGapWidth: CGFloat = {
+        guard let leftAux, let rightAux else { return 0 }
+        let leftMax = leftAux.maxX
+        let rightMin = rightAux.minX
+        let gap = rightMin - leftMax
+        return gap.isFinite && gap > 0 ? gap : 0
+    }()
+    
+    let x = leftAux?.maxX ?? (screenRect.width - baseNotchWidth) / 2
+
+    let width = auxGapWidth > 0 ? auxGapWidth : {
+        let horizontalDifferential = screenRect.width - screen.visibleFrame.width
+        return (horizontalDifferential > 0 && horizontalDifferential < 500) ? horizontalDifferential : baseNotchWidth
+    }()
+
     let height = topInset > 0 ? topInset : baseNotchHeight
-    return (width, height)
+    return (x, safeDimension(width, fallback: baseNotchWidth), safeDimension(height, fallback: baseNotchHeight))
 }
 
 private struct BottomRoundedRectangle: Shape {
@@ -509,9 +526,10 @@ final class AppSettings: ObservableObject {
         }
     }
 
+
     @Published var defaultPage: Int {
         didSet {
-            let clampedValue = clamp(defaultPage, min: NotchPage.clipboard.rawValue, max: NotchPage.box.rawValue)
+            let clampedValue = clamp(defaultPage, min: IslandPage.clipboard.rawValue, max: IslandPage.box.rawValue)
             if clampedValue != defaultPage {
                 defaultPage = clampedValue
             }
@@ -608,9 +626,9 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    @Published var lastVisitedPage: Int {
+@Published var lastVisitedPage: Int {
         didSet {
-            let clampedValue = clamp(lastVisitedPage, min: NotchPage.clipboard.rawValue, max: NotchPage.box.rawValue)
+            let clampedValue = clamp(lastVisitedPage, min: IslandPage.clipboard.rawValue, max: IslandPage.box.rawValue)
             if clampedValue != lastVisitedPage {
                 lastVisitedPage = clampedValue
             }
@@ -715,8 +733,8 @@ final class AppSettings: ObservableObject {
     }
 
     @Published var showHoverPreviews: Bool = false
-    @Published var hoverPreviewFocus: HoverPreviewFocus = .all
-    @Published var hoverPreviewTitlePage: NotchPage = .clipboard
+@Published var hoverPreviewFocus: HoverPreviewFocus = .all
+    @Published var hoverPreviewTitlePage: IslandPage = .clipboard
 
     @Published var animationResponse: Double {
         didSet {
@@ -810,14 +828,28 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var hardwareNotchX: CGFloat = 0
+    @Published var hardwareNotchWidth: CGFloat = 210
+    @Published var hardwareNotchHeight: CGFloat = 32
+
     var clampedNotchWidth: CGFloat {
         let safeValue = notchWidth.isFinite ? notchWidth : defaultNotchWidth
         return clamp(safeValue, min: notchWidthRange.lowerBound, max: notchWidthRange.upperBound)
     }
-
     var clampedNotchHeight: CGFloat {
         let safeValue = notchHeight.isFinite ? notchHeight : defaultNotchHeight
         return clamp(safeValue, min: notchHeightRange.lowerBound, max: notchHeightRange.upperBound)
+    }
+
+    /*
+    // This is the old implementation. The new one respects the useDefaultNotchSize toggle.
+    */
+
+    var effectiveNotchWidth: CGFloat {
+        hardwareNotchWidth
+    }
+    var effectiveNotchHeight: CGFloat {
+        hardwareNotchHeight
     }
 
     var clampedRememberClips: Int {
@@ -889,7 +921,7 @@ final class AppSettings: ObservableObject {
         .spring(response: swipeAnimationResponse, dampingFraction: swipeAnimationDamping)
     }
 
-    func titleAlignment(for page: NotchPage) -> TitleAlignmentOption {
+func titleAlignment(for page: IslandPage) -> TitleAlignmentOption {
         switch page {
         case .clipboard:
             return TitleAlignmentOption(rawValue: clipboardTitleAlignment ?? titleAlignment) ?? titleAlignmentOption
@@ -900,7 +932,7 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    func titleSize(for page: NotchPage) -> CGFloat {
+    func titleSize(for page: IslandPage) -> CGFloat {
         switch page {
         case .clipboard:
             return clamp(clipboardTitleSize ?? titleSize, min: titleSizeRange.lowerBound, max: titleSizeRange.upperBound)
@@ -911,7 +943,7 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    func titleColor(for page: NotchPage) -> NSColor {
+    func titleColor(for page: IslandPage) -> NSColor {
         let mainColor = effectiveTitleColor
         switch page {
         case .clipboard:
@@ -950,7 +982,7 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    func titleSymbol(for page: NotchPage, fallback: String) -> String {
+    func titleSymbol(for page: IslandPage, fallback: String) -> String {
         let mainSymbol = titleIconName.isEmpty ? fallback : titleIconName
         switch page {
         case .clipboard:
@@ -1040,9 +1072,9 @@ final class AppSettings: ObservableObject {
             notchHeight = defaultNotchHeight
         }
         if defaults.object(forKey: AppStorageKey.defaultPage) == nil {
-            defaultPage = NotchPage.clipboard.rawValue
+            defaultPage = IslandPage.clipboard.rawValue
         } else {
-            defaultPage = clamp(defaults.integer(forKey: AppStorageKey.defaultPage), min: NotchPage.clipboard.rawValue, max: NotchPage.box.rawValue)
+            defaultPage = clamp(defaults.integer(forKey: AppStorageKey.defaultPage), min: IslandPage.clipboard.rawValue, max: IslandPage.box.rawValue)
         }
         if defaults.object(forKey: AppStorageKey.rememberClips) == nil {
             rememberClips = 40
@@ -1106,9 +1138,9 @@ final class AppSettings: ObservableObject {
         }
 
         if defaults.object(forKey: AppStorageKey.lastVisitedPage) == nil {
-            lastVisitedPage = NotchPage.clipboard.rawValue
+            lastVisitedPage = IslandPage.clipboard.rawValue
         } else {
-            lastVisitedPage = clamp(defaults.integer(forKey: AppStorageKey.lastVisitedPage), min: NotchPage.clipboard.rawValue, max: NotchPage.box.rawValue)
+            lastVisitedPage = clamp(defaults.integer(forKey: AppStorageKey.lastVisitedPage), min: IslandPage.clipboard.rawValue, max: IslandPage.box.rawValue)
         }
 
         if let storedSensitivity = defaults.object(forKey: AppStorageKey.proximitySensitivity) as? Double {
@@ -1230,13 +1262,10 @@ final class AppSettings: ObservableObject {
         persistTitleColor()
     }
 
-    func applySystemNotchDefaultsIfNeeded(width: CGFloat, height: CGFloat) {
-        if defaults.object(forKey: AppStorageKey.notchWidth) == nil {
-            notchWidth = width
-        }
-        if defaults.object(forKey: AppStorageKey.notchHeight) == nil {
-            notchHeight = height
-        }
+    func updateHardwareNotchDimensions(x: CGFloat, width: CGFloat, height: CGFloat) {
+        hardwareNotchX = x
+        hardwareNotchWidth = width
+        hardwareNotchHeight = height
     }
 
     private func persistAccentColor() {
@@ -1374,7 +1403,7 @@ final class AppSettings: ObservableObject {
 private struct SettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
     @State private var selection: SettingsSection? = .general
-    @State private var selectedTitlePage: NotchPage = .clipboard
+@State private var selectedTitlePage: IslandPage = .clipboard
     @State private var showTitleOverrides = false
     @State private var showAdvancedAnimation = false
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
@@ -1445,14 +1474,17 @@ private struct SettingsView: View {
                     Slider(value: $settings.notchWidth, in: settings.notchWidthRange, onEditingChanged: { isEditing in
                         setPreviewFocus(.islandSize, isEditing: isEditing)
                     })
+                    
                     Text("\(Int(settings.clampedNotchWidth))")
                         .frame(width: 48, alignment: .trailing)
                 }
+                
                 HStack {
                     Text("Height")
                     Slider(value: $settings.notchHeight, in: settings.notchHeightRange, onEditingChanged: { isEditing in
                         setPreviewFocus(.islandSize, isEditing: isEditing)
                     })
+                    
                     Text("\(Int(settings.clampedNotchHeight))")
                         .frame(width: 48, alignment: .trailing)
                 }
@@ -1460,7 +1492,7 @@ private struct SettingsView: View {
 
             Section("Default Page") {
                 Picker("Default page", selection: $settings.defaultPage) {
-                    ForEach(NotchPage.allCases, id: \.rawValue) { page in
+                    ForEach(IslandPage.allCases, id: \.rawValue) { page in
                         Text(page == .clipboard ? "Clip" : page == .nowPlaying ? "Jot" : "")
                             .tag(page.rawValue)
                     }
@@ -1501,8 +1533,8 @@ private struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
 
-                if settings.clipboardActionOption == .paste {
-                    Text("Paste requires Accessibility permission for NotchHub")
+if settings.clipboardActionOption == .paste {
+                    Text("Paste requires Accessibility permission for Apollo")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -1602,7 +1634,7 @@ private struct SettingsView: View {
                 DisclosureGroup("Titles", isExpanded: $showTitleOverrides) {
                     VStack(alignment: .leading, spacing: 12) {
                         Picker("Page", selection: $selectedTitlePage) {
-                            ForEach(NotchPage.allCases, id: \.rawValue) { page in
+                            ForEach(IslandPage.allCases, id: \.rawValue) { page in
                                 Text(titlePageLabel(page))
                                     .tag(page)
                             }
@@ -1848,14 +1880,14 @@ private struct SettingsView: View {
         settings.hoverPreviewFocus = isEditing ? focus : .all
     }
 
-    private func setTitlePreviewFocus(isEditing: Bool, page: NotchPage? = nil) {
+    private func setTitlePreviewFocus(isEditing: Bool, page: IslandPage? = nil) {
         if let page {
             settings.hoverPreviewTitlePage = page
         }
         setPreviewFocus(.titleSize, isEditing: isEditing)
     }
 
-    private func titlePageLabel(_ page: NotchPage) -> String {
+    private func titlePageLabel(_ page: IslandPage) -> String {
         switch page {
         case .clipboard: return "Clipboard"
         case .nowPlaying: return "Jot"
@@ -1863,7 +1895,7 @@ private struct SettingsView: View {
         }
     }
 
-    private func pageTitleAlignmentBinding(_ page: NotchPage) -> Binding<Int> {
+    private func pageTitleAlignmentBinding(_ page: IslandPage) -> Binding<Int> {
         Binding(
             get: { settings.titleAlignment(for: page).rawValue },
             set: { newValue in
@@ -1879,7 +1911,7 @@ private struct SettingsView: View {
         )
     }
 
-    private func pageTitleSizeBinding(_ page: NotchPage) -> Binding<CGFloat> {
+    private func pageTitleSizeBinding(_ page: IslandPage) -> Binding<CGFloat> {
         Binding(
             get: { settings.titleSize(for: page) },
             set: { newValue in
@@ -1895,7 +1927,7 @@ private struct SettingsView: View {
         )
     }
 
-    private func pageTitleColorBinding(_ page: NotchPage) -> Binding<Color> {
+    private func pageTitleColorBinding(_ page: IslandPage) -> Binding<Color> {
         Binding(
             get: { Color(settings.titleColor(for: page)) },
             set: { newValue in
@@ -1911,7 +1943,7 @@ private struct SettingsView: View {
         )
     }
 
-    private func pageTitleUseAccentBinding(_ page: NotchPage) -> Binding<Bool> {
+    private func pageTitleUseAccentBinding(_ page: IslandPage) -> Binding<Bool> {
         Binding(
             get: {
                 switch page {
@@ -1936,7 +1968,7 @@ private struct SettingsView: View {
         )
     }
 
-    private func pageTitleSymbolBinding(_ page: NotchPage) -> Binding<String> {
+    private func pageTitleSymbolBinding(_ page: IslandPage) -> Binding<String> {
         Binding(
             get: {
                 switch page {
@@ -1963,7 +1995,7 @@ private struct SettingsView: View {
         )
     }
 
-    private func resetTitleOverrides(for page: NotchPage) {
+    private func resetTitleOverrides(for page: IslandPage) {
         switch page {
         case .clipboard:
             settings.clipboardTitleAlignment = nil
@@ -2051,7 +2083,8 @@ private func persistJotNotes(_ notes: [JotNote]) {
 
 // MARK: - Global Coordinate Proximity Driver
 class AppDelegate: NSObject, NSApplicationDelegate {
-    var notchWindow: NotchPanel!
+    var islandWindow: IslandPanel!
+    var notchWindow: IslandPanel! { islandWindow }
     private var mouseTimer: DispatchSourceTimer?
     private var mousePollingInterval: TimeInterval = 0.2
     private var lastMousePoint = NSPoint.zero
@@ -2106,10 +2139,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         refreshNativeState()
     }
     
-    private func setupStatusItem() {
+private func setupStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
-            button.image = NSImage(systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: "NotchHub")
+            button.image = NSImage(systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: "Apollo")
             button.action = #selector(statusItemClicked(_:))
             button.target = self
         }
@@ -2117,10 +2150,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
     }
     
-    private func makeStatusMenu() -> NSMenu {
+private func makeStatusMenu() -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Show Notch", action: #selector(showNotchFromMenu), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Pin Notch", action: #selector(togglePinnedState), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Show Island", action: #selector(showNotchFromMenu), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Pin Island", action: #selector(togglePinnedState), keyEquivalent: ""))
         let settingsItem = NSMenuItem()
         settingsItem.view = NSHostingView(rootView: SettingsLink {
             Text("Settings...")
@@ -2157,19 +2190,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func calculateScreenNotchDimensions() {
-        guard let screen = NSScreen.screens.first else { return }
-        let topInset = screen.safeAreaInsets.top
-        let horizontalDifferential = screen.frame.width - screen.visibleFrame.width
-        if topInset > 0 {
-            let defaultWidth = (horizontalDifferential > 0 && horizontalDifferential < 500) ? horizontalDifferential : notchWidth
-            settings.applySystemNotchDefaultsIfNeeded(width: defaultWidth, height: topInset)
-        }
+        let (x, width, height) = hardwareNotchDimensions(for: NSScreen.screens.first)
+        settings.updateHardwareNotchDimensions(x: x, width: width, height: height)
         applySettingsNotchSize()
     }
 
     private func applySettingsNotchSize() {
-        notchWidth = settings.clampedNotchWidth
-        notchHeight = settings.clampedNotchHeight
+        notchWidth = settings.effectiveNotchWidth
+        notchHeight = settings.effectiveNotchHeight
         panelWidth = scaledPanelWidth(for: settings)
         panelHeight = scaledPanelHeight(for: settings)
     }
@@ -2177,7 +2205,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func observeSettings() {
         settings.$notchWidth
             .combineLatest(settings.$notchHeight)
-            .sink { [weak self] _, _ in
+            .sink { [weak self] _ in
                 guard let self else { return }
                 self.applySettingsNotchSize()
                 self.updateNotchWindowFrame()
@@ -2233,7 +2261,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showSettingsPreview() {
-        guard let window = notchWindow else { return }
+        guard let window = islandWindow else { return }
         pendingHideWorkItem?.cancel()
         pendingHideWorkItem = nil
         hoverCloseWorkItem?.cancel()
@@ -2254,25 +2282,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         screen.frame.maxY
     }
 
-    private func windowY(for screen: NSScreen, windowHeight: CGFloat, collapsedNotchHeight: CGFloat, isExpanded: Bool) -> CGFloat {
-        let anchorTop = notchTopAnchorY(for: screen)
-        return isExpanded ? (anchorTop - windowHeight) : (anchorTop - collapsedNotchHeight)
-    }
-
     private func updateNotchWindowFrame(widthOverride: CGFloat? = nil, heightOverride: CGFloat? = nil) {
         guard let screen = NSScreen.screens.first, let window = notchWindow else { return }
         let screenRect = screen.frame
         let defaultWidth = max(panelWidth, notchWidth)
         let windowWidth = widthOverride ?? defaultWidth
-        let windowHeight = heightOverride ?? panelHeight
-        let windowX = (screenRect.width - windowWidth) / 2
-        let hardware = hardwareNotchDimensions(for: screen)
-        let windowY = windowY(
-            for: screen,
-            windowHeight: windowHeight,
-            collapsedNotchHeight: hardware.height,
-            isExpanded: model.isExpanded
-        )
+        let windowHeight = heightOverride ?? window.frame.height
+        
+        // Correct window positioning: Center the window's midpoint on the hardware notch's midpoint
+        let notchX = settings.hardwareNotchX
+        let notchWidth = settings.effectiveNotchWidth
+        let windowX = notchX - (windowWidth - notchWidth) / 2
+        let windowY = screenRect.maxY - windowHeight
 
         window.setFrame(NSRect(x: windowX, y: windowY, width: windowWidth, height: windowHeight), display: true)
     }
@@ -2298,21 +2319,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupNotchWindow() {
         guard let screen = NSScreen.screens.first else { return }
         let screenRect = screen.frame
-
         let windowWidth = max(panelWidth, notchWidth)
-        let windowHeight = panelHeight
-        let windowX = (screenRect.width - windowWidth) / 2
-        let hardware = hardwareNotchDimensions(for: screen)
-        let windowY = windowY(
-            for: screen,
-            windowHeight: windowHeight,
-            collapsedNotchHeight: hardware.height,
-            isExpanded: false
-        )
+        let windowHeight = settings.effectiveNotchHeight
+        
+        let notchX = settings.hardwareNotchX
+        let notchWidthActual = settings.effectiveNotchWidth
+        let windowX = notchX - (windowWidth - notchWidthActual) / 2
+        let windowY = screenRect.maxY - settings.effectiveNotchHeight
 
         let initialRect = NSRect(x: windowX, y: windowY, width: windowWidth, height: windowHeight)
-        
-        notchWindow = NotchPanel(
+        islandWindow = IslandPanel(
             contentRect: initialRect,
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
@@ -2378,6 +2394,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         let rootHubView = UnifiedNotchContainer(model: model, settings: settings)
+            .onPreferenceChange(UnifiedNotchContainer.ShellHeightKey.self) { [weak self] newHeight in
+                guard let self else { return }
+                // This is the new central point for animating the window frame's height.
+                // It's driven by the view's own animated size.
+                self.updateWindowFrameForNewHeight(newHeight)
+            }
         
         notchWindow.contentView = NSHostingView(rootView: rootHubView)
         notchWindow.orderFrontRegardless()
@@ -2388,7 +2410,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.model.carouselDragOffset = 0
             withAnimation(self.settings.carouselAnimation) {
-                let next = clamp(self.model.currentPage + direction, min: NotchPage.clipboard.rawValue, max: NotchPage.box.rawValue)
+                let next = clamp(self.model.currentPage + direction, min: IslandPage.clipboard.rawValue, max: IslandPage.box.rawValue)
                 self.model.currentPage = next
             }
         }
@@ -2480,11 +2502,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 model.boxFiles.insert(BoxFile(url: url), at: 0)
             }
         }
-        showPanel(expanded: true, pinned: false, preferredPage: NotchPage.box.rawValue)
+        showPanel(expanded: true, pinned: false, preferredPage: IslandPage.box.rawValue)
     }
 
     func openBoxPage() {
-        showPanel(expanded: true, pinned: false, preferredPage: NotchPage.box.rawValue)
+        showPanel(expanded: true, pinned: false, preferredPage: IslandPage.box.rawValue)
     }
 
     func closeNotchFromSwipe() {
@@ -2604,11 +2626,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let edge = settings.clampedNotchEdgeThickness
             let approachWidth = settings.clampedApproachWidth
             let approachHeight = settings.clampedApproachHeight
-            let topInset = screen.safeAreaInsets.top
-            let horizontalDifferential = screenRect.width - screen.visibleFrame.width
-            let edgeNotchWidth = (horizontalDifferential > 0 && horizontalDifferential < 500) ? horizontalDifferential : baseNotchWidth
-            let edgeNotchHeight = topInset > 0 ? topInset : baseNotchHeight
-            let edgeNotchLeft = (screenRect.width - edgeNotchWidth) / 2
+            let edgeNotchWidth = settings.effectiveNotchWidth
+            let edgeNotchHeight = settings.effectiveNotchHeight
+            let edgeNotchLeft = settings.hardwareNotchX
             let notchRect = CGRect(
                 x: edgeNotchLeft,
                 y: screenRect.height - edgeNotchHeight,
@@ -2635,7 +2655,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 withAnimation(settings.notchOpenAnimation) {
                     model.expansionProgress = 0
                 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
                     guard let self, !self.model.isExpanded, self.model.expansionProgress == 0 else { return }
                     self.notchWindow?.alphaValue = 0.0
                 }
@@ -2679,17 +2699,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let edge = settings.clampedNotchEdgeThickness
             let approachWidth = settings.clampedApproachWidth
             let approachHeight = settings.clampedApproachHeight
-            let topInset = screen.safeAreaInsets.top
-            let horizontalDifferential = screenRect.width - screen.visibleFrame.width
-            let edgeNotchWidth = (horizontalDifferential > 0 && horizontalDifferential < 500) ? horizontalDifferential : baseNotchWidth
-            let edgeNotchHeight = topInset > 0 ? topInset : baseNotchHeight
-            let edgeNotchLeft = (screenRect.width - edgeNotchWidth) / 2
-            let notchRect = CGRect(
-                x: edgeNotchLeft,
-                y: screenRect.height - edgeNotchHeight,
-                width: edgeNotchWidth,
-                height: edgeNotchHeight
-            )
+            let edgeNotchWidth = settings.effectiveNotchWidth
+            let edgeNotchHeight = settings.effectiveNotchHeight
+            let edgeNotchLeft = settings.hardwareNotchX
+            let notchRect = CGRect(x: edgeNotchLeft, y: screenRect.height - edgeNotchHeight, width: edgeNotchWidth, height: edgeNotchHeight)
             let notchEdgeRect = notchRect.insetBy(dx: -edge, dy: -edge)
             let isHoveringEdge = isPointInNotchEdge(globalPoint, notchRect: notchRect, edge: edge)
             let approachRect = CGRect(
@@ -2771,17 +2784,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let screenRect = screen.frame
         let mouseX = globalPoint.x
         let mouseY = globalPoint.y
-        
+
         let edge = settings.clampedNotchEdgeThickness
         let approachWidth = settings.clampedApproachWidth
         let approachHeight = settings.clampedApproachHeight
-        let topInset = screen.safeAreaInsets.top
-        let horizontalDifferential = screenRect.width - screen.visibleFrame.width
-        let edgeNotchWidth = (horizontalDifferential > 0 && horizontalDifferential < 500) ? horizontalDifferential : baseNotchWidth
-        let edgeNotchHeight = topInset > 0 ? topInset : baseNotchHeight
-        let edgeNotchLeft = (screenRect.width - edgeNotchWidth) / 2
+        let edgeNotchWidth = settings.effectiveNotchWidth
+        let edgeNotchHeight = settings.effectiveNotchHeight
         let notchRect = CGRect(
-            x: edgeNotchLeft,
+            x: settings.hardwareNotchX,
             y: screenRect.height - edgeNotchHeight,
             width: edgeNotchWidth,
             height: edgeNotchHeight
@@ -2814,7 +2824,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             if isDirectHoverOverNotch {
                 let isFileDrag = isDraggingFile()
-                let preferredPage = isFileDrag ? NotchPage.box.rawValue : nil
+                let preferredPage = isFileDrag ? IslandPage.box.rawValue : nil
                 showPanel(expanded: true, pinned: false, preferredPage: preferredPage)
             }
             return
@@ -2868,7 +2878,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             if isDirectHoverOverNotch {
                 let isFileDrag = isDraggingFile()
-                let preferredPage = isFileDrag ? NotchPage.box.rawValue : nil
+                let preferredPage = isFileDrag ? IslandPage.box.rawValue : nil
                 showPanel(expanded: true, pinned: false, preferredPage: preferredPage)
             }
         } else {
@@ -2877,7 +2887,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func showPanel(expanded: Bool, pinned: Bool, preferredPage: Int? = nil) {
-        guard let window = notchWindow else { return }
+        guard let window = islandWindow else { return }
         pendingHideWorkItem?.cancel()
         pendingHideWorkItem = nil
         hoverCloseWorkItem?.cancel()
@@ -2896,19 +2906,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if settings.reopenLastPage {
                 model.currentPage = settings.lastVisitedPage
             } else if settings.defaultToBoxIfItems, !model.boxFiles.isEmpty {
-                model.currentPage = NotchPage.box.rawValue
+                model.currentPage = IslandPage.box.rawValue
             } else {
                 model.currentPage = settings.defaultPage
             }
         }
-        updateNotchWindowFrame(heightOverride: panelHeight)
         window.alphaValue = 1.0
         window.ignoresMouseEvents = false
         window.orderFrontRegardless()
     }
     
     private func hidePanel(preserveCloseProgress: Bool = false) {
-        guard let window = notchWindow else { return }
+        guard let window = islandWindow else { return }
         if (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded {
             return
         }
@@ -2927,8 +2936,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             model.carouselDragOffset = 0
         }
-        // UNIFIED FIX: Enforce continuous frame tracking sync on state shifts
-        updateNotchWindowFrame()
         
         let hideWorkItem = DispatchWorkItem { [weak self] in
             guard let self, !self.model.isPinned else { return }
@@ -2936,7 +2943,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.ignoresMouseEvents = true
         }
         pendingHideWorkItem = hideWorkItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: hideWorkItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: hideWorkItem)
     }
 
     private func configureFolderMonitors(with folders: [String]) {
@@ -3011,14 +3018,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showToastPanel() {
-        guard let window = notchWindow else { return }
+        guard let window = islandWindow else { return }
         pendingHideWorkItem?.cancel()
         pendingHideWorkItem = nil
         model.isToastDismissing = false
         model.isExpanded = false
         model.isPinned = false
         model.expansionProgress = 0.0
-        updateNotchWindowFrame(heightOverride: max(panelHeight, toastPanelHeight))
         window.alphaValue = 1.0
         window.ignoresMouseEvents = false
         window.orderFrontRegardless()
@@ -3045,6 +3051,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
             self?.suppressProximityUntilExit = true
             self?.model.isToastDismissing = false
+        }
+    }
+    
+    private func updateWindowFrameForNewHeight(_ newHeight: CGFloat) {
+        guard let screen = NSScreen.screens.first, let window = notchWindow else { return }
+        
+        // Don't interfere when settings previews are active, as they use a fixed large frame.
+        if settings.showHoverPreviews && settings.hoverPreviewFocus != .all {
+            return
+        }
+        
+        guard newHeight.isFinite, newHeight > 1 else { return }
+
+        // Keep the window width fixed at the maximum possible panel width to avoid clipping content during animation.
+        let windowWidth = max(self.panelWidth, self.notchWidth)
+        let windowHeight = newHeight
+
+        // Correct window positioning: Center the window's midpoint on the hardware notch's midpoint
+        let notchX = settings.hardwareNotchX
+        let notchWidth = settings.effectiveNotchWidth
+        let windowX = notchX - (windowWidth - notchWidth) / 2
+        let windowY = screen.frame.maxY - windowHeight
+
+        let newFrame = NSRect(x: windowX, y: windowY, width: windowWidth, height: windowHeight)
+        
+        if window.frame != newFrame {
+            window.setFrame(newFrame, display: true)
         }
     }
     
@@ -3257,7 +3290,7 @@ struct TrackpadSwipeReader: NSViewRepresentable {
     }
 }
 
-final class NotchPanel: NSPanel {
+final class IslandPanel: NSPanel {
     var onSwipeLeft: (() -> Void)?
     var onSwipeRight: (() -> Void)?
     var onSwipeUp: (() -> Void)?
@@ -3495,6 +3528,14 @@ struct UnifiedNotchContainer: View {
     @State private var jotEditorAtBottom = false
     @State private var showShapeHandles = false
     private let clipboardColumns = Array(repeating: GridItem(.flexible(minimum: 0, maximum: .infinity), spacing: 8), count: 3)
+
+    // This preference key is used to report the animated height of the island back to the AppDelegate.
+    struct ShellHeightKey: PreferenceKey {
+        static var defaultValue: CGFloat = 0
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = nextValue()
+        }
+    }
     private let scrollBottomTolerance: CGFloat = 24
 
     private func isAtScrollBottom(scrollOffset: CGFloat, contentHeight: CGFloat, viewportHeight: CGFloat) -> Bool {
@@ -3521,11 +3562,11 @@ struct UnifiedNotchContainer: View {
     private var canCloseFromVerticalSwipe: Bool {
         guard model.isExpanded, !model.isPinned else { return false }
         switch model.currentPage {
-        case NotchPage.clipboard.rawValue:
+        case IslandPage.clipboard.rawValue:
             return clipboardCanCloseFromSwipe
-        case NotchPage.nowPlaying.rawValue:
+        case IslandPage.nowPlaying.rawValue:
             return model.activeJotID != nil ? jotEditorCanCloseFromSwipe : jotCanCloseFromSwipe
-        case NotchPage.box.rawValue:
+        case IslandPage.box.rawValue:
             return model.boxFiles.isEmpty || boxCanCloseFromSwipe
         default:
             return true
@@ -3613,7 +3654,7 @@ struct UnifiedNotchContainer: View {
             .overlay(Capsule().stroke(accent.opacity(0.7), lineWidth: 1))
     }
 
-    private func previewTitleSample(page: NotchPage, width: CGFloat) -> some View {
+    private func previewTitleSample(page: IslandPage, width: CGFloat) -> some View {
         let size = settings.titleSize(for: page)
         let color = Color(settings.titleColor(for: page))
         let alignment = settings.titleAlignment(for: page).alignment
@@ -3674,159 +3715,35 @@ struct UnifiedNotchContainer: View {
         let panelWidth = scaledPanelWidth(for: settings)
         let panelHeight = scaledPanelHeight(for: settings)
 
-        let hardware = hardwareNotchDimensions(for: NSScreen.screens.first)
-        let notchWidth = hardware.width
-        let notchHeight = hardware.height
+        let notchWidth = settings.effectiveNotchWidth
+        let notchHeight = settings.effectiveNotchHeight
         let rawProgress = model.expansionProgress
         let progress = rawProgress.isFinite ? max(0, min(1, rawProgress)) : 0
         let easedProgress = progress * progress * (3 - 2 * progress)
-        let rawShellWidth = toastPanelWidth + ((panelWidth - toastPanelWidth) * easedProgress)
+        let rawShellWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress)
         let rawShellHeight = notchHeight + ((panelHeight - notchHeight) * easedProgress)
         let shellWidth = safeDimension(rawShellWidth, fallback: panelWidth)
         let shellHeight = safeDimension(rawShellHeight, fallback: panelHeight)
-        let islandWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress * 0.35)
+        let islandWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress * 0.4)
         let islandHeight = notchHeight
         let cornerRadius = safeDimension(max(4, settings.cornerRadius * (0.6 + 0.4 * easedProgress)), fallback: 8)
         let contentProgress = easedProgress.isFinite ? max(0, min(1, (easedProgress - 0.18) / 0.82)) : 0
         let showToastOnly = (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded && !model.isPinned
         let containerHeight = safeDimension(showToastOnly ? max(panelHeight, toastPanelHeight) : panelHeight, fallback: panelHeight)
         let toastWidth = toastPanelWidth
-        let containerWidth = safeDimension(panelWidth, fallback: panelWidth)
+        let containerWidth = max(panelWidth, notchWidth)
         let closeProgress = max(0, min(1, model.closeGestureProgress))
         let closeEase = closeProgress * closeProgress * (3 - 2 * closeProgress)
         let closeOffset = -44 * closeEase
         let closeScale = 1 - (0.14 * closeEase)
         
         ZStack(alignment: .top) {
+            // Overlay previews so they don't impact the measured height of the island body
             if settings.showHoverPreviews {
-                GeometryReader { geo in
-                    let notchWidth = settings.clampedNotchWidth
-                    let notchHeight = settings.clampedNotchHeight
-                    let screen = NSScreen.screens.first
-                    let screenRect = screen?.frame ?? .zero
-                    let visibleRect = screen?.visibleFrame ?? .zero
-                    let topInset = screen?.safeAreaInsets.top ?? 0
-                    let horizontalDifferential = screenRect.width - visibleRect.width
-                    let edgeNotchWidth = (horizontalDifferential > 0 && horizontalDifferential < 500) ? horizontalDifferential : baseNotchWidth
-                    let edgeNotchHeight = topInset > 0 ? topInset : baseNotchHeight
-                    let edge = settings.clampedNotchEdgeThickness
-                    let approachWidth = settings.clampedApproachWidth
-                    let approachHeight = settings.clampedApproachHeight
-                    let focus = settings.hoverPreviewFocus
-                    let accent = Color(settings.accentColor)
-                    let notchX = (geo.size.width - notchWidth) / 2
-                    let edgeNotchX = (geo.size.width - edgeNotchWidth) / 2
-                    let notchRect = CGRect(x: notchX, y: 0, width: notchWidth, height: notchHeight)
-                    let edgeNotchRect = CGRect(x: edgeNotchX, y: 0, width: edgeNotchWidth, height: edgeNotchHeight)
-                    let edgeInset = max(0, edge)
-                    let outerRect = edgeNotchRect.insetBy(dx: -edgeInset, dy: -edgeInset)
-                    let approachRect = CGRect(
-                        x: edgeNotchRect.minX - edgeInset - approachWidth,
-                        y: edgeNotchRect.maxY + edgeInset,
-                        width: edgeNotchRect.width + (edgeInset * 2) + approachWidth * 2,
-                        height: approachHeight
-                    )
-                    let clipboardLimitText = settings.clampedRememberClips == 0 ? "Unlimited" : "\(settings.clampedRememberClips)"
-                    let previewY = edgeNotchRect.maxY + 28
-
-                    ZStack(alignment: .topLeading) {
-                        Group {
-                            switch focus {
-                            case .all:
-                                if approachHeight > 0 || approachWidth > 0 {
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .stroke(Color.white.opacity(0.75), style: StrokeStyle(lineWidth: 2, dash: [6, 6]))
-                                        .frame(width: approachRect.width, height: approachRect.height)
-                                        .position(x: approachRect.midX, y: approachRect.midY)
-                                }
-                                if edgeInset > 0 {
-                                    Capsule()
-                                        .fill(accent.opacity(0.45))
-                                        .frame(width: outerRect.width, height: outerRect.height)
-                                        .position(x: outerRect.midX, y: outerRect.midY)
-                                }
-                                Capsule()
-                                    .fill(Color(settings.backgroundColor))
-                                    .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
-                                    .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
-                                Capsule()
-                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                                    .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
-                                    .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
-                            case .islandSize:
-                                Capsule()
-                                    .fill(Color(settings.backgroundColor))
-                                    .frame(width: notchRect.width, height: notchRect.height)
-                                    .position(x: notchRect.midX, y: notchRect.midY)
-                                Capsule()
-                                    .stroke(Color.white.opacity(0.25), lineWidth: 1)
-                                    .frame(width: notchRect.width, height: notchRect.height)
-                                    .position(x: notchRect.midX, y: notchRect.midY)
-                            case .notchEdge:
-                                if edgeInset > 0 {
-                                    Capsule()
-                                        .fill(accent.opacity(0.55))
-                                        .frame(width: outerRect.width, height: outerRect.height)
-                                        .position(x: outerRect.midX, y: outerRect.midY)
-                                }
-                                Capsule()
-                                    .fill(Color(settings.backgroundColor))
-                                    .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
-                                    .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
-                                Capsule()
-                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                                    .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
-                                    .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
-                            case .approach:
-                                if approachHeight > 0 || approachWidth > 0 {
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .stroke(Color.white.opacity(0.75), style: StrokeStyle(lineWidth: 2, dash: [6, 6]))
-                                        .frame(width: approachRect.width, height: approachRect.height)
-                                        .position(x: approachRect.midX, y: approachRect.midY)
-                                }
-                            case .clipboardLimit:
-                                previewBadge("Clip limit \(clipboardLimitText)", accent: accent)
-                                    .position(x: notchRect.midX, y: previewY)
-                            case .titleSize:
-                                previewTitleSample(page: settings.hoverPreviewTitlePage, width: notchRect.width)
-                                    .position(x: notchRect.midX, y: previewY)
-                            case .cornerRadius:
-                                RoundedRectangle(cornerRadius: settings.cornerRadius, style: .continuous)
-                                    .stroke(Color.white.opacity(0.7), lineWidth: 2)
-                                    .frame(width: 140, height: 52)
-                                    .position(x: notchRect.midX, y: previewY)
-                            case .sensitivityCarousel:
-                                previewBadge("Carousel sensitivity \(String(format: "%.2f", settings.carouselSensitivity))", accent: accent)
-                                    .position(x: notchRect.midX, y: previewY)
-                            case .sensitivityClose:
-                                previewBadge("Close sensitivity \(String(format: "%.2f", settings.closeSensitivity))", accent: accent)
-                                    .position(x: notchRect.midX, y: previewY)
-                            case .animationNotch:
-                                previewBadge("Notch anim r \(String(format: "%.2f", settings.notchAnimationResponse)) d \(String(format: "%.2f", settings.notchAnimationDamping))", accent: accent)
-                                    .position(x: notchRect.midX, y: previewY)
-                            case .animationCarousel:
-                                previewBadge("Carousel anim r \(String(format: "%.2f", settings.carouselAnimationResponse)) d \(String(format: "%.2f", settings.carouselAnimationDamping))", accent: accent)
-                                    .position(x: notchRect.midX, y: previewY)
-                            case .animationSwipe:
-                                previewBadge("Swipe anim r \(String(format: "%.2f", settings.swipeAnimationResponse)) d \(String(format: "%.2f", settings.swipeAnimationDamping))", accent: accent)
-                                    .position(x: notchRect.midX, y: previewY)
-                            case .delayApproach:
-                                previewBadge("Approach delay \(String(format: "%.2fs", settings.approachDelay))", accent: accent)
-                                    .position(x: notchRect.midX, y: previewY)
-                            case .delayHoverClose:
-                                previewBadge("Hover close \(String(format: "%.2fs", settings.hoverCloseDelay))", accent: accent)
-                                    .position(x: notchRect.midX, y: previewY)
-                            case .delaySwipeClose:
-                                previewBadge("Swipe close \(String(format: "%.2fs", settings.swipeCloseDelay))", accent: accent)
-                                    .position(x: notchRect.midX, y: previewY)
-                            }
-                        }
-                    }
-                }
-                .allowsHitTesting(false)
-                .opacity(0.8)
-                .padding(.top, 4)
+                settingsPreviewOverlay
+                    .zIndex(100)
             }
+
             if let toast = model.observedFileToast {
                 ObservedFileToastView(
                     toast: toast,
@@ -3850,6 +3767,9 @@ struct UnifiedNotchContainer: View {
                     cornerRadius: settings.cornerRadius
                 )
                 .offset(y: baseNotchHeight - 2)
+                .background(GeometryReader { proxy in
+                    Color.clear.preference(key: ShellHeightKey.self, value: proxy.size.height + (baseNotchHeight - 2))
+                })
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .zIndex(2)
             }
@@ -3960,15 +3880,17 @@ struct UnifiedNotchContainer: View {
                             .padding(.bottom, 8)
                         }
                     }
-                    .padding(.horizontal, 8)
                     .frame(width: shellWidth, height: shellHeight, alignment: .top)
                     .background(Color(settings.backgroundColor))
                     .clipShape(BottomRoundedRectangle(cornerRadius: cornerRadius))
                     .shadow(color: Color.black.opacity(0.22 * contentProgress), radius: 18 * contentProgress, x: 0, y: 10 * contentProgress)
                     .animation(settings.notchOpenAnimation, value: model.expansionProgress)
-                }
-            }
-        }
+                    .background(GeometryReader { proxy in
+                        Color.clear.preference(key: ShellHeightKey.self, value: proxy.size.height)
+                    })
+                } // End if !showToastOnly
+            } // End ZStack
+        } // End ZStack
         .frame(width: containerWidth, height: containerHeight, alignment: .top)
         .overlay(alignment: .topLeading) {
             boxMenuBarControls
@@ -4024,6 +3946,114 @@ struct UnifiedNotchContainer: View {
         }
     }
     
+    @ViewBuilder
+    private var settingsPreviewOverlay: some View {
+        GeometryReader { geo in
+            let expandedWidth = settings.clampedNotchWidth
+            let expandedHeight = settings.clampedNotchHeight
+            let edgeNotchWidth = settings.effectiveNotchWidth
+            let edgeNotchHeight = settings.effectiveNotchHeight
+            let edge = settings.clampedNotchEdgeThickness
+            let approachWidth = settings.clampedApproachWidth
+            let approachHeight = settings.clampedApproachHeight
+            let focus = settings.hoverPreviewFocus
+            let accent = Color(settings.accentColor)
+            let expandedX = (geo.size.width - expandedWidth) / 2
+            let edgeNotchX = (geo.size.width - edgeNotchWidth) / 2
+            let expandedRect = CGRect(x: expandedX, y: 0, width: expandedWidth, height: expandedHeight)
+            let edgeNotchRect = CGRect(x: edgeNotchX, y: 0, width: edgeNotchWidth, height: edgeNotchHeight)
+            let edgeInset = max(0, edge)
+            let outerRect = edgeNotchRect.insetBy(dx: -edgeInset, dy: -edgeInset)
+            let approachRect = CGRect(
+                x: edgeNotchRect.minX - edgeInset - approachWidth,
+                y: edgeNotchRect.maxY + edgeInset,
+                width: edgeNotchRect.width + (edgeInset * 2) + approachWidth * 2,
+                height: approachHeight
+            )
+            let clipboardLimitText = settings.clampedRememberClips == 0 ? "Unlimited" : "\(settings.clampedRememberClips)"
+            let previewY = edgeNotchRect.maxY + 28
+            let innerRadius = settings.cornerRadius * 0.6
+
+            ZStack(alignment: .topLeading) {
+                Group {
+                    switch focus {
+                    case .all:
+                        if approachHeight > 0 || approachWidth > 0 {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color.white.opacity(0.75), style: StrokeStyle(lineWidth: 2, dash: [6, 6]))
+                                .frame(width: approachRect.width, height: approachRect.height)
+                                .position(x: approachRect.midX, y: approachRect.midY)
+                        }
+                        if edgeInset > 0 {
+                            BottomRoundedRectangle(cornerRadius: innerRadius + edgeInset)
+                                .fill(accent.opacity(0.45))
+                                .frame(width: outerRect.width, height: outerRect.height)
+                                .position(x: outerRect.midX, y: outerRect.midY)
+                        }
+                        BottomRoundedRectangle(cornerRadius: innerRadius)
+                            .fill(Color(settings.backgroundColor))
+                            .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
+                            .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
+                        BottomRoundedRectangle(cornerRadius: innerRadius)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
+                            .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
+                    case .islandSize:
+                        BottomRoundedRectangle(cornerRadius: settings.cornerRadius)
+                            .fill(Color(settings.backgroundColor))
+                            .frame(width: expandedRect.width, height: expandedRect.height)
+                            .position(x: expandedRect.midX, y: expandedRect.midY)
+                        BottomRoundedRectangle(cornerRadius: settings.cornerRadius)
+                            .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                            .frame(width: expandedRect.width, height: expandedRect.height)
+                            .position(x: expandedRect.midX, y: expandedRect.midY)
+                    case .notchEdge:
+                        if edgeInset > 0 {
+                            BottomRoundedRectangle(cornerRadius: innerRadius + edgeInset)
+                                .fill(accent.opacity(0.55))
+                                .frame(width: outerRect.width, height: outerRect.height)
+                                .position(x: outerRect.midX, y: outerRect.midY)
+                        }
+                        BottomRoundedRectangle(cornerRadius: innerRadius)
+                            .fill(Color(settings.backgroundColor))
+                            .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
+                            .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
+                        BottomRoundedRectangle(cornerRadius: innerRadius)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
+                            .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
+                    case .approach:
+                        if approachHeight > 0 || approachWidth > 0 {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color.white.opacity(0.75), style: StrokeStyle(lineWidth: 2, dash: [6, 6]))
+                                .frame(width: approachRect.width, height: approachRect.height)
+                                .position(x: approachRect.midX, y: approachRect.midY)
+                        }
+                    case .clipboardLimit:
+                        previewBadge("Clip limit \(clipboardLimitText)", accent: accent)
+                            .position(x: edgeNotchRect.midX, y: previewY)
+                    case .titleSize:
+                        previewTitleSample(page: settings.hoverPreviewTitlePage, width: edgeNotchRect.width)
+                            .position(x: edgeNotchRect.midX, y: previewY)
+                    case .cornerRadius:
+                        RoundedRectangle(cornerRadius: settings.cornerRadius, style: .continuous)
+                            .stroke(Color.white.opacity(0.7), lineWidth: 2)
+                            .frame(width: 140, height: 52)
+                            .position(x: edgeNotchRect.midX, y: previewY)
+                    case .sensitivityCarousel:
+                        previewBadge("Carousel sensitivity \(String(format: "%.2f", settings.carouselSensitivity))", accent: accent)
+                            .position(x: edgeNotchRect.midX, y: previewY)
+                    default:
+                        EmptyView()
+                    }
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        .opacity(0.8)
+        .padding(.top, 4)
+    }
+
     private var horizontalPagingGesture: some Gesture {
         DragGesture(minimumDistance: 14, coordinateSpace: .local)
             .onEnded { value in
@@ -5326,7 +5356,7 @@ struct UnifiedNotchContainer: View {
     }
 
     private func globalControlsOverlay(islandWidth: CGFloat, islandHeight: CGFloat) -> some View {
-        let page = NotchPage(rawValue: model.currentPage) ?? .clipboard
+        let page = IslandPage(rawValue: model.currentPage) ?? .clipboard
 
         return Color.clear
             .overlay(alignment: .topTrailing) {
@@ -5366,7 +5396,7 @@ struct UnifiedNotchContainer: View {
     }
 
     private func globalTitleOverlay(islandWidth: CGFloat, islandHeight: CGFloat) -> some View {
-        let page = NotchPage(rawValue: model.currentPage) ?? .clipboard
+        let page = IslandPage(rawValue: model.currentPage) ?? .clipboard
         let title: String
         let symbol: String
         switch page {
@@ -5392,7 +5422,7 @@ struct UnifiedNotchContainer: View {
             .frame(width: islandWidth, height: islandHeight)
     }
 
-    private func header(title: String, symbol: String, page: NotchPage) -> some View {
+    private func header(title: String, symbol: String, page: IslandPage) -> some View {
         let displaySymbol = settings.titleSymbol(for: page, fallback: symbol)
         return Label(title, systemImage: displaySymbol)
             .font(.system(size: settings.titleSize(for: page), weight: .bold))
