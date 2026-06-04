@@ -4995,7 +4995,7 @@ struct UnifiedNotchContainer: View {
         let symbol: String
         switch page {
         case .clipboard:
-            title = "Clip"
+            title = "Cli"
             symbol = "doc.on.clipboard"
         case .jot:
             title = "Jot"
