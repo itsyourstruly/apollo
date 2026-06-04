@@ -6,9 +6,15 @@
 import SwiftUI
 import AppKit
 import Combine
+<<<<<<< HEAD
 import ImageIO
 import AVFoundation
 import Darwin
+=======
+import MediaPlayer
+import ImageIO
+import AVFoundation
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
 
 // MARK: - Lightweight Page Models
 enum IslandPage: Int, CaseIterable {
@@ -85,6 +91,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
     }
 }
 
+<<<<<<< HEAD
 private let maxStoredClipboardTextLength = 512
 private let maxDisplayedClipboardTextLength = 240
 
@@ -95,11 +102,14 @@ private func cappedClipboardText(_ text: String?, limit: Int = maxStoredClipboar
     return String(trimmed[..<endIndex])
 }
 
+=======
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
 struct ClipboardEntry: Identifiable, Hashable, Codable {
     var id: UUID = UUID()
     var text: String?
     var filePaths: [String] = []
     var createdAt: Date = Date()
+<<<<<<< HEAD
     var isDirectoryFlags: [String: Bool]? = nil
     var fileNames: [String]? = nil
     var fileSymbols: [String]? = nil
@@ -357,6 +367,21 @@ struct ClipboardEntry: Identifiable, Hashable, Codable {
         default:
             return false
         }
+=======
+
+    init(text: String) {
+        self.text = text
+        self.filePaths = []
+    }
+
+    init(text: String?, fileURLs: [URL]) {
+        let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.text = (trimmed?.isEmpty == false) ? trimmed : nil
+        self.filePaths = fileURLs
+            .filter { $0.isFileURL }
+            .map(\.path)
+        self.createdAt = Date()
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     }
 
     var normalizedText: String {
@@ -600,6 +625,7 @@ final class BoxIconCache {
     private let previewCache = NSCache<NSString, NSImage>()
     private var knownIconKeys = Set<NSURL>()
     private var knownPreviewKeys = Set<String>()
+<<<<<<< HEAD
     private var failedPreviewKeys = Set<String>()
     private let stateLock = NSLock()
     private let prewarmQueue = DispatchQueue(label: "apollo.box.prewarm", qos: .utility)
@@ -613,12 +639,21 @@ final class BoxIconCache {
     private let maintenanceQueue = DispatchQueue(label: "apollo.box.maintenance", qos: .utility)
     private var pendingTrimKeepPaths = Set<String>()
     private var pendingTrimWorkItem: DispatchWorkItem?
+=======
+    private let stateLock = NSLock()
+    private let prewarmQueue = DispatchQueue(label: "apollo.box.prewarm", qos: .utility)
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
 
     private init() {
         iconCache.countLimit = 64
         iconCache.totalCostLimit = 8 * 1024 * 1024
+<<<<<<< HEAD
         previewCache.countLimit = 48
         previewCache.totalCostLimit = 16 * 1024 * 1024
+=======
+        previewCache.countLimit = 64
+        previewCache.totalCostLimit = 24 * 1024 * 1024
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     }
 
     func icon(for url: URL) -> NSImage {
@@ -646,6 +681,7 @@ final class BoxIconCache {
             return cached
         }
 
+<<<<<<< HEAD
         stateLock.lock()
         let didPreviouslyFail = failedPreviewKeys.contains(previewKey)
         stateLock.unlock()
@@ -655,32 +691,50 @@ final class BoxIconCache {
 
         if isLikelyImageURL(url),
            let thumbnail = downsampledImage(at: url, maxPixelSize: px) {
+=======
+          if isLikelyImageURL(url),
+              let thumbnail = downsampledImage(at: url, maxPixelSize: px) {
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
             let cost = max(1, px * px * 4)
             previewCache.setObject(thumbnail, forKey: nsKey, cost: cost)
             stateLock.lock()
             knownPreviewKeys.insert(previewKey)
+<<<<<<< HEAD
             failedPreviewKeys.remove(previewKey)
+=======
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
             stateLock.unlock()
             return thumbnail
         }
 
+<<<<<<< HEAD
         if isLikelyVideoURL(url),
            let videoThumbnail = videoThumbnailImage(at: url, maxPixelSize: px) {
+=======
+          if isLikelyVideoURL(url),
+              let videoThumbnail = videoThumbnailImage(at: url, maxPixelSize: px) {
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
             let cost = max(1, px * px * 4)
             previewCache.setObject(videoThumbnail, forKey: nsKey, cost: cost)
             stateLock.lock()
             knownPreviewKeys.insert(previewKey)
+<<<<<<< HEAD
             failedPreviewKeys.remove(previewKey)
+=======
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
             stateLock.unlock()
             return videoThumbnail
         }
 
+<<<<<<< HEAD
         if isLikelyPreviewableURL(url) {
             stateLock.lock()
             failedPreviewKeys.insert(previewKey)
             stateLock.unlock()
         }
 
+=======
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         return icon(for: url)
     }
 
@@ -704,6 +758,7 @@ final class BoxIconCache {
         let asset = AVURLAsset(url: url)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
+<<<<<<< HEAD
         generator.maximumSize = CGSize(width: CGFloat(maxPixelSize), height: CGFloat(maxPixelSize))
 
         let sampleTime = CMTime(seconds: 0.1, preferredTimescale: 600)
@@ -721,6 +776,26 @@ final class BoxIconCache {
         }
 
         guard let cgImage = generatedImage else { return nil }
+=======
+        generator.maximumSize = CGSize(width: maxPixelSize, height: maxPixelSize)
+
+        let sampleTime = CMTime(seconds: 0.1, preferredTimescale: 600)
+        let semaphore = DispatchSemaphore(value: 0)
+        var generatedImage: CGImage?
+        generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: sampleTime)]) { _, image, _, result, _ in
+            if result == .succeeded {
+                generatedImage = image
+            }
+            semaphore.signal()
+        }
+        let waitResult = semaphore.wait(timeout: .now() + 0.5)
+        if waitResult == .timedOut {
+            generator.cancelAllCGImageGeneration()
+        }
+        guard let cgImage = generatedImage else {
+            return nil
+        }
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         return NSImage(cgImage: cgImage, size: NSSize(width: CGFloat(cgImage.width), height: CGFloat(cgImage.height)))
     }
 
@@ -739,7 +814,10 @@ final class BoxIconCache {
         stateLock.lock()
         let iconKeysSnapshot = knownIconKeys
         let previewKeysSnapshot = knownPreviewKeys
+<<<<<<< HEAD
         let failedPreviewKeysSnapshot = failedPreviewKeys
+=======
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         stateLock.unlock()
 
         for key in iconKeysSnapshot where !keep.contains(key) {
@@ -761,6 +839,7 @@ final class BoxIconCache {
             let path = String(key[..<pathEnd])
             return keepPaths.contains(path)
         })
+<<<<<<< HEAD
         let nextFailedPreviewKeys = Set(failedPreviewKeysSnapshot.filter { key in
             guard let pathEnd = key.firstIndex(of: "|") else { return false }
             let path = String(key[..<pathEnd])
@@ -770,6 +849,11 @@ final class BoxIconCache {
         knownIconKeys = nextIconKeys
         knownPreviewKeys = nextPreviewKeys
         failedPreviewKeys = nextFailedPreviewKeys
+=======
+        stateLock.lock()
+        knownIconKeys = nextIconKeys
+        knownPreviewKeys = nextPreviewKeys
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         stateLock.unlock()
     }
 
@@ -779,7 +863,10 @@ final class BoxIconCache {
         stateLock.lock()
         knownIconKeys.removeAll()
         knownPreviewKeys.removeAll()
+<<<<<<< HEAD
         failedPreviewKeys.removeAll()
+=======
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         stateLock.unlock()
     }
 
@@ -797,6 +884,7 @@ final class BoxIconCache {
         }
     }
 
+<<<<<<< HEAD
     func cachedPreview(for url: URL, targetSize: CGFloat) -> NSImage? {
         let px = max(24, Int(targetSize.rounded()))
         let previewKey = "\(url.path)|\(px)"
@@ -881,14 +969,19 @@ final class BoxIconCache {
         stateLock.unlock()
     }
 
+=======
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     func shouldAttemptPreview(for url: URL) -> Bool {
         isLikelyPreviewableURL(url)
     }
 
+<<<<<<< HEAD
     func shouldAttemptStillImagePreview(for url: URL) -> Bool {
         isLikelyImageURL(url)
     }
 
+=======
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     private func isLikelyPreviewableURL(_ url: URL) -> Bool {
         isLikelyImageURL(url) || isLikelyVideoURL(url)
     }
@@ -1374,6 +1467,12 @@ final class AppSettings: ObservableObject {
     @Published var alwaysUseApproachWhenDraggingFile: Bool {
         didSet {
             enqueueDefaultSet(alwaysUseApproachWhenDraggingFile, forKey: AppStorageKey.alwaysUseApproachWhenDraggingFile)
+        }
+    }
+
+    @Published var alwaysUseApproachWhenDraggingFile: Bool {
+        didSet {
+            defaults.set(alwaysUseApproachWhenDraggingFile, forKey: AppStorageKey.alwaysUseApproachWhenDraggingFile)
         }
     }
 
@@ -2919,7 +3018,11 @@ private func loadClipboardHistory() -> [ClipboardEntry] {
     let defaults = UserDefaults.standard
     if let data = defaults.data(forKey: AppStorageKey.clipboardHistory),
        let entries = try? JSONDecoder().decode([ClipboardEntry].self, from: data) {
+<<<<<<< HEAD
         return entries.map { $0.normalizedForLightweightStorage() }
+=======
+        return entries
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     }
     let savedTexts = defaults.stringArray(forKey: AppStorageKey.clipboardHistory) ?? []
     return savedTexts.map { ClipboardEntry(text: $0) }
@@ -2996,7 +3099,12 @@ private extension View {
 }
 
 private func persistClipboardHistory(_ entries: [ClipboardEntry]) {
+<<<<<<< HEAD
     PersistenceWriteCoordinator.shared.scheduleClipboardHistory(entries.map { $0.normalizedForLightweightStorage() })
+=======
+    guard let data = try? JSONEncoder().encode(entries) else { return }
+    UserDefaults.standard.set(data, forKey: AppStorageKey.clipboardHistory)
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
 }
 
 private func loadJotNotes() -> [JotNote] {
@@ -3040,7 +3148,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var islandWindow: IslandPanel!
     var notchWindow: IslandPanel! { islandWindow }
     private var clipboardTimer: DispatchSourceTimer?
+<<<<<<< HEAD
     private var clipboardActivationObserver: NSObjectProtocol?
+=======
+    private var nowPlayingTimer: Timer?
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     private var memoryPressureSource: DispatchSourceMemoryPressure?
     private var idleCompactionWorkItem: DispatchWorkItem?
     private var pendingHideWorkItem: DispatchWorkItem?
@@ -3085,6 +3197,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Proximity variables
     private let activationYBuffer: CGFloat = 80
     private let exactTriggerPadding: CGFloat = 20
+<<<<<<< HEAD
     private let approachProgressUpdateInterval: TimeInterval = 1.0 / 30.0
     private let approachProgressDeltaThreshold: CGFloat = 0.02
     private let idleCompactionDelay: TimeInterval = 4.0
@@ -3092,6 +3205,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let clipboardWorkspaceActivationPollDebounce: TimeInterval = 0.7
     private let clipboardImmediatePollDebounce: TimeInterval = 0.25
 
+=======
+    private let mouseFastInterval: TimeInterval = 0.08
+    private let mouseOpenInterval: TimeInterval = 0.14
+    private let mouseApproachInterval: TimeInterval = 0.12
+    private let mouseNearInterval: TimeInterval = 0.25
+    private let mouseHardSleepInterval: TimeInterval = 0.45
+    private let idleCompactionDelay: TimeInterval = 4.0
+    
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard acquireSingleInstanceLock() else {
             activateExistingInstance()
@@ -3648,6 +3770,7 @@ private func makeStatusMenu() -> NSMenu {
         guard force || currentChangeCount != lastClipboardChangeCount else { return }
         lastClipboardChangeCount = currentChangeCount
 
+<<<<<<< HEAD
         let fileURLs = (pasteboard.readObjects(
             forClasses: [NSURL.self],
             options: [.urlReadingFileURLsOnly: true]
@@ -3657,6 +3780,39 @@ private func makeStatusMenu() -> NSMenu {
         let trimmedText: String?
         if fileURLs.isEmpty {
             trimmedText = cappedClipboardText(pasteboard.string(forType: .string))
+=======
+        let rawText = pasteboard.string(forType: .string)
+        let trimmedText = rawText?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let fileURLs = (pasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL] ?? [])
+        .filter(\.isFileURL)
+
+        guard (trimmedText?.isEmpty == false) || !fileURLs.isEmpty else { return }
+
+        let entry = ClipboardEntry(text: trimmedText, fileURLs: fileURLs)
+        guard model.clipboardItems.first?.signature != entry.signature else { return }
+
+        model.clipboardItems.removeAll { $0.signature == entry.signature }
+        model.clipboardItems.insert(entry, at: 0)
+        applyClipboardLimitIfNeeded()
+        persistClipboardHistory(model.clipboardItems)
+    }
+
+    private func refreshNowPlayingState() {
+        if let info = MPNowPlayingInfoCenter.default().nowPlayingInfo,
+           let title = info[MPMediaItemPropertyTitle] as? String,
+           !title.isEmpty {
+            model.currentTrack = title
+            model.currentArtist = (info[MPMediaItemPropertyArtist] as? String) ?? ""
+            if let rate = info[MPNowPlayingInfoPropertyPlaybackRate] as? Double {
+                model.isPlaying = rate > 0
+            } else {
+                model.isPlaying = true
+            }
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         } else {
             trimmedText = nil
         }
@@ -3762,6 +3918,7 @@ private func makeStatusMenu() -> NSMenu {
         updateProximityWakeWindowFrame()
     }
 
+<<<<<<< HEAD
     private func setupProximityWakeWindow() {
         guard proximityWakeWindow == nil else { return }
         let wake = ProximityWakeWindow(
@@ -3794,6 +3951,101 @@ private func makeStatusMenu() -> NSMenu {
             name: NSApplication.didChangeScreenParametersNotification,
             object: nil
         )
+=======
+    private func stopMousePolling() {
+        mouseTimer?.cancel()
+        mouseTimer = nil
+    }
+
+    private func startMousePolling() {
+        if mouseTimer != nil { return }
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.main)
+        timer.schedule(deadline: .now() + mousePollingInterval, repeating: mousePollingInterval, leeway: .milliseconds(140))
+        timer.setEventHandler { [weak self] in
+            self?.pollMouseLocation()
+        }
+        timer.resume()
+        mouseTimer = timer
+    }
+
+    private struct ProximityZones {
+        let notchRect: CGRect
+        let notchEdgeRect: CGRect
+        let approachRect: CGRect
+        let isHoveringEdge: Bool
+    }
+
+    private func makeProximityZones(screenRect: CGRect, point: NSPoint) -> ProximityZones {
+        let edge = settings.clampedNotchEdgeThickness
+        let isFileDrag = isDraggingFile()
+        let forceApproachForDrag = isFileDrag && settings.alwaysUseApproachWhenDraggingFile
+        let disableApproachForCurrentInput = settings.disableApproach && !forceApproachForDrag
+        let approachScale: CGFloat = forceApproachForDrag ? 2.0 : 1.0
+        let approachWidth = disableApproachForCurrentInput ? 0 : settings.clampedApproachWidth * approachScale
+        let approachHeight = disableApproachForCurrentInput ? 0 : settings.clampedApproachHeight * approachScale
+        let edgeNotchWidth = settings.effectiveNotchWidth
+        let edgeNotchHeight = settings.effectiveNotchHeight
+        let edgeNotchLeft = settings.hardwareNotchX
+
+        let notchRect = CGRect(
+            x: edgeNotchLeft,
+            y: screenRect.height - edgeNotchHeight,
+            width: edgeNotchWidth,
+            height: edgeNotchHeight
+        )
+        let notchEdgeRect = notchRect.insetBy(dx: -edge, dy: -edge)
+        let approachRect = CGRect(
+            x: notchEdgeRect.minX - approachWidth,
+            y: notchEdgeRect.minY - approachHeight,
+            width: notchEdgeRect.width + approachWidth * 2,
+            height: approachHeight
+        )
+        let isHoveringEdge = isPointInNotchEdge(point, notchRect: notchRect, edge: edge)
+
+        return ProximityZones(
+            notchRect: notchRect,
+            notchEdgeRect: notchEdgeRect,
+            approachRect: approachRect,
+            isHoveringEdge: isHoveringEdge
+        )
+    }
+
+    private func shouldTrack(point: NSPoint, zones: ProximityZones) -> Bool {
+        zones.isHoveringEdge || zones.approachRect.contains(point)
+    }
+
+    private func updateMousePollingInterval(for point: NSPoint, screenRect: CGRect, isTrackingZone: Bool, isHoveringEdge: Bool) {
+        let distanceToTop = screenRect.height - point.y
+        let edge = settings.clampedNotchEdgeThickness
+        let approachHeight = settings.disableApproach ? 0 : settings.clampedApproachHeight
+        let nearTopBand = distanceToTop <= (activationYBuffer + edge + approachHeight + 220)
+
+        let desiredInterval: TimeInterval
+        if model.isExpanded || model.isPinned {
+            desiredInterval = mouseOpenInterval
+        } else if isHoveringEdge {
+            desiredInterval = mouseFastInterval
+        } else if isTrackingZone {
+            desiredInterval = mouseApproachInterval
+        } else if nearTopBand {
+            desiredInterval = mouseNearInterval
+        } else {
+            desiredInterval = mouseHardSleepInterval
+        }
+
+        let targetInterval = (!model.isExpanded && model.expansionProgress > 0 && !model.isPinned)
+            ? min(desiredInterval, 0.05)
+            : desiredInterval
+
+        if targetInterval != mousePollingInterval {
+            mousePollingInterval = targetInterval
+            mouseTimer?.schedule(
+                deadline: .now() + mousePollingInterval,
+                repeating: mousePollingInterval,
+                leeway: .milliseconds(180)
+            )
+        }
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     }
 
     @objc private func handleScreenParametersChanged() {
@@ -3807,6 +4059,7 @@ private func makeStatusMenu() -> NSMenu {
               let screen = NSScreen.screens.first else { return }
         let screenRect = screen.frame
 
+<<<<<<< HEAD
         // proximityWakeWindow tracks notch edge + approach zone while island is closed.
         let shouldWakeTrackCursor =
             !model.isExpanded &&
@@ -3850,12 +4103,64 @@ private func makeStatusMenu() -> NSMenu {
         wake.setFrame(NSRect(x: originX, y: originY, width: totalWidth, height: totalHeight), display: false)
         if !wake.isVisible {
             wake.orderFrontRegardless()
+=======
+        let deltaX = abs(mouseX - lastMousePoint.x)
+        let deltaY = abs(mouseY - lastMousePoint.y)
+        let zones = makeProximityZones(screenRect: screenRect, point: globalPoint)
+        let isTrackingZone = shouldTrack(point: globalPoint, zones: zones)
+
+        if deltaX < 0.75 && deltaY < 0.75 && !model.isExpanded {
+            if (model.observedFileToast != nil || model.isToastDismissing) {
+                return
+            }
+
+            if !isTrackingZone, !model.isPinned, model.expansionProgress > 0 {
+                approachStartTime = nil
+                if let window = notchWindow {
+                    window.ignoresMouseEvents = true
+                    window.alphaValue = 1.0
+                }
+                withAnimation(settings.notchOpenAnimation) {
+                    model.expansionProgress = 0
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                    guard let self, !self.model.isExpanded, self.model.expansionProgress == 0 else { return }
+                    self.notchWindow?.alphaValue = 0.0
+                }
+            }
+            return
+        }
+        lastMousePoint = globalPoint
+
+        if suppressProximityUntilExit {
+            if isMouseWithinReopenZone(point: globalPoint, zones: zones) {
+                return
+            }
+            suppressProximityUntilExit = false
+        }
+
+        if model.isPinned {
+            return
+        }
+        updateMousePollingInterval(for: globalPoint, screenRect: screenRect, isTrackingZone: isTrackingZone, isHoveringEdge: zones.isHoveringEdge)
+
+        // Stay alive in hard-sleep mode so the app can wake proximity checks without an external monitor.
+        if !isTrackingZone && !model.isExpanded && model.expansionProgress == 0 && !model.isPinned {
+            return
+        }
+
+        if !model.isPinned && !model.isExpanded {
+            if !isTrackingZone {
+                return
+            }
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         }
         wake.updateTrackingGeometry(
             notchEdgeRect: edgeNotchRect.offsetBy(dx: -originX, dy: -originY),
             approachRect: approachRect.offsetBy(dx: -originX, dy: -originY)
         )
 
+<<<<<<< HEAD
         // If tracking geometry moves under a stationary cursor, AppKit may not
         // emit mouseEntered. Synthesize an activation check so notch-edge hover
         // reliably opens the island.
@@ -4002,6 +4307,16 @@ private func makeStatusMenu() -> NSMenu {
             isHoveringEdge: isHoveringEdge,
             isInsideNotch: isInsideNotch
         )
+=======
+        evaluateMouseCoordinates(globalPoint, zones: zones)
+    }
+
+    private func isMouseWithinReopenZone(point: NSPoint, zones: ProximityZones) -> Bool {
+        if settings.disableApproach {
+            return zones.isHoveringEdge
+        }
+        return zones.approachRect.contains(point)
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     }
 
     private func isPointInNotchEdge(_ point: NSPoint, notchRect: CGRect, edge: CGFloat) -> Bool {
@@ -4016,6 +4331,7 @@ private func makeStatusMenu() -> NSMenu {
     }
 
     private func scheduleHoverCloseIfNeeded() {
+<<<<<<< HEAD
         hoverCloseWorkItem?.cancel()
         hoverCloseWorkItem = nil
         hidePanel()
@@ -4040,6 +4356,28 @@ private func makeStatusMenu() -> NSMenu {
     private func handleIslandOpenMousePollTick() {
         guard model.isExpanded, !model.isPinned, let window = islandWindow else {
             stopIslandOpenMousePolling()
+=======
+        if hoverCloseWorkItem != nil {
+            return
+        }
+        let delay = settings.hoverCloseDelay
+        if delay <= 0 {
+            hidePanel()
+            return
+        }
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.hoverCloseWorkItem = nil
+            self.hidePanel()
+        }
+        hoverCloseWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+    
+    private func evaluateMouseCoordinates(_ globalPoint: NSPoint, zones: ProximityZones) {
+        guard let screen = NSScreen.screens.first, let window = notchWindow else { return }
+        if (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded {
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
             return
         }
         let point = NSEvent.mouseLocation
@@ -4049,6 +4387,7 @@ private func makeStatusMenu() -> NSMenu {
         if now - lastPanelExpandedAt < 0.45 {
             return
         }
+<<<<<<< HEAD
 
         if window.frame.contains(point) || isPointInsideNotchActivationZone(point) {
             return
@@ -4103,6 +4442,60 @@ private func makeStatusMenu() -> NSMenu {
         if isInsideActiveZone {
             hoverCloseWorkItem?.cancel()
             hoverCloseWorkItem = nil
+=======
+        lastMouseEvaluationTime = now
+        
+        let mouseY = globalPoint.y
+
+        let notchEdgeRect = zones.notchEdgeRect
+        let isDirectHoverOverNotch = zones.isHoveringEdge
+        let approachRect = zones.approachRect
+        let isFileDrag = isDraggingFile()
+        let forceApproachForDrag = isFileDrag && settings.alwaysUseApproachWhenDraggingFile
+        let disableApproachForCurrentInput = settings.disableApproach && !forceApproachForDrag
+        let approachHeight = max(0, approachRect.height)
+        let isWithinExpandedPanel = window.frame.contains(globalPoint)
+
+        if disableApproachForCurrentInput {
+            if model.isPinned {
+                showPanel(expanded: true, pinned: true)
+                return
+            }
+            if model.isExpanded {
+                if isWithinExpandedPanel || isDirectHoverOverNotch {
+                    hoverCloseWorkItem?.cancel()
+                    hoverCloseWorkItem = nil
+                    return
+                }
+                scheduleHoverCloseIfNeeded()
+                return
+            }
+            if isDirectHoverOverNotch {
+                let isFileDrag = isDraggingFile()
+                let preferredPage = isFileDrag ? IslandPage.box.rawValue : nil
+                showPanel(expanded: true, pinned: false, preferredPage: preferredPage)
+            }
+            return
+        }
+
+        if !model.isPinned && !model.isExpanded {
+            if !(approachRect.contains(globalPoint) || zones.isHoveringEdge) {
+                approachStartTime = nil
+                hidePanel()
+                return
+            }
+            if !zones.isHoveringEdge {
+                if approachStartTime == nil {
+                    approachStartTime = now
+                }
+                let elapsed = now - (approachStartTime ?? now)
+                if elapsed < settings.approachDelay {
+                    return
+                }
+            } else {
+                approachStartTime = nil
+            }
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         }
 
         if model.isPinned {
@@ -4115,11 +4508,34 @@ private func makeStatusMenu() -> NSMenu {
             if isWithinExpandedPanel || zones.isInsideNotch || zones.isHoveringEdge {
                 hoverCloseWorkItem?.cancel()
                 hoverCloseWorkItem = nil
+<<<<<<< HEAD
             } else {
                 scheduleHoverCloseIfNeeded()
+=======
+                return
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
             }
             return
         }
+<<<<<<< HEAD
+=======
+        
+        if approachRect.contains(globalPoint) || zones.isHoveringEdge {
+            let totalHeight = max(1, approachHeight)
+            let distance = max(0, notchEdgeRect.minY - mouseY)
+            let baseProgress = min(1.0, max(0.0, 1.0 - (distance / totalHeight)))
+            let targetProgress = zones.isHoveringEdge ? 1.0 : baseProgress
+            if abs(model.expansionProgress - targetProgress) > 0.01 {
+                model.expansionProgress = targetProgress
+            }
+            if window.alphaValue != 1.0 {
+                window.alphaValue = 1.0
+            }
+            let shouldIgnoreMouseEvents = !(isFileDrag && approachRect.contains(globalPoint))
+            if window.ignoresMouseEvents != shouldIgnoreMouseEvents {
+                window.ignoresMouseEvents = shouldIgnoreMouseEvents
+            }
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
 
         let isDirectHoverOverNotch = zones.isInsideNotch || zones.isHoveringEdge
         let forceApproachForDrag = isFileDrag && settings.alwaysUseApproachWhenDraggingFile
@@ -4173,6 +4589,7 @@ private func makeStatusMenu() -> NSMenu {
 
     private func showPanel(expanded: Bool, pinned: Bool, preferredPage: Int? = nil) {
         guard let window = islandWindow else { return }
+<<<<<<< HEAD
 
         if expanded {
             panelVisibilityEpoch &+= 1
@@ -4219,6 +4636,8 @@ private func makeStatusMenu() -> NSMenu {
             return
         }
 
+=======
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         cancelIdleCompaction()
         pendingHideWorkItem?.cancel()
         pendingHideWorkItem = nil
@@ -4316,6 +4735,7 @@ private func makeStatusMenu() -> NSMenu {
             guard self.panelVisibilityEpoch == hideEpoch else { return }
             window.alphaValue = 0.0
             window.ignoresMouseEvents = true
+<<<<<<< HEAD
             window.orderOut(nil)
             self.clearCursorPresenceState()
             self.model.expansionProgress = 0
@@ -4396,6 +4816,40 @@ private func makeStatusMenu() -> NSMenu {
         if !model.isExpanded && !model.isPinned {
             model.carouselDragOffset = 0
             model.closeGestureProgress = 0
+=======
+            self.scheduleIdleCompactionIfNeeded()
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
+        }
+    }
+
+    private func cancelIdleCompaction() {
+        idleCompactionWorkItem?.cancel()
+        idleCompactionWorkItem = nil
+    }
+
+    private func scheduleIdleCompactionIfNeeded() {
+        cancelIdleCompaction()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            guard !self.model.isExpanded,
+                  !self.model.isPinned,
+                  self.model.observedFileToast == nil,
+                  !self.model.isToastDismissing,
+                  !(self.settings.showHoverPreviews && self.settings.hoverPreviewFocus != .all) else {
+                return
+            }
+            self.performIdleCompaction()
+        }
+        idleCompactionWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + idleCompactionDelay, execute: workItem)
+    }
+
+    private func performIdleCompaction() {
+        BoxIconCache.shared.removeAll()
+        if !model.isExpanded && !model.isPinned {
+            model.carouselDragOffset = 0
+            model.closeGestureProgress = 0
+            approachStartTime = nil
         }
     }
 
@@ -4576,6 +5030,7 @@ private func makeStatusMenu() -> NSMenu {
 
     func applicationWillTerminate(_ notification: Notification) {
         cancelIdleCompaction()
+<<<<<<< HEAD
         stopIslandOpenMousePolling()
         stopClipboardObservation()
         settings.flushPendingWrites()
@@ -4587,6 +5042,11 @@ private func makeStatusMenu() -> NSMenu {
             NSWorkspace.shared.notificationCenter.removeObserver(clipboardActivationObserver)
             self.clipboardActivationObserver = nil
         }
+=======
+        stopMousePolling()
+        clipboardTimer?.cancel()
+        nowPlayingTimer?.invalidate()
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         memoryPressureSource?.cancel()
         memoryPressureSource = nil
         for monitor in folderMonitors.values {
@@ -5210,12 +5670,33 @@ struct UnifiedNotchContainer: View {
     @State private var isNotchFileDropTargeted = false
     @State private var isBoxDropTargeted = false
     @State private var selectedBoxFileIDs = Set<UUID>()
+<<<<<<< HEAD
     @State private var boxPreviewImages: [URL: NSImage] = [:]
     @State private var boxPreviewLoadingURLs = Set<URL>()
     @State private var boxPreviewLRU: [URL] = []
     @State private var visibleBoxPreviewURLs = Set<URL>()
     @State private var pendingBoxPreviewRemovalWorkItems: [URL: DispatchWorkItem] = [:]
     @State private var pendingSharedPreviewTrimWorkItem: DispatchWorkItem?
+=======
+    @State private var isHoveringNotch = false
+    @State private var clipboardScrollOffset: CGFloat = 0
+    @State private var clipboardContentHeight: CGFloat = 0
+    @State private var clipboardViewportHeight: CGFloat = 0
+    @State private var jotScrollOffset: CGFloat = 0
+    @State private var jotContentHeight: CGFloat = 0
+    @State private var jotViewportHeight: CGFloat = 0
+    @State private var boxScrollOffset: CGFloat = 0
+    @State private var boxContentHeight: CGFloat = 0
+    @State private var boxViewportHeight: CGFloat = 0
+    @State private var jotEditorScrollOffset: CGFloat = 0
+    @State private var jotEditorContentHeight: CGFloat = 0
+    @State private var jotEditorViewportHeight: CGFloat = 0
+    @State private var jotEditorAtBottom = false
+    @State private var boxPreviewImages: [URL: NSImage] = [:]
+    @State private var boxPreviewLoadingURLs = Set<URL>()
+    @State private var clipboardFilePreviews: [String: NSImage] = [:]
+    @State private var clipboardFilePreviewLoadingPaths = Set<String>()
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     @State private var showShapeHandles = false
     private let maxBoxPreviewCount = 64
     private let retainedInvisibleBoxPreviewCount = 12
@@ -5229,6 +5710,52 @@ struct UnifiedNotchContainer: View {
             value = nextValue()
         }
     }
+<<<<<<< HEAD
+=======
+
+    private let scrollBottomTolerance: CGFloat = 24
+
+    private func isAtScrollBottom(scrollOffset: CGFloat, contentHeight: CGFloat, viewportHeight: CGFloat) -> Bool {
+        if contentHeight <= viewportHeight { return true }
+        return (scrollOffset + viewportHeight) >= (contentHeight - scrollBottomTolerance)
+    }
+
+    private var clipboardCanCloseFromSwipe: Bool {
+        model.clipboardItems.isEmpty || isAtScrollBottom(scrollOffset: clipboardScrollOffset, contentHeight: clipboardContentHeight, viewportHeight: clipboardViewportHeight)
+    }
+
+    private var boxCanCloseFromSwipe: Bool {
+        isAtScrollBottom(scrollOffset: boxScrollOffset, contentHeight: boxContentHeight, viewportHeight: boxViewportHeight)
+    }
+
+    private var jotCanCloseFromSwipe: Bool {
+        model.jotNotes.isEmpty || isAtScrollBottom(scrollOffset: jotScrollOffset, contentHeight: jotContentHeight, viewportHeight: jotViewportHeight)
+    }
+
+    private var jotEditorCanCloseFromSwipe: Bool {
+        jotEditorAtBottom
+    }
+
+    private var canCloseFromVerticalSwipe: Bool {
+        guard model.isExpanded, !model.isPinned else { return false }
+        switch model.currentPage {
+        case IslandPage.clipboard.rawValue:
+            return clipboardCanCloseFromSwipe
+        case IslandPage.nowPlaying.rawValue:
+            return model.activeJotID != nil ? jotEditorCanCloseFromSwipe : jotCanCloseFromSwipe
+        case IslandPage.box.rawValue:
+            return model.boxFiles.isEmpty || boxCanCloseFromSwipe
+        default:
+            return true
+        }
+    }
+
+    private func syncVerticalSwipeGate() {
+        let newValue = canCloseFromVerticalSwipe
+        guard model.canCloseFromVerticalSwipe != newValue else { return }
+        model.canCloseFromVerticalSwipe = newValue
+    }
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
 
     private func updateCloseProgress(_ progress: CGFloat, animate: Bool) {
         let clamped = max(0, min(1, progress))
@@ -5252,6 +5779,64 @@ struct UnifiedNotchContainer: View {
         }
     }
 
+<<<<<<< HEAD
+=======
+    private func updateClipboardScrollGate(scrollOffset: CGFloat, contentHeight: CGFloat, viewportHeight: CGFloat) {
+        let didChange = abs(clipboardScrollOffset - scrollOffset) > 0.5
+            || abs(clipboardContentHeight - contentHeight) > 0.5
+            || abs(clipboardViewportHeight - viewportHeight) > 0.5
+        guard didChange else { return }
+        DispatchQueue.main.async {
+            clipboardScrollOffset = scrollOffset
+            clipboardContentHeight = contentHeight
+            clipboardViewportHeight = viewportHeight
+            syncVerticalSwipeGate()
+        }
+    }
+
+    private func updateJotScrollGate(scrollOffset: CGFloat, contentHeight: CGFloat, viewportHeight: CGFloat) {
+        let didChange = abs(jotScrollOffset - scrollOffset) > 0.5
+            || abs(jotContentHeight - contentHeight) > 0.5
+            || abs(jotViewportHeight - viewportHeight) > 0.5
+        guard didChange else { return }
+        DispatchQueue.main.async {
+            jotScrollOffset = scrollOffset
+            jotContentHeight = contentHeight
+            jotViewportHeight = viewportHeight
+            syncVerticalSwipeGate()
+        }
+    }
+
+    private func updateBoxScrollGate(scrollOffset: CGFloat, contentHeight: CGFloat, viewportHeight: CGFloat) {
+        let didChange = abs(boxScrollOffset - scrollOffset) > 0.5
+            || abs(boxContentHeight - contentHeight) > 0.5
+            || abs(boxViewportHeight - viewportHeight) > 0.5
+        guard didChange else { return }
+        DispatchQueue.main.async {
+            boxScrollOffset = scrollOffset
+            boxContentHeight = contentHeight
+            boxViewportHeight = viewportHeight
+            syncVerticalSwipeGate()
+        }
+    }
+
+    private func updateJotEditorScrollGate(scrollOffset: CGFloat, contentHeight: CGFloat, viewportHeight: CGFloat) {
+        let nextAtBottom = isAtScrollBottom(scrollOffset: scrollOffset, contentHeight: contentHeight, viewportHeight: viewportHeight)
+        let didChange = abs(jotEditorScrollOffset - scrollOffset) > 0.5
+            || abs(jotEditorContentHeight - contentHeight) > 0.5
+            || abs(jotEditorViewportHeight - viewportHeight) > 0.5
+            || jotEditorAtBottom != nextAtBottom
+        guard didChange else { return }
+        DispatchQueue.main.async {
+            jotEditorScrollOffset = scrollOffset
+            jotEditorContentHeight = contentHeight
+            jotEditorViewportHeight = viewportHeight
+            jotEditorAtBottom = nextAtBottom
+            syncVerticalSwipeGate()
+        }
+    }
+
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     private func closeNotchFromSwipe() {
         if let delegate = NSApp.delegate as? AppDelegate {
             delegate.closeNotchFromSwipe()
@@ -5358,7 +5943,11 @@ struct UnifiedNotchContainer: View {
         let closeOffset = -44 * closeEase
         let closeScale = 1 - (0.14 * closeEase)
         let shouldRenderExpandedContent = model.isExpanded || model.isPinned
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         ZStack(alignment: .top) {
             // Overlay previews so they don't impact the measured height of the island body
             if settings.showHoverPreviews {
@@ -5456,7 +6045,11 @@ struct UnifiedNotchContainer: View {
                             }
 
                             if shouldRenderExpandedContent && contentProgress > 0.01 {
+<<<<<<< HEAD
                                 globalTitleOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
+=======
+                                globalTitleOverlay(islandWidth: islandWidth, islandHeight: islandHeight)
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
                                     .opacity(contentProgress)
                                 globalControlsOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
                                     .opacity(contentProgress)
@@ -5468,6 +6061,7 @@ struct UnifiedNotchContainer: View {
                         .padding(.top, 0) // PULLED FLUSH
 
                         if shouldRenderExpandedContent && contentProgress > 0.01 {
+<<<<<<< HEAD
                             HStack(spacing: 0) {
                                 ForEach(0..<3) { index in
                                     Group {
@@ -5478,11 +6072,39 @@ struct UnifiedNotchContainer: View {
                                             case 2: boxPage
                                             default: EmptyView()
                                             }
+=======
+                            GeometryReader { geo in
+                                let pageWidth = safeDimension(geo.size.width, fallback: 1)
+                                HStack(spacing: 0) {
+                                    Group {
+                                        if shouldRenderPage(IslandPage.clipboard.rawValue) {
+                                            clipboardPage
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
                                         } else {
                                             Color.clear
                                         }
                                     }
+<<<<<<< HEAD
                                     .frame(width: panelWidth)
+=======
+                                    .frame(width: pageWidth)
+                                    Group {
+                                        if shouldRenderPage(IslandPage.nowPlaying.rawValue) {
+                                            sidebarPage
+                                        } else {
+                                            Color.clear
+                                        }
+                                    }
+                                    .frame(width: pageWidth)
+                                    Group {
+                                        if shouldRenderPage(IslandPage.box.rawValue) {
+                                            boxPage
+                                        } else {
+                                            Color.clear
+                                        }
+                                    }
+                                    .frame(width: pageWidth)
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
                                 }
                             }
                             .frame(width: panelWidth, height: contentAreaHeight, alignment: .leading)
@@ -5571,6 +6193,24 @@ struct UnifiedNotchContainer: View {
             if !expanded {
                 unloadCollapsedPageState()
             }
+        }
+<<<<<<< HEAD
+        .onReceive(model.$boxFiles) { files in
+            pruneBoxPreviewState(keeping: files.map(\.url))
+=======
+        .onReceive(model.$isExpanded) { expanded in
+            if !expanded {
+                selectedBoxFileIDs.removeAll()
+                highlightedClipboardID = nil
+            }
+            syncVerticalSwipeGate()
+        }
+        .onReceive(model.$isPinned) { _ in
+            syncVerticalSwipeGate()
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
+        }
+        .onReceive(model.$clipboardItems) { items in
+            pruneClipboardPreviewState(keeping: items)
         }
         .onReceive(model.$boxFiles) { files in
             pruneBoxPreviewState(keeping: files.map(\.url))
@@ -5697,6 +6337,7 @@ struct UnifiedNotchContainer: View {
             }
     }
 
+<<<<<<< HEAD
     private func setPageFromCarousel(_ page: Int) {
         let nextPage = clamp(page, min: IslandPage.clipboard.rawValue, max: IslandPage.box.rawValue)
         model.carouselDragOffset = 0
@@ -5829,6 +6470,18 @@ struct UnifiedNotchContainer: View {
         pendingBoxPreviewRemovalWorkItems.removeAll()
         visibleBoxPreviewURLs.removeAll()
         boxPreviewLoadingURLs.removeAll()
+=======
+    private func shouldRenderPage(_ index: Int) -> Bool {
+        if abs(model.carouselDragOffset) > 1 {
+            if model.carouselDragOffset < 0 {
+                return index == model.currentPage || index == min(IslandPage.box.rawValue, model.currentPage + 1)
+            }
+            if model.carouselDragOffset > 0 {
+                return index == model.currentPage || index == max(IslandPage.clipboard.rawValue, model.currentPage - 1)
+            }
+        }
+        return index == model.currentPage
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     }
 
     private func emptyDismissableScrollView<Content: View>(
@@ -5997,6 +6650,7 @@ struct UnifiedNotchContainer: View {
             .padding(.horizontal, 8)
         }
     }
+<<<<<<< HEAD
 
     /// Flat, allocation-light tile. Multi-item clipboard entries render a
     /// single SF Symbol plus a count instead of per-file thumbnails, so a
@@ -6126,8 +6780,273 @@ struct UnifiedNotchContainer: View {
             BoxIconCache.shared.requestDisplayImage(for: url, targetSize: targetSize) { image in
                 isLoadingPreview = false
                 loadedPreview = image
+=======
+    
+    private func clipboardCell(_ item: ClipboardEntry) -> some View {
+        let isHighlighted = highlightedClipboardID == item.id
+        let accentColor = Color(settings.accentColor)
+        return Button {
+            copyClipboard(item)
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                clipboardCellContent(item)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, minHeight: 60, alignment: .topLeading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .center) {
+            if item.isTextOnly {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(accentColor.opacity(0.85), lineWidth: 1.2)
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
             }
         }
+        .overlay(alignment: .center) {
+            if isHighlighted {
+                ClipboardTapFeedbackGlyph(color: .green, progress: clipboardTapFeedbackProgress)
+            }
+        }
+    }
+
+    private struct ClipboardTapFeedbackGlyph: View {
+        let color: Color
+        let progress: CGFloat
+
+        var body: some View {
+            let p = max(0, min(1, progress))
+            ZStack {
+                Circle()
+                    .trim(from: 0, to: p)
+                    .stroke(color.opacity(0.95), style: StrokeStyle(lineWidth: 1.8, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+
+                Image(systemName: "clipboard")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(color.opacity(0.98))
+                    .mask(alignment: .leading) {
+                        Rectangle()
+                            .frame(width: max(1, 18 * p))
+                    }
+                    .opacity(0.6 + 0.4 * p)
+            }
+            .frame(width: 30, height: 30)
+            .scaleEffect(0.85 + 0.15 * p)
+        }
+    }
+
+    @ViewBuilder
+    private func clipboardCellContent(_ item: ClipboardEntry) -> some View {
+        if item.hasFiles {
+            let urls = item.fileURLs
+            if urls.count == 1, let fileURL = urls.first {
+                clipboardSingleFileContent(fileURL)
+            } else {
+                clipboardMultiFileContent(item)
+            }
+        } else {
+            Text(item.normalizedText)
+                .font(.caption)
+                .foregroundColor(.white)
+                .lineLimit(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func clipboardSingleFileContent(_ fileURL: URL) -> some View {
+        let preview = clipboardFilePreviews[fileURL.path]
+        let fileName = fileURL.lastPathComponent
+
+        return VStack(alignment: .leading, spacing: 8) {
+            clipboardSingleVisual(for: fileURL, preview: preview)
+            .onAppear {
+                requestClipboardFilePreviewIfNeeded(for: fileURL)
+            }
+
+            Text(fileName)
+                .font(.caption)
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+
+    private func clipboardMultiFileContent(_ item: ClipboardEntry) -> some View {
+        let summary = clipboardMultiItemSummary(for: item.fileURLs)
+        let previewURLs = Array(item.fileURLs.prefix(4))
+        let folderNamesLine = clipboardJoinedFolderNames(for: item.fileURLs)
+        let showFolderNames = !folderNamesLine.isEmpty
+        let compactFolderStyle = summary == "Multiple folders"
+        return VStack(alignment: .leading, spacing: compactFolderStyle ? 4 : 8) {
+            clipboardMultiVisualGrid(urls: previewURLs)
+                .onAppear {
+                    for url in previewURLs {
+                        requestClipboardFilePreviewIfNeeded(for: url)
+                    }
+                }
+
+            Text(summary)
+                .font(.caption)
+                .foregroundColor(.white)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            if showFolderNames {
+                Text(folderNamesLine)
+                    .font(compactFolderStyle ? .system(size: 10, weight: .regular) : .caption2)
+                    .foregroundColor(.white.opacity(0.7))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+        }
+    }
+
+    private func clipboardJoinedFolderNames(for urls: [URL]) -> String {
+        let names = urls.filter(isDirectoryURL(_:)).map { url in
+            let name = url.lastPathComponent.trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty ? url.path : name
+        }
+        return names.joined(separator: ", ")
+    }
+
+    @ViewBuilder
+    private func clipboardSingleVisual(for url: URL, preview: NSImage?) -> some View {
+        if let preview {
+            let fitted = fittedBoxPreviewSize(for: preview, maxDimension: 84)
+            Image(nsImage: preview)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: fitted.width, height: fitted.height)
+                .frame(maxWidth: .infinity, alignment: .center)
+        } else {
+            Image(systemName: clipboardFileSymbol(for: url))
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundColor(.white.opacity(0.82))
+                .frame(maxWidth: .infinity, minHeight: 46, alignment: .center)
+        }
+    }
+
+    private func clipboardMultiVisualGrid(urls: [URL]) -> some View {
+        let columns = [
+            GridItem(.flexible(minimum: 0, maximum: .infinity), spacing: 4),
+            GridItem(.flexible(minimum: 0, maximum: .infinity), spacing: 4)
+        ]
+        return LazyVGrid(columns: columns, spacing: 4) {
+            ForEach(0..<4, id: \.self) { index in
+                if index < urls.count {
+                    clipboardMultiVisualCell(url: urls[index])
+                } else {
+                    Color.clear
+                        .frame(height: 34)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func clipboardMultiVisualCell(url: URL) -> some View {
+        if let preview = clipboardFilePreviews[url.path] {
+            Image(nsImage: preview)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(maxWidth: .infinity, minHeight: 34, maxHeight: 34)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        } else {
+            Image(systemName: clipboardFileSymbol(for: url))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.white.opacity(0.8))
+                .frame(maxWidth: .infinity, minHeight: 34, maxHeight: 34)
+        }
+    }
+
+    private func clipboardMultiItemSummary(for urls: [URL]) -> String {
+        var folderCount = 0
+        var fileCount = 0
+        for url in urls {
+            if isDirectoryURL(url) {
+                folderCount += 1
+            } else {
+                fileCount += 1
+            }
+        }
+
+        if folderCount > 0 && fileCount > 0 {
+            return "Multiple folders and files"
+        }
+        if folderCount > 1 {
+            return "Multiple folders"
+        }
+        if fileCount > 1 {
+            return "Multiple files"
+        }
+        if folderCount == 1 {
+            return "Folder"
+        }
+        if fileCount == 1 {
+            return "File"
+        }
+        return "Multiple items"
+    }
+
+    private func clipboardTypeDescription(for url: URL) -> String {
+        let values = try? url.resourceValues(forKeys: [.localizedTypeDescriptionKey])
+        if let desc = values?.localizedTypeDescription, !desc.isEmpty {
+            return desc
+        }
+        let ext = url.pathExtension
+        return ext.isEmpty ? "File" : ext.uppercased()
+    }
+
+    private func clipboardFileSymbol(for url: URL) -> String {
+        if isDirectoryURL(url) {
+            return "folder"
+        }
+        switch url.pathExtension.lowercased() {
+        case "png", "jpg", "jpeg", "heic", "heif", "gif", "tif", "tiff", "bmp", "webp", "avif":
+            return "photo"
+        case "mp4", "mov", "m4v", "avi", "mkv", "wmv", "webm", "mpeg", "mpg", "3gp", "ts", "m2ts":
+            return "video"
+        case "pdf":
+            return "doc.richtext"
+        case "zip", "rar", "7z", "tar", "gz":
+            return "archivebox"
+        default:
+            return "doc"
+        }
+    }
+
+    private func isDirectoryURL(_ url: URL) -> Bool {
+        let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
+        return values?.isDirectory == true
+    }
+
+    private func requestClipboardFilePreviewIfNeeded(for url: URL) {
+        guard BoxIconCache.shared.shouldAttemptPreview(for: url) else { return }
+        guard clipboardFilePreviews[url.path] == nil else { return }
+        guard !clipboardFilePreviewLoadingPaths.contains(url.path) else { return }
+
+        clipboardFilePreviewLoadingPaths.insert(url.path)
+        DispatchQueue.global(qos: .utility).async {
+            let preview = BoxIconCache.shared.displayImage(for: url, targetSize: 180)
+            DispatchQueue.main.async {
+                clipboardFilePreviewLoadingPaths.remove(url.path)
+                clipboardFilePreviews[url.path] = preview
+            }
+        }
+    }
+
+    private func pruneClipboardPreviewState(keeping items: [ClipboardEntry]) {
+        let keepPaths = Set(items.flatMap { $0.filePaths })
+        clipboardFilePreviews = clipboardFilePreviews.filter { keepPaths.contains($0.key) }
+        clipboardFilePreviewLoadingPaths = Set(clipboardFilePreviewLoadingPaths.filter { keepPaths.contains($0) })
     }
 
     fileprivate struct ClipboardTapFeedbackGlyph: View {
@@ -6294,11 +7213,20 @@ struct UnifiedNotchContainer: View {
 
     private func jotCard(_ note: JotNote, cellWidth: CGFloat) -> some View {
         let accentColor = Color(settings.accentColor)
+<<<<<<< HEAD
         return JotNoteCardView(
             note: note,
             accentColor: accentColor,
             previewText: jotNotePreview(note),
             textSize: settings.jotTextSize,
+=======
+        let cardHeight = estimatedJotCardHeight(for: note, cellWidth: cellWidth)
+        return JotNoteCardView(
+            note: note,
+            cardHeight: cardHeight,
+            accentColor: accentColor,
+            previewText: jotNotePreview(note),
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
             isEmpty: note.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
             onOpen: {
                 model.activeJotID = note.id
@@ -6314,15 +7242,24 @@ struct UnifiedNotchContainer: View {
         )
     }
 
+<<<<<<< HEAD
     private struct JotNoteCardView: View, Equatable {
         let note: JotNote
         let accentColor: Color
         let previewText: String
         let textSize: CGFloat
+=======
+    private struct JotNoteCardView: View {
+        let note: JotNote
+        let cardHeight: CGFloat
+        let accentColor: Color
+        let previewText: String
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         let isEmpty: Bool
         let onOpen: () -> Void
         let onDelete: () -> Void
 
+<<<<<<< HEAD
         static func == (lhs: JotNoteCardView, rhs: JotNoteCardView) -> Bool {
             lhs.note.id == rhs.note.id &&
             lhs.note.updatedAt == rhs.note.updatedAt &&
@@ -6330,12 +7267,16 @@ struct UnifiedNotchContainer: View {
             lhs.textSize == rhs.textSize &&
             lhs.isEmpty == rhs.isEmpty
         }
+=======
+        @State private var isHovering = false
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
 
         var body: some View {
             ZStack(alignment: .topTrailing) {
                 Button(action: onOpen) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(previewText)
+<<<<<<< HEAD
                             .font(.system(size: max(11, textSize)))
                             .fontWeight(isEmpty ? .regular : .semibold)
                             .foregroundColor(.white)
@@ -6346,6 +7287,16 @@ struct UnifiedNotchContainer: View {
                     .padding(10)
                     .frame(maxWidth: .infinity, minHeight: 72, alignment: .topLeading)
                     .contentShape(Rectangle())
+=======
+                            .font(.subheadline)
+                            .fontWeight(isEmpty ? .regular : .semibold)
+                            .foregroundColor(.white)
+                            .lineLimit(2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, minHeight: cardHeight, alignment: .topLeading)
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
                     .background(Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -6354,6 +7305,7 @@ struct UnifiedNotchContainer: View {
                 }
                 .buttonStyle(.plain)
 
+<<<<<<< HEAD
                 Button(action: onDelete) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.white.opacity(0.7))
@@ -6362,6 +7314,21 @@ struct UnifiedNotchContainer: View {
                 }
                 .buttonStyle(.plain)
                 .padding(6)
+=======
+                if isHovering {
+                    Button(action: onDelete) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.white)
+                            .background(Circle().fill(Color.black.opacity(0.5)))
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(6)
+                }
+            }
+            .onHover { hovering in
+                isHovering = hovering
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
             }
         }
     }
@@ -6729,8 +7696,12 @@ struct UnifiedNotchContainer: View {
         private func scheduleHostingViewFrameUpdate(_ hostingView: NSHostingView<Content>, in scrollView: NSScrollView) {
             DispatchQueue.main.async {
                 let hostingWidth = safeDimension(scrollView.contentSize.width, fallback: 1)
+<<<<<<< HEAD
                 let intrinsicHeight = hostingView.intrinsicContentSize.height
                 let hostingHeight = safeDimension(intrinsicHeight, fallback: max(1, scrollView.contentSize.height))
+=======
+                let hostingHeight = safeDimension(hostingView.fittingSize.height, fallback: 1)
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
                 let currentSize = hostingView.frame.size
                 if abs(currentSize.width - hostingWidth) < 0.5,
                    abs(currentSize.height - hostingHeight) < 0.5 {
@@ -6743,6 +7714,7 @@ struct UnifiedNotchContainer: View {
 
     // MARK: - Box Page
     private var boxPage: some View {
+<<<<<<< HEAD
         boxPageWithWidth(scaledPanelWidth(for: settings), height: scaledPanelHeight(for: settings) - settings.effectiveNotchHeight)
     }
 
@@ -6755,6 +7727,74 @@ struct UnifiedNotchContainer: View {
                     Image(systemName: "shippingbox.fill")
                         .font(.system(size: min(safeW, safeH) * 0.22, weight: .semibold))
                         .foregroundColor(.brown.opacity(0.55))
+=======
+        GeometryReader { geo in
+            let w = safeDimension(geo.size.width, fallback: 1)
+            let h = safeDimension(geo.size.height, fallback: 1)
+            let safeW = max(1, w)
+            let safeH = max(1, h)
+            VStack(spacing: 10) {
+                Group {
+                    if model.boxFiles.isEmpty {
+                        Image(systemName: "shippingbox.fill")
+                            .font(.system(size: min(safeW, safeH) * 0.22, weight: .semibold))
+                            .foregroundColor(.brown.opacity(0.55))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    } else {
+                        let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 5)
+                        let maxSize = max(1, min((safeW - 16) / 5, safeH * 0.38))
+                        ScrollView(.vertical, showsIndicators: true) {
+                            LazyVGrid(columns: columns, spacing: 2) {
+                                ForEach(model.boxFiles) { file in
+                                    boxItemView(file: file, maxSize: maxSize)
+                                }
+                            }
+                            .frame(width: w, alignment: .center)
+                            .background(
+                                GeometryReader { proxy in
+                                    Color.clear
+                                        .preference(key: BoxContentHeightKey.self, value: proxy.size.height)
+                                }
+                            )
+                            .overlay(alignment: .top) {
+                                GeometryReader { proxy in
+                                    Color.clear
+                                        .preference(
+                                            key: BoxScrollOffsetKey.self,
+                                            value: max(0, -proxy.frame(in: .named("BoxScrollView")).minY)
+                                        )
+                                }
+                            }
+                        }
+                        .coordinateSpace(name: "BoxScrollView")
+                        .background(
+                            GeometryReader { proxy in
+                                Color.clear
+                                    .preference(key: BoxViewportHeightKey.self, value: proxy.size.height)
+                            }
+                        )
+                        .onPreferenceChange(BoxScrollOffsetKey.self) { offset in
+                            updateBoxScrollGate(
+                                scrollOffset: offset,
+                                contentHeight: boxContentHeight,
+                                viewportHeight: boxViewportHeight
+                            )
+                        }
+                        .onPreferenceChange(BoxContentHeightKey.self) { contentHeight in
+                            updateBoxScrollGate(
+                                scrollOffset: boxScrollOffset,
+                                contentHeight: contentHeight,
+                                viewportHeight: boxViewportHeight
+                            )
+                        }
+                        .onPreferenceChange(BoxViewportHeightKey.self) { viewportHeight in
+                            updateBoxScrollGate(
+                                scrollOffset: boxScrollOffset,
+                                contentHeight: boxContentHeight,
+                                viewportHeight: viewportHeight
+                            )
+                        }
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 } else {
                     let columnCount = max(1, settings.boxColumns)
@@ -6778,6 +7818,7 @@ struct UnifiedNotchContainer: View {
     }
 
     private func boxItemView(file: BoxFile, maxSize: CGFloat) -> some View {
+<<<<<<< HEAD
         return SafeCachedBoxItemView(
             file: file,
             maxSize: maxSize,
@@ -6786,6 +7827,41 @@ struct UnifiedNotchContainer: View {
             showBoxFileNames: settings.showBoxFileNames,
             fileNameSize: settings.boxFileNameSize,
             onRemove: {
+=======
+        let size = max(1, maxSize)
+        let preview = boxPreviewImages[file.url]
+        let previewSize = preview.map { fittedBoxPreviewSize(for: $0, maxDimension: size) } ?? CGSize(width: size, height: size)
+        let isSelected = selectedBoxFileIDs.contains(file.id)
+        return ZStack(alignment: .topLeading) {
+            VStack(spacing: 6) {
+                Group {
+                    if let preview {
+                        BoxIconView(nsImage: preview)
+                    } else {
+                        BoxPreviewPlaceholder(isLoading: boxPreviewLoadingURLs.contains(file.url))
+                    }
+                }
+                    .frame(width: previewSize.width, height: previewSize.height)
+                if settings.showBoxFileNames {
+                    VStack(spacing: 4) {
+                        Text(file.url.lastPathComponent)
+                            .font(.caption2)
+                            .foregroundColor(.white)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+
+                        if isSelected {
+                            Capsule()
+                                .fill(Color(settings.accentColor))
+                                .frame(width: max(12, previewSize.width * 0.7), height: 2)
+                        }
+                    }
+                    .frame(width: previewSize.width + 6)
+                }
+            }
+
+            HoverRemoveButton {
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
                 DispatchQueue.main.async {
                     withAnimation {
                         model.boxFiles.removeAll { $0.id == file.id }
@@ -6883,6 +7959,76 @@ struct UnifiedNotchContainer: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
+<<<<<<< HEAD
+=======
+        .onAppear {
+            requestBoxPreviewIfNeeded(for: file.url, targetSize: size)
+        }
+        .frame(
+            width: previewSize.width + 8,
+            height: settings.showBoxFileNames ? previewSize.height + 36 : previewSize.height,
+            alignment: .center
+        )
+    }
+
+    private func fittedBoxPreviewSize(for image: NSImage, maxDimension: CGFloat) -> CGSize {
+        let maxDim = max(1, maxDimension)
+        let rawWidth = max(1, image.size.width)
+        let rawHeight = max(1, image.size.height)
+        let scale = maxDim / max(rawWidth, rawHeight)
+        return CGSize(width: rawWidth * scale, height: rawHeight * scale)
+    }
+
+    private func requestBoxPreviewIfNeeded(for url: URL, targetSize: CGFloat) {
+        guard BoxIconCache.shared.shouldAttemptPreview(for: url) else { return }
+        guard boxPreviewImages[url] == nil else { return }
+        guard !boxPreviewLoadingURLs.contains(url) else { return }
+
+        let requestSize = quantizedPreviewTargetSize(targetSize)
+        boxPreviewLoadingURLs.insert(url)
+
+        DispatchQueue.global(qos: .utility).async {
+            let image = BoxIconCache.shared.displayImage(for: url, targetSize: requestSize)
+            DispatchQueue.main.async {
+                boxPreviewLoadingURLs.remove(url)
+                guard model.boxFiles.contains(where: { $0.url == url }) else { return }
+                boxPreviewImages[url] = image
+            }
+        }
+    }
+
+    private func quantizedPreviewTargetSize(_ targetSize: CGFloat) -> CGFloat {
+        let clamped = max(72, min(320, targetSize))
+        return ceil(clamped / 24) * 24
+    }
+
+    private func pruneBoxPreviewState(keeping urls: [URL]) {
+        let keep = Set(urls)
+        boxPreviewImages = boxPreviewImages.filter { keep.contains($0.key) }
+        boxPreviewLoadingURLs = Set(boxPreviewLoadingURLs.filter { keep.contains($0) })
+    }
+
+    private struct BoxPreviewPlaceholder: View {
+        let isLoading: Bool
+
+        var body: some View {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.white.opacity(0.08))
+                Image(systemName: "photo")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.white.opacity(0.45))
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(.white.opacity(0.7))
+                        .scaleEffect(0.75)
+                        .offset(y: 12)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     }
 
     private struct ObservedFileToastView: View {
@@ -7395,14 +8541,23 @@ struct UnifiedNotchContainer: View {
                         case .clipboard:
                             if !model.clipboardItems.isEmpty {
                                 Button {
+<<<<<<< HEAD
                                     clearClipboardHistory()
+=======
+                                    model.clipboardItems.removeAll()
+                                    persistClipboardHistory(model.clipboardItems)
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
                                 } label: {
                                     Image(systemName: "trash")
                                         .foregroundColor(.white.opacity(0.7))
                                 }
                                 .buttonStyle(.plain)
                             }
+<<<<<<< HEAD
                         case .jot:
+=======
+                        case .nowPlaying:
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
                             Button {
                                 if model.activeJotID == nil {
                                     createJot()
@@ -7465,6 +8620,7 @@ struct UnifiedNotchContainer: View {
             .truncationMode(.tail)
             .minimumScaleFactor(0.8)
             .allowsTightening(true)
+<<<<<<< HEAD
     }
 }
 
@@ -7683,5 +8839,7 @@ struct SafeCachedBoxItemView: View {
             return isDir.boolValue
         }
         return false
+=======
+>>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     }
 }
