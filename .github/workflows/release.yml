@@ -3,7 +3,12 @@ name: Deploy Free macOS Update
 on:
   push:
     tags:
-      - 'v*' # Triggers automatically whenever you push a version tag like v1.0.0
+      - 'v*'
+
+# CRITICAL FIX 1: Explicitly grant write access to the runner's GITHUB_TOKEN
+permissions:
+  contents: write
+  pages: write
 
 jobs:
   build_and_release:
@@ -30,16 +35,13 @@ jobs:
 
       - name: Package Application into Stylized DMG
         run: |
-          # 1. Create a temporary staging folder and copy the compiled .app
           mkdir ./dmg_staging
-          cp -R ./build/Build/Products/Release/apollo.app ./dmg_staging/
+          cp -R ./build/Build/Products/Release/Apollo.app ./dmg_staging/
           
-          # 2. Create the output deployment directory
           mkdir ./dist
           
-          # 3. Build the actual visual .dmg installer inside the deployment folder
           create-dmg \
-            --volname "Apollo Installer" \
+            --volname "Apollo installer" \
             --window-pos 200 120 \
             --window-size 600 400 \
             --icon-size 100 \
@@ -48,22 +50,32 @@ jobs:
             ./dist/YourApp-${{ github.ref_name }}.dmg \
             ./dmg_staging/
             
-          # 4. Clean up the temporary staging directory
           rm -rf ./dmg_staging
 
       - name: Download and Run Sparkle Appcast Generator
         env:
           PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
-          # 1. Grab Sparkle tools to generate the version control tracking file
           curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.6.4/Sparkle-2.6.4.tar.xz -o Sparkle-Tools.tar.xz
           tar -xf Sparkle-Tools.tar.xz
           
-          # 2. Feed the private key secret to Sparkle and update the appcast.xml file
           export SUPrivateEDKey="$PRIVATE_KEY"
           ./bin/generate_appcast ./dist/
-          
+
+      # CRITICAL FIX 2: Create a formal GitHub Release and attach the built .dmg
+      - name: Create Official GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./dist/YourApp-${{ github.ref_name }}.dmg
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Deploy the appcast mapping files to GitHub Pages
       - name: Deploy Updated Files to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: dist # Pushes your appcast.xml and production .dmg file to your gh-pages hosting branch
+          folder: dist
+          branch: gh-pages # Pushes the appcast tracking assets onto a gh-pages branch
