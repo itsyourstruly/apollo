@@ -9,6 +9,7 @@ import Combine
 import ImageIO
 import AVFoundation
 import Darwin
+import Sparkle
 
 // MARK: - Lightweight Page Models
 enum IslandPage: Int, CaseIterable {
@@ -393,10 +394,20 @@ struct ObservedFileToast: Identifiable, Hashable {
 @main
 struct ApolloApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    private let updaterController: SPUStandardUpdaterController
+
+    init() {
+        updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+    }
 
     var body: some Scene {
         Settings {
             SettingsView()
+        }
+        .commands {
+            CommandGroup(after: .appInfo) {
+                CheckForUpdatesView(updater: updaterController.updater)
+            }
         }
     }
 }
@@ -4984,7 +4995,7 @@ struct UnifiedNotchContainer: View {
         let symbol: String
         switch page {
         case .clipboard:
-            title = "Clip"
+            title = "Cli"
             symbol = "doc.on.clipboard"
         case .jot:
             title = "Jot"
