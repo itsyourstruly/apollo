@@ -91,6 +91,12 @@ struct BoxPageContent: View, Equatable {
         }
         .frame(width: width, height: safeH, alignment: .top)
         .onDrop(of: [.fileURL], isTargeted: Binding(get: { isTargeted }, set: { setIsTargeted($0) }), perform: handleDrop)
+        .overlay(alignment: .bottomTrailing) {
+            if !files.isEmpty {
+                BoxShareButton(files: files, accentColor: accentColor)
+                    .padding([.bottom, .trailing], 16)
+            }
+        }
     }
 }
 
