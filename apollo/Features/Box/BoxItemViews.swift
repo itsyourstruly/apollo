@@ -212,12 +212,12 @@ struct SafeCachedBoxItemView: View {
         .onAppear {
             loadImage()
         }
+        .onChange(of: file.url) { _, _ in
+            loadImage()
+        }
         .onDisappear {
             loadedImage = nil
             isLoading = false
-        }
-        .onChange(of: file.url) { _, _ in
-            loadImage()
         }
         .frame(
             width: previewSize.width + 8,

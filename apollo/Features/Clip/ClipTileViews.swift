@@ -17,15 +17,13 @@ extension UnifiedNotchContainer {
         let onTap: (ClipboardEntry) -> Void
 
         static func == (lhs: ClipboardPageContent, rhs: ClipboardPageContent) -> Bool {
-            abs(lhs.width - rhs.width) < 0.001 &&
-            abs(lhs.height - rhs.height) < 0.001 &&
             lhs.columnCount == rhs.columnCount &&
-            abs(lhs.plainTextSize - rhs.plainTextSize) < 0.001 &&
-            abs(lhs.fileLabelSize - rhs.fileLabelSize) < 0.001 &&
+            // Animated properties like width/height are removed to prevent re-renders during animations.
             lhs.accentColor == rhs.accentColor &&
             lhs.highlightedID == rhs.highlightedID &&
             abs(lhs.feedbackProgress - rhs.feedbackProgress) < 0.01 &&
-            lhs.chunkedRows == rhs.chunkedRows
+            lhs.chunkedRows.count == rhs.chunkedRows.count &&
+            lhs.chunkedRows.first?.first?.id == rhs.chunkedRows.first?.first?.id
         }
 
         var body: some View {
@@ -85,9 +83,7 @@ extension UnifiedNotchContainer {
         static func == (lhs: ClipboardRowView, rhs: ClipboardRowView) -> Bool {
             guard lhs.items.count == rhs.items.count,
                   lhs.columnCount == rhs.columnCount,
-                  abs(lhs.tileSize - rhs.tileSize) < 0.001,
-                                    abs(lhs.plainTextSize - rhs.plainTextSize) < 0.001,
-                                    abs(lhs.fileLabelSize - rhs.fileLabelSize) < 0.001,
+                  // Size properties are derived and animated, so we skip them for Equatable.
                   lhs.items.first?.id == rhs.items.first?.id,
                   lhs.items.last?.id == rhs.items.last?.id else {
                 return false

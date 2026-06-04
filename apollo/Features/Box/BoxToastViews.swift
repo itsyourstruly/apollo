@@ -100,9 +100,12 @@ extension UnifiedNotchContainer {
                 .padding(6)
             }
             .frame(width: baseWidth, height: panelHeight, alignment: .top)
-            .background(backgroundColor)
             .clipShape(BottomRoundedRectangle(cornerRadius: cornerRadius))
-            .shadow(color: Color.black.opacity(0.3), radius: 12, x: 0, y: 6)
+            .background(
+                BottomRoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(backgroundColor)
+                    .shadow(color: Color.black.opacity(0.3), radius: 12, x: 0, y: 6)
+            )
             .onPreferenceChange(ContentHeightKey.self) { value in
                 if value.isFinite && contentHeight != value {
                     contentHeight = value

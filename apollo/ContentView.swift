@@ -415,7 +415,6 @@ final class NotchMenuModel: ObservableObject {
     @Published var observedFileToast: ObservedFileToast?
     @Published var canCloseFromVerticalSwipe = false
     @Published var closeGestureProgress: CGFloat = 0
-    @Published var carouselDragOffset: CGFloat = 0
     @Published var isToastDismissing = false
     @Published var chunkedClipboardRows: [[ClipboardEntry]] = []
     
@@ -426,6 +425,11 @@ final class NotchMenuModel: ObservableObject {
     @Published var timerDuration: TimeInterval = 0
     @Published var timerEndTime: TimeInterval? = nil
     @Published var timerRemainingAtPause: TimeInterval = 0
+}
+
+final class SwipeState: ObservableObject {
+    static let shared = SwipeState()
+    @Published var carouselDragOffset: CGFloat = 0
 }
 
 private enum AppStorageKey {
@@ -2616,7 +2620,7 @@ private func makeStatusMenu() -> NSMenu {
         model.isPinned = false
         model.expansionProgress = 0.0
         model.closeGestureProgress = 0
-        model.carouselDragOffset = 0
+        SwipeState.shared.carouselDragOffset = 0
         updateNotchWindowFrame(heightOverride: panelHeight)
         window.alphaValue = 1.0
         window.ignoresMouseEvents = true
@@ -2752,12 +2756,19 @@ private func makeStatusMenu() -> NSMenu {
                 return
             }
             self.lastCarouselOffsetEmission = offset
+            
+            if offset != 0 {
+                self.stopClipboardObservation()
+            } else {
+                self.updateClipboardObservationMode()
+            }
+
             if animate {
                 withAnimation(.easeOut(duration: 0.05)) {
-                    self.model.carouselDragOffset = offset
+                    SwipeState.shared.carouselDragOffset = offset
                 }
             } else {
-                self.model.carouselDragOffset = offset
+                SwipeState.shared.carouselDragOffset = offset
             }
         }
         notchWindow.carouselSensitivityProvider = { [weak self] in
@@ -2783,7 +2794,7 @@ private func makeStatusMenu() -> NSMenu {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             let next = clamp(self.model.currentPage + direction, min: IslandPage.clipboard.rawValue, max: IslandPage.chrono.rawValue)
-            self.model.carouselDragOffset = 0
+            SwipeState.shared.carouselDragOffset = 0
             withAnimation(self.settings.carouselAnimation) {
                 self.model.currentPage = next
             }
@@ -3459,7 +3470,7 @@ private func makeStatusMenu() -> NSMenu {
            pageMatches,
            abs(model.expansionProgress - 1.0) < 0.001,
            abs(model.closeGestureProgress) < 0.001,
-           abs(model.carouselDragOffset) < 0.001 {
+           abs(SwipeState.shared.carouselDragOffset) < 0.001 {
             if window.alphaValue != 1.0 {
                 window.alphaValue = 1.0
             }
@@ -3503,12 +3514,12 @@ private func makeStatusMenu() -> NSMenu {
             withTransaction(resetTransaction) {
                 model.expansionProgress = 0
                 model.closeGestureProgress = 0
-                model.carouselDragOffset = 0
+                SwipeState.shared.carouselDragOffset = 0
             }
             withAnimation(settings.notchOpenAnimation) {
                 model.expansionProgress = 1.0
                 model.closeGestureProgress = 0
-                model.carouselDragOffset = 0
+                SwipeState.shared.carouselDragOffset = 0
             }
         } else {
             if abs(model.expansionProgress - 1.0) > 0.001 {
@@ -3517,8 +3528,8 @@ private func makeStatusMenu() -> NSMenu {
             if abs(model.closeGestureProgress) > 0.001 {
                 model.closeGestureProgress = 0
             }
-            if abs(model.carouselDragOffset) > 0.001 {
-                model.carouselDragOffset = 0
+            if abs(SwipeState.shared.carouselDragOffset) > 0.001 {
+                SwipeState.shared.carouselDragOffset = 0
             }
         }
         lastCloseProgressEmission = 0
@@ -3568,7 +3579,7 @@ private func makeStatusMenu() -> NSMenu {
             if !preserveCloseProgress {
                 model.closeGestureProgress = 0
             }
-            model.carouselDragOffset = 0
+            SwipeState.shared.carouselDragOffset = 0
         }
         // Reactivate notch/approach tracking immediately on close start so
         // quick re-entry can reopen without waiting for final orderOut.
@@ -3668,7 +3679,7 @@ private func makeStatusMenu() -> NSMenu {
     private func performIdleCompaction() {
         BoxIconCache.shared.removeAll()
         if !model.isExpanded && !model.isPinned {
-            model.carouselDragOffset = 0
+            SwipeState.shared.carouselDragOffset = 0
             model.closeGestureProgress = 0
         }
     }
@@ -3911,159 +3922,6 @@ final class FolderMonitor {
     func stop() {
         source?.cancel()
         source = nil
-    }
-}
-
-// MARK: - Trackpad Swipe Interceptor
-struct TrackpadSwipeReader: NSViewRepresentable {
-    var onSwipeLeft: () -> Void
-    var onSwipeRight: () -> Void
-    var onSwipeUp: () -> Void
-    var canTriggerVertical: () -> Bool
-    var isActive: Bool
-
-    class Coordinator: NSObject {
-        var onSwipeLeft: () -> Void
-        var onSwipeRight: () -> Void
-        var onSwipeUp: () -> Void
-        var canTriggerVertical: () -> Bool
-        var isActive: Bool
-        private var accumulatedDeltaX: CGFloat = 0
-        private var accumulatedDeltaY: CGFloat = 0
-        private var localMonitor: Any?
-        private var didTriggerPage = false
-        private var didTriggerClose = false
-        private var lastEventTimestamp: TimeInterval = 0
-        private let horizontalThreshold: CGFloat = 40
-        private let verticalThreshold: CGFloat = 70
-
-        init(
-            onSwipeLeft: @escaping () -> Void,
-            onSwipeRight: @escaping () -> Void,
-            onSwipeUp: @escaping () -> Void,
-            canTriggerVertical: @escaping () -> Bool,
-            isActive: Bool
-        ) {
-            self.onSwipeLeft = onSwipeLeft
-            self.onSwipeRight = onSwipeRight
-            self.onSwipeUp = onSwipeUp
-            self.canTriggerVertical = canTriggerVertical
-            self.isActive = isActive
-            super.init()
-        }
-
-        deinit {
-            if let localMonitor {
-                NSEvent.removeMonitor(localMonitor)
-            }
-        }
-
-        func startMonitoring() {
-            guard localMonitor == nil else { return }
-            localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel, .swipe]) { [weak self] event in
-                self?.handleEvent(event)
-                return event
-            }
-        }
-
-        func handleEvent(_ event: NSEvent) {
-            guard isActive else { return }
-            guard isPointerOverNotch() else { return }
-            let timestamp = event.timestamp
-            if timestamp == lastEventTimestamp { return }
-            lastEventTimestamp = timestamp
-
-            if event.type == .swipe {
-                let swipeX = event.deltaX
-                let swipeY = event.deltaY
-                if abs(swipeX) >= abs(swipeY) {
-                    if swipeX < 0 {
-                        onSwipeLeft()
-                    } else if swipeX > 0 {
-                        onSwipeRight()
-                    }
-                } else if swipeY > 0, canTriggerVertical() {
-                    onSwipeUp()
-                }
-                return
-            }
-
-            let rawDeltaX = event.scrollingDeltaX != 0 ? event.scrollingDeltaX : event.deltaX
-            let rawDeltaY = event.scrollingDeltaY != 0 ? event.scrollingDeltaY : event.deltaY
-            guard rawDeltaX != 0 || rawDeltaY != 0 else { return }
-
-            let isTrackpadLike = event.hasPreciseScrollingDeltas || event.phase != [] || event.momentumPhase != []
-            if !isTrackpadLike {
-                guard abs(rawDeltaX) > abs(rawDeltaY) else { return }
-            }
-
-            let fingerDeltaX = event.isDirectionInvertedFromDevice ? -rawDeltaX : rawDeltaX
-            let fingerDeltaY = event.isDirectionInvertedFromDevice ? -rawDeltaY : rawDeltaY
-
-            if event.phase == .began || event.phase == .mayBegin || event.momentumPhase == .began {
-                resetAccumulation()
-            }
-
-            if abs(fingerDeltaX) >= abs(fingerDeltaY) {
-                guard !didTriggerPage else { return }
-                accumulatedDeltaX += fingerDeltaX
-                if abs(accumulatedDeltaX) > horizontalThreshold {
-                    if accumulatedDeltaX < 0 {
-                        onSwipeLeft()
-                    } else {
-                        onSwipeRight()
-                    }
-                    didTriggerPage = true
-                }
-            } else {
-                guard isTrackpadLike, !didTriggerClose else { return }
-                accumulatedDeltaY += fingerDeltaY
-                if accumulatedDeltaY > verticalThreshold, canTriggerVertical() {
-                    onSwipeUp()
-                    didTriggerClose = true
-                }
-            }
-
-            if event.phase == .ended || event.phase == .cancelled || event.momentumPhase == .ended {
-                resetAccumulation()
-            }
-        }
-
-        private func resetAccumulation() {
-            accumulatedDeltaX = 0
-            accumulatedDeltaY = 0
-            didTriggerPage = false
-            didTriggerClose = false
-        }
-
-        private func isPointerOverNotch() -> Bool {
-            guard let delegate = NSApp.delegate as? AppDelegate else { return false }
-            guard let window = delegate.notchWindow else { return false }
-            return window.frame.contains(NSEvent.mouseLocation)
-        }
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(
-            onSwipeLeft: onSwipeLeft,
-            onSwipeRight: onSwipeRight,
-            onSwipeUp: onSwipeUp,
-            canTriggerVertical: canTriggerVertical,
-            isActive: isActive
-        )
-    }
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        context.coordinator.startMonitoring()
-        return view
-    }
-    func updateNSView(_ nsView: NSView, context: Context) {
-        context.coordinator.isActive = isActive
-        context.coordinator.onSwipeLeft = onSwipeLeft
-        context.coordinator.onSwipeRight = onSwipeRight
-        context.coordinator.onSwipeUp = onSwipeUp
-        context.coordinator.canTriggerVertical = canTriggerVertical
     }
 }
 
@@ -4521,6 +4379,27 @@ struct BoxShareButton: View {
     }
 }
 
+extension View {
+    @ViewBuilder
+    func conditionalDrawingGroup(_ active: Bool) -> some View {
+        if active {
+            self.drawingGroup()
+        } else {
+            self
+        }
+    }
+}
+
+struct CarouselOffsetModifier: ViewModifier {
+    @ObservedObject var swipeState = SwipeState.shared
+    let panelWidth: CGFloat
+    let currentPage: Int
+
+    func body(content: Content) -> some View {
+        content.offset(x: -CGFloat(currentPage) * panelWidth + swipeState.carouselDragOffset)
+    }
+}
+
 // MARK: - Master Container Structural Layout
 struct UnifiedNotchContainer: View {
     @ObservedObject var model: NotchMenuModel
@@ -4533,18 +4412,7 @@ struct UnifiedNotchContainer: View {
     @State var isNotchFileDropTargeted = false
     @State var isBoxDropTargeted = false
     @State var selectedBoxFileIDs = Set<UUID>()
-    @State var boxPreviewImages: [URL: NSImage] = [:]
-    @State var boxPreviewLoadingURLs = Set<URL>()
-    @State var boxPreviewLRU: [URL] = []
-    @State var visibleBoxPreviewURLs = Set<URL>()
-    @State var pendingBoxPreviewRemovalWorkItems: [URL: DispatchWorkItem] = [:]
-    @State var pendingSharedPreviewTrimWorkItem: DispatchWorkItem?
-    @State var clipboardFilePreviews: [String: NSImage] = [:]
-    @State var clipboardFilePreviewLoadingPaths = Set<String>()
     @State var showBoxShareIcon = false
-    let maxBoxPreviewCount = 64
-    let retainedInvisibleBoxPreviewCount = 12
-    let adjacentPageRenderActivationOffset: CGFloat = 14
     let pageTopContentInset: CGFloat = 8
 
     // This preference key is used to report the animated height of the island back to the AppDelegate.
@@ -4679,8 +4547,8 @@ struct UnifiedNotchContainer: View {
         
         let showStopwatch = model.isStopwatchRunning
         let showTimer = model.isTimerRunning
-        let targetLeftExt: CGFloat = showTimer ? 100 : 0
-        let targetRightExt: CGFloat = showStopwatch ? 100 : 0
+        let targetLeftExt: CGFloat = showStopwatch ? 100 : 0
+        let targetRightExt: CGFloat = showTimer ? 100 : 0
         let activeLeftExt = targetLeftExt * (1 - easedProgress)
         let activeRightExt = targetRightExt * (1 - easedProgress)
 
@@ -4697,7 +4565,7 @@ struct UnifiedNotchContainer: View {
         let pagerRowHeight: CGFloat = settings.showPagers ? 14 : 0
         let pagerBottomInset: CGFloat = settings.showPagers ? 8 : 0
         let pagerReservedHeight = pagerRowHeight + pagerBottomInset
-        let contentAreaHeight = max(1, shellHeight - islandHeight - pagerReservedHeight)
+        let contentAreaHeight = max(1, panelHeight - notchHeight - pagerReservedHeight)
         let cornerRadius = safeDimension(max(4, settings.cornerRadius * (0.6 + 0.4 * easedProgress)), fallback: 8)
         let contentProgress = easedProgress.isFinite ? max(0, min(1, (easedProgress - 0.18) / 0.82)) : 0
         let showToastOnly = (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded && !model.isPinned
@@ -4756,12 +4624,12 @@ struct UnifiedNotchContainer: View {
                                 .fill(Color(nsColor: settings.backgroundColor.withAlphaComponent(1.0)))
                                 .frame(width: islandWidth, height: islandHeight)
 
-                            if shouldRenderExpandedContent && contentProgress > 0.01 {
-                                globalTitleOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
-                                    .opacity(contentProgress)
-                                globalControlsOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
-                                    .opacity(contentProgress)
-                            }
+                            globalTitleOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
+                                .opacity(shouldRenderExpandedContent ? contentProgress : 0)
+                                .allowsHitTesting(shouldRenderExpandedContent)
+                            globalControlsOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
+                                .opacity(shouldRenderExpandedContent ? contentProgress : 0)
+                                .allowsHitTesting(shouldRenderExpandedContent)
 
                             if !model.isExpanded && !model.isPinned {
                                 closedIslandChronoWidgets(islandWidth: islandWidth, islandHeight: islandHeight, leftExt: activeLeftExt, rightExt: activeRightExt)
@@ -4770,36 +4638,18 @@ struct UnifiedNotchContainer: View {
 
                         .compositingGroup()
                         .frame(width: islandWidth, height: islandHeight)
-                        .padding(.top, 0) // PULLED FLUSH
+                        .padding(.top, 0)
 
-                        if shouldRenderExpandedContent && contentProgress > 0.01 {
-                            HStack(spacing: 0) {
-                                ForEach(0..<4) { index in
-                                    Group {
-                                        if shouldRenderCarouselPage(index) {
-                                            switch index {
-                                            case 0: clipboardPage
-                                            case 1: sidebarPage
-                                            case 2: boxPage
-                                            case 3: chronoPage
-                                            default: EmptyView()
-                                            }
-                                        } else {
-                                            Color.clear
-                                        }
-                                    }
-                                    .frame(width: panelWidth)
-                                }
-                            }
-                            .frame(width: panelWidth, height: contentAreaHeight, alignment: .leading)
-                            .offset(x: -CGFloat(model.currentPage) * panelWidth + model.carouselDragOffset)
-                            .frame(width: shellWidth, height: contentAreaHeight)
-                            .opacity(contentProgress)
-                            .offset(y: (1.0 - contentProgress) * 12)
-                            .clipped()
-                        } else {
-                            Color.clear.frame(height: 1)
+                        HStack(spacing: 0) {
+                            clipboardPage.frame(width: panelWidth, height: contentAreaHeight).clipped()
+                            sidebarPage.frame(width: panelWidth, height: contentAreaHeight).clipped()
+                            boxPage.frame(width: panelWidth, height: contentAreaHeight).clipped()
+                            chronoPage.frame(width: panelWidth, height: contentAreaHeight).clipped()
                         }
+                        .frame(width: panelWidth, height: contentAreaHeight, alignment: .leading)
+                        .modifier(CarouselOffsetModifier(panelWidth: panelWidth, currentPage: model.currentPage))
+                        .opacity(shouldRenderExpandedContent ? contentProgress : 0)
+                        .allowsHitTesting(shouldRenderExpandedContent)
 
                         if settings.showPagers {
                             HStack(spacing: 8) {
@@ -4816,22 +4666,19 @@ struct UnifiedNotchContainer: View {
                             }
                             .frame(maxWidth: .infinity)
                             .frame(height: pagerRowHeight)
-                            .opacity(contentProgress)
+                            .opacity(shouldRenderExpandedContent ? contentProgress : 0)
                             .padding(.bottom, pagerBottomInset)
+                            .allowsHitTesting(shouldRenderExpandedContent)
                         }
                     }
+                    .frame(width: panelWidth, height: panelHeight, alignment: .top)
                     .frame(width: shellWidth, height: shellHeight, alignment: .top)
-                    .background(Color(settings.backgroundColor))
                     .clipShape(BottomRoundedRectangle(cornerRadius: cornerRadius))
-                    // Static shadow: fixed radius/offset gated on a Bool instead of
-                    // multiplying by contentProgress. An animated radius forces an
-                    // offscreen gaussian blur of the entire island on every frame of
-                    // the open/close spring; a constant radius is blurred once.
-                    .shadow(
-                        color: Color.black.opacity(shouldRenderExpandedContent ? 0.22 : 0),
-                        radius: shouldRenderExpandedContent ? 18 : 0,
-                        x: 0,
-                        y: shouldRenderExpandedContent ? 10 : 0
+                    .background(
+                        BottomRoundedRectangle(cornerRadius: cornerRadius)
+                            .fill(Color(settings.backgroundColor))
+                            .shadow(color: Color.black.opacity(shouldRenderExpandedContent ? 0.22 : 0),
+                                    radius: shouldRenderExpandedContent ? 18 : 0, x: 0, y: shouldRenderExpandedContent ? 10 : 0)
                     )
                     .animation(settings.notchOpenAnimation, value: model.expansionProgress)
                     .background(GeometryReader { proxy in
@@ -4873,12 +4720,6 @@ struct UnifiedNotchContainer: View {
             if !expanded {
                 unloadCollapsedPageState()
             }
-        }
-        .onReceive(model.$clipboardItems) { items in
-            pruneClipboardPreviewState(keeping: items)
-        }
-        .onReceive(model.$boxFiles) { files in
-            pruneBoxPreviewState(keeping: files.map(\.url))
         }
     }
 
@@ -4993,94 +4834,10 @@ struct UnifiedNotchContainer: View {
 
     private func setPageFromCarousel(_ page: Int) {
         let nextPage = clamp(page, min: IslandPage.clipboard.rawValue, max: IslandPage.chrono.rawValue)
-        model.carouselDragOffset = 0
+        SwipeState.shared.carouselDragOffset = 0
         withAnimation(settings.carouselAnimation) {
             model.currentPage = nextPage
         }
-    }
-
-    func shouldRenderCarouselPage(_ index: Int) -> Bool {
-        if index == model.currentPage {
-            return true
-        }
-
-        let offset = model.carouselDragOffset
-        if abs(offset) <= adjacentPageRenderActivationOffset {
-            return false
-        }
-
-        if offset < 0 {
-            let next = min(IslandPage.chrono.rawValue, model.currentPage + 1)
-            return index == next
-        }
-
-        let previous = max(IslandPage.clipboard.rawValue, model.currentPage - 1)
-        return index == previous
-    }
-
-    func touchBoxPreviewURL(_ url: URL) {
-        if let existingIndex = boxPreviewLRU.firstIndex(of: url) {
-            boxPreviewLRU.remove(at: existingIndex)
-        }
-        boxPreviewLRU.append(url)
-        while boxPreviewLRU.count > maxBoxPreviewCount {
-            let removed = boxPreviewLRU.removeFirst()
-            boxPreviewImages.removeValue(forKey: removed)
-        }
-    }
-
-    private func sharedPreviewKeepPaths() -> Set<String> {
-        let warmBoxPaths = Set(boxPreviewLRU.suffix(retainedInvisibleBoxPreviewCount).map(\.path))
-        let visibleBoxPaths = Set(visibleBoxPreviewURLs.map(\.path))
-        return visibleBoxPaths
-            .union(warmBoxPaths)
-    }
-
-    func scheduleSharedPreviewTrim() {
-        pendingSharedPreviewTrimWorkItem?.cancel()
-        let keepPaths = sharedPreviewKeepPaths()
-        let workItem = DispatchWorkItem {
-            BoxIconCache.shared.schedulePreviewTrim(keepingPaths: keepPaths, debounce: 0.08)
-        }
-        pendingSharedPreviewTrimWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: workItem)
-    }
-
-    func clearBoxPreviewState() {
-        for workItem in pendingBoxPreviewRemovalWorkItems.values {
-            workItem.cancel()
-        }
-        pendingBoxPreviewRemovalWorkItems.removeAll()
-        visibleBoxPreviewURLs.removeAll()
-        boxPreviewLoadingURLs.removeAll()
-        boxPreviewImages.removeAll()
-        boxPreviewLRU.removeAll()
-    }
-
-    func updateBoxPreviewVisibility(for url: URL, isVisible: Bool, targetSize: CGFloat) {
-        if isVisible {
-            if let pending = pendingBoxPreviewRemovalWorkItems.removeValue(forKey: url) {
-                pending.cancel()
-            }
-            visibleBoxPreviewURLs.insert(url)
-            if boxPreviewImages[url] == nil {
-                requestBoxPreviewIfNeeded(for: url, targetSize: targetSize)
-            } else {
-                touchBoxPreviewURL(url)
-            }
-            scheduleSharedPreviewTrim()
-            return
-        }
-
-        guard pendingBoxPreviewRemovalWorkItems[url] == nil else { return }
-        let workItem = DispatchWorkItem {
-            pendingBoxPreviewRemovalWorkItems.removeValue(forKey: url)
-            visibleBoxPreviewURLs.remove(url)
-            boxPreviewLoadingURLs.remove(url)
-            scheduleSharedPreviewTrim()
-        }
-        pendingBoxPreviewRemovalWorkItems[url] = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: workItem)
     }
 
     private func unloadInactivePageState(activePage: Int) {
@@ -5095,12 +4852,6 @@ struct UnifiedNotchContainer: View {
         // count/cost limits and a memory-pressure handler.
         if activePage != IslandPage.box.rawValue {
             BoxIconCache.shared.cancelQueuedPreviewLoads()
-            for workItem in pendingBoxPreviewRemovalWorkItems.values {
-                workItem.cancel()
-            }
-            pendingBoxPreviewRemovalWorkItems.removeAll()
-            visibleBoxPreviewURLs.removeAll()
-            boxPreviewLoadingURLs.removeAll()
             selectedBoxFileIDs.removeAll()
         }
 
@@ -5110,19 +4861,8 @@ struct UnifiedNotchContainer: View {
     }
 
     private func unloadCollapsedPageState() {
-        // Cancel transient in-flight work but keep the preview dictionaries
-        // and the shared NSCache populated so the next open is cheap. Eviction
-        // is delegated to NSCache limits and `purgeCachesForMemoryPressure`.
         unloadInactivePageState(activePage: -1)
-        pendingSharedPreviewTrimWorkItem?.cancel()
-        pendingSharedPreviewTrimWorkItem = nil
         BoxIconCache.shared.cancelQueuedPreviewLoads()
-        for workItem in pendingBoxPreviewRemovalWorkItems.values {
-            workItem.cancel()
-        }
-        pendingBoxPreviewRemovalWorkItems.removeAll()
-        visibleBoxPreviewURLs.removeAll()
-        boxPreviewLoadingURLs.removeAll()
     }
 
     func emptyDismissableScrollView<Content: View>(
@@ -6102,8 +5842,38 @@ private struct SettingsWindowChromeConfigurator: NSViewRepresentable {
 
 // MARK: - Chrono Page
 
-extension UnifiedNotchContainer {
-    var chronoPage: some View {
+struct ChronoPageContent: View, Equatable {
+    let width: CGFloat
+    let height: CGFloat
+    let isStopwatchRunning: Bool
+    let stopwatchAccumulatedTime: TimeInterval
+    let stopwatchStartTime: TimeInterval?
+    let isTimerRunning: Bool
+    let timerDuration: TimeInterval
+    let timerRemainingAtPause: TimeInterval
+    let timerEndTime: TimeInterval?
+    let isVisible: Bool
+
+    let toggleStopwatch: () -> Void
+    let resetStopwatch: () -> Void
+    let toggleTimer: () -> Void
+    let resetTimer: () -> Void
+    let setTimerDuration: (TimeInterval) -> Void
+
+    static func == (lhs: ChronoPageContent, rhs: ChronoPageContent) -> Bool {
+        lhs.width == rhs.width &&
+        lhs.height == rhs.height &&
+        lhs.isStopwatchRunning == rhs.isStopwatchRunning &&
+        lhs.stopwatchAccumulatedTime == rhs.stopwatchAccumulatedTime &&
+        lhs.stopwatchStartTime == rhs.stopwatchStartTime &&
+        lhs.isTimerRunning == rhs.isTimerRunning &&
+        lhs.timerDuration == rhs.timerDuration &&
+        lhs.timerRemainingAtPause == rhs.timerRemainingAtPause &&
+        lhs.timerEndTime == rhs.timerEndTime &&
+        lhs.isVisible == rhs.isVisible
+    }
+
+    var body: some View {
         HStack(spacing: 0) {
             stopwatchView
                 .frame(maxWidth: .infinity)
@@ -6116,27 +5886,38 @@ extension UnifiedNotchContainer {
                 .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 16)
-        .padding(.top, pageTopContentInset)
-        .frame(width: scaledPanelWidth(for: settings), height: max(1, scaledPanelHeight(for: settings) - settings.effectiveNotchHeight - pageTopContentInset), alignment: .top)
+        .frame(width: width, height: height, alignment: .top)
     }
 
     private var stopwatchView: some View {
         VStack(spacing: 12) {
-            TimelineView(.animation(minimumInterval: 0.03)) { context in
-                Text(formatStopwatch(stopwatchElapsed(for: context.date), includeMs: true))
+            if isStopwatchRunning {
+                if isVisible {
+                    TimelineView(.animation(minimumInterval: 0.05)) { context in
+                        Text(formatStopwatch(stopwatchElapsed(for: context.date), includeMs: true))
+                            .font(.system(size: 28, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.white)
+                    }
+                } else {
+                    Text(formatStopwatch(stopwatchElapsed(for: Date()), includeMs: false))
+                        .font(.system(size: 28, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.white)
+                }
+            } else {
+                Text(formatStopwatch(stopwatchAccumulatedTime, includeMs: true))
                     .font(.system(size: 28, weight: .semibold, design: .monospaced))
                     .foregroundColor(.white)
             }
             
             HStack(spacing: 24) {
                 Button(action: toggleStopwatch) {
-                    Image(systemName: model.isStopwatchRunning ? "pause.fill" : "play.fill")
+                    Image(systemName: isStopwatchRunning ? "pause.fill" : "play.fill")
                         .font(.title2)
-                        .foregroundColor(model.isStopwatchRunning ? .yellow : .green)
+                        .foregroundColor(isStopwatchRunning ? .yellow : .green)
                 }
                 .buttonStyle(.plain)
                 
-                if !model.isStopwatchRunning && model.stopwatchAccumulatedTime > 0 {
+                if !isStopwatchRunning && stopwatchAccumulatedTime > 0 {
                     Button(action: resetStopwatch) {
                         Image(systemName: "trash.fill")
                             .font(.title2)
@@ -6150,26 +5931,36 @@ extension UnifiedNotchContainer {
 
     private var timerView: some View {
         VStack(spacing: 12) {
-            if model.isTimerRunning || (model.timerDuration > 0 && model.timerRemainingAtPause > 0 && !model.isTimerRunning) {
-                TimelineView(.periodic(from: .now, by: 1.0)) { context in
-                    Text(formatTimer(timerRemaining(for: context.date)))
+            if isTimerRunning {
+                if isVisible {
+                    TimelineView(.periodic(from: .now, by: 1.0)) { context in
+                        Text(formatTimer(timerRemaining(for: context.date)))
+                            .font(.system(size: 28, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.white)
+                    }
+                } else {
+                    Text(formatTimer(timerRemaining(for: Date())))
                         .font(.system(size: 28, weight: .semibold, design: .monospaced))
                         .foregroundColor(.white)
                 }
+            } else if timerDuration > 0 && timerRemainingAtPause > 0 {
+                Text(formatTimer(timerRemainingAtPause))
+                    .font(.system(size: 28, weight: .semibold, design: .monospaced))
+                    .foregroundColor(.white)
             } else {
-                TimerInputView(duration: $model.timerDuration)
+                TimerInputView(duration: Binding(get: { timerDuration }, set: setTimerDuration))
             }
             
             HStack(spacing: 24) {
                 Button(action: toggleTimer) {
-                    Image(systemName: model.isTimerRunning ? "pause.fill" : "play.fill")
+                    Image(systemName: isTimerRunning ? "pause.fill" : "play.fill")
                         .font(.title2)
-                        .foregroundColor(model.isTimerRunning ? .yellow : .green)
+                        .foregroundColor(isTimerRunning ? .yellow : .green)
                 }
                 .buttonStyle(.plain)
-                .disabled(model.timerDuration == 0 && model.timerRemainingAtPause == 0)
+                .disabled(timerDuration == 0 && timerRemainingAtPause == 0)
                 
-                if !model.isTimerRunning && (model.timerRemainingAtPause > 0 || model.timerDuration > 0) {
+                if !isTimerRunning && (timerRemainingAtPause > 0 || timerDuration > 0) {
                     Button(action: resetTimer) {
                         Image(systemName: "trash.fill")
                             .font(.title2)
@@ -6179,6 +5970,63 @@ extension UnifiedNotchContainer {
                 }
             }
         }
+    }
+
+    private func stopwatchElapsed(for date: Date) -> TimeInterval {
+        let activeTime = isStopwatchRunning ? date.timeIntervalSinceReferenceDate - (stopwatchStartTime ?? date.timeIntervalSinceReferenceDate) : 0
+        return stopwatchAccumulatedTime + activeTime
+    }
+
+    private func timerRemaining(for date: Date) -> TimeInterval {
+        let remaining = isTimerRunning ? max(0, (timerEndTime ?? date.timeIntervalSinceReferenceDate) - date.timeIntervalSinceReferenceDate) : timerRemainingAtPause
+        return remaining
+    }
+
+    private func formatStopwatch(_ time: TimeInterval, includeMs: Bool) -> String {
+        let totalMs = Int(time * 100)
+        let ms = totalMs % 100
+        let s = (totalMs / 100) % 60
+        let m = (totalMs / 6000) % 60
+        let h = totalMs / 360000
+        
+        if h > 0 {
+            return includeMs ? String(format: "%d:%02d:%02d.%02d", h, m, s, ms) : String(format: "%d:%02d:%02d", h, m, s)
+        } else {
+            return includeMs ? String(format: "%02d:%02d.%02d", m, s, ms) : String(format: "%02d:%02d", m, s)
+        }
+    }
+
+    private func formatTimer(_ time: TimeInterval) -> String {
+        let totalS = Int(time)
+        let s = totalS % 60
+        let m = (totalS / 60) % 60
+        let h = totalS / 3600
+        
+        return String(format: "%02d:%02d:%02d", h, m, s)
+    }
+}
+
+extension UnifiedNotchContainer {
+    var chronoPage: some View {
+        ChronoPageContent(
+            width: scaledPanelWidth(for: settings),
+            height: max(1, scaledPanelHeight(for: settings) - settings.effectiveNotchHeight - pageTopContentInset),
+            isStopwatchRunning: model.isStopwatchRunning,
+            stopwatchAccumulatedTime: model.stopwatchAccumulatedTime,
+            stopwatchStartTime: model.stopwatchStartTime,
+            isTimerRunning: model.isTimerRunning,
+            timerDuration: model.timerDuration,
+            timerRemainingAtPause: model.timerRemainingAtPause,
+            timerEndTime: model.timerEndTime,
+            isVisible: (model.isExpanded || model.isPinned) && model.currentPage == IslandPage.chrono.rawValue,
+            toggleStopwatch: toggleStopwatch,
+            resetStopwatch: resetStopwatch,
+            toggleTimer: toggleTimer,
+            resetTimer: resetTimer,
+            setTimerDuration: { model.timerDuration = $0 }
+        )
+        .equatable()
+        .padding(.top, pageTopContentInset)
     }
 
     // MARK: - Chrono Live Activity Widgets
@@ -6196,14 +6044,14 @@ extension UnifiedNotchContainer {
                         let hardwareLeft = hardwareCenter - (settings.effectiveNotchWidth / 2)
                         let hardwareRight = hardwareCenter + (settings.effectiveNotchWidth / 2)
                         
-                        if showTimer {
-                            chronoTimerWidget
+                        if showStopwatch {
+                            chronoStopwatchWidget
                                 .frame(width: leftExt, height: islandHeight)
                                 .offset(x: hardwareLeft - leftExt, y: 0)
                         }
                         
-                        if showStopwatch {
-                            chronoStopwatchWidget
+                        if showTimer {
+                            chronoTimerWidget
                                 .frame(width: rightExt, height: islandHeight)
                                 .offset(x: hardwareRight, y: 0)
                         }
@@ -6241,32 +6089,6 @@ extension UnifiedNotchContainer {
     private func timerRemaining(for date: Date) -> TimeInterval {
         let remaining = model.isTimerRunning ? max(0, (model.timerEndTime ?? date.timeIntervalSinceReferenceDate) - date.timeIntervalSinceReferenceDate) : model.timerRemainingAtPause
         return remaining
-    }
-
-    private func formatStopwatch(_ time: TimeInterval, includeMs: Bool) -> String {
-        let totalMs = Int(time * 100)
-        let ms = totalMs % 100
-        let s = (totalMs / 100) % 60
-        let m = (totalMs / 6000) % 60
-        let h = totalMs / 360000
-        
-        if h > 0 {
-            return includeMs ? String(format: "%d:%02d:%02d.%02d", h, m, s, ms) : String(format: "%d:%02d:%02d", h, m, s)
-        } else {
-            return includeMs ? String(format: "%02d:%02d.%02d", m, s, ms) : String(format: "%02d:%02d", m, s)
-        }
-    }
-
-    private func formatTimer(_ time: TimeInterval, truncate: Bool = false) -> String {
-        let totalS = Int(time)
-        let s = totalS % 60
-        let m = (totalS / 60) % 60
-        let h = totalS / 3600
-        
-        if truncate && h == 0 {
-            return String(format: "%02d:%02d", m, s)
-        }
-        return String(format: "%02d:%02d:%02d", h, m, s)
     }
 
     private func formatCompactChrono(_ time: TimeInterval) -> String {

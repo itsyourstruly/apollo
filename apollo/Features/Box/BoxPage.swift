@@ -4,52 +4,110 @@ import AppKit
 // MARK: - Reintegrated Box
 import UniformTypeIdentifiers
 
-extension UnifiedNotchContainer {
-    // MARK: - Box Page
-    var boxPage: some View {
-        boxPageWithWidth(scaledPanelWidth(for: settings), height: scaledPanelHeight(for: settings) - settings.effectiveNotchHeight)
+struct BoxPageContent: View, Equatable {
+    let files: [BoxFile]
+    let selectedIDs: Set<UUID>
+    let width: CGFloat
+    let height: CGFloat
+    let columnCount: Int
+    let accentColor: NSColor
+    let showNames: Bool
+    let nameSize: CGFloat
+    let isTargeted: Bool
+
+    let onRemove: (BoxFile) -> Void
+    let onToggleSelect: (BoxFile) -> Void
+    let onSelectForDrag: (BoxFile) -> Void
+    let urlsForDrag: (BoxFile) -> [URL]
+    let handleDrop: ([NSItemProvider]) -> Bool
+    let setIsTargeted: (Bool) -> Void
+
+    static func == (lhs: BoxPageContent, rhs: BoxPageContent) -> Bool {
+        lhs.files.count == rhs.files.count &&
+        lhs.files.first?.id == rhs.files.first?.id &&
+        // Animated properties like width/height are removed to prevent re-renders during animations.
+        lhs.selectedIDs == rhs.selectedIDs &&
+        lhs.columnCount == rhs.columnCount &&
+        lhs.accentColor == rhs.accentColor &&
+        lhs.isTargeted == rhs.isTargeted
     }
 
-    private func boxPageWithWidth(_ width: CGFloat, height: CGFloat) -> some View {
+    private var chunkedFiles: [[BoxFile]] {
+        var chunks: [[BoxFile]] = []
+        let cols = max(1, columnCount)
+        for i in stride(from: 0, to: files.count, by: cols) {
+            let end = min(i + cols, files.count)
+            chunks.append(Array(files[i..<end]))
+        }
+        return chunks
+    }
+
+    var body: some View {
         let safeW = max(1, width)
         let safeH = max(1, height)
-        return VStack(spacing: 10) {
+        VStack(spacing: 10) {
             Group {
-                if model.boxFiles.isEmpty {
+                if files.isEmpty {
                     Image(systemName: "shippingbox.fill")
                         .font(.system(size: min(safeW, safeH) * 0.22, weight: .semibold))
                         .foregroundColor(.brown.opacity(0.55))
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 } else {
-                    let columnCount = max(1, settings.boxColumns)
-                    let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: columnCount)
-                    let maxSize = max(1, min((safeW - 16) / CGFloat(columnCount), safeH * 0.38))
+                    let cols = max(1, columnCount)
+                    let maxSize = max(1, min((safeW - 16) / CGFloat(cols), safeH * 0.38))
                     ScrollView(.vertical, showsIndicators: true) {
-                        LazyVGrid(columns: columns, spacing: 2) {
-                            ForEach(model.boxFiles) { file in
-                                boxItemView(file: file, maxSize: maxSize)
+                        LazyVStack(spacing: 2) {
+                            ForEach(chunkedFiles, id: \.first?.id) { row in
+                                HStack(spacing: 2) {
+                                    ForEach(row) { file in
+                                        SafeCachedBoxItemView(
+                                            file: file,
+                                            maxSize: maxSize,
+                                            isSelected: selectedIDs.contains(file.id),
+                                            accentColor: accentColor,
+                                            showBoxFileNames: showNames,
+                                            fileNameSize: nameSize,
+                                            onRemove: { onRemove(file) },
+                                            urlsForDrag: { urlsForDrag(file) },
+                                            selectForDrag: { onSelectForDrag(file) },
+                                            toggleSelection: { onToggleSelect(file) }
+                                        )
+                                        .frame(maxWidth: .infinity)
+                                    }
+                                    if row.count < cols {
+                                        ForEach(0..<(cols - row.count), id: \.self) { _ in
+                                            Color.clear.frame(maxWidth: .infinity)
+                                        }
+                                    }
+                                }
                             }
                         }
+                        .padding(.horizontal, 8)
                         .frame(width: width, alignment: .center)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 }
             }
         }
-        .padding(.top, pageTopContentInset)
-        .frame(width: width, height: max(1, height - pageTopContentInset), alignment: .top)
-        .onDrop(of: [.fileURL], isTargeted: $isBoxDropTargeted, perform: handleBoxDrop)
+        .frame(width: width, height: safeH, alignment: .top)
+        .onDrop(of: [.fileURL], isTargeted: Binding(get: { isTargeted }, set: { setIsTargeted($0) }), perform: handleDrop)
     }
+}
 
-    private func boxItemView(file: BoxFile, maxSize: CGFloat) -> some View {
-        return SafeCachedBoxItemView(
-            file: file,
-            maxSize: maxSize,
-            isSelected: selectedBoxFileIDs.contains(file.id),
+extension UnifiedNotchContainer {
+    // MARK: - Box Page
+    var boxPage: some View {
+        BoxPageContent(
+            files: model.boxFiles,
+            selectedIDs: selectedBoxFileIDs,
+            width: scaledPanelWidth(for: settings),
+            height: max(1, scaledPanelHeight(for: settings) - settings.effectiveNotchHeight - pageTopContentInset),
+            columnCount: settings.boxColumns,
             accentColor: settings.accentColor,
-            showBoxFileNames: settings.showBoxFileNames,
-            fileNameSize: settings.boxFileNameSize,
-            onRemove: {
+            showNames: settings.showBoxFileNames,
+            nameSize: settings.boxFileNameSize,
+            isTargeted: isBoxDropTargeted,
+            onRemove: { file in
                 DispatchQueue.main.async {
                     withAnimation {
                         model.boxFiles.removeAll { $0.id == file.id }
@@ -57,18 +115,7 @@ extension UnifiedNotchContainer {
                     }
                 }
             },
-            urlsForDrag: {
-                let selectedURLs = model.boxFiles.compactMap { selectedBoxFileIDs.contains($0.id) ? $0.url : nil }
-                return selectedURLs.isEmpty ? [file.url] : selectedURLs
-            },
-            selectForDrag: {
-                if !selectedBoxFileIDs.contains(file.id) {
-                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
-                        _ = selectedBoxFileIDs.insert(file.id)
-                    }
-                }
-            },
-            toggleSelection: {
+            onToggleSelect: { file in
                 withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
                     if selectedBoxFileIDs.contains(file.id) {
                         selectedBoxFileIDs.remove(file.id)
@@ -76,52 +123,22 @@ extension UnifiedNotchContainer {
                         selectedBoxFileIDs.insert(file.id)
                     }
                 }
-            }
+            },
+            onSelectForDrag: { file in
+                if !selectedBoxFileIDs.contains(file.id) {
+                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                        _ = selectedBoxFileIDs.insert(file.id)
+                    }
+                }
+            },
+            urlsForDrag: { file in
+                let selectedURLs = model.boxFiles.compactMap { selectedBoxFileIDs.contains($0.id) ? $0.url : nil }
+                return selectedURLs.isEmpty ? [file.url] : selectedURLs
+            },
+            handleDrop: handleBoxDrop,
+            setIsTargeted: { isBoxDropTargeted = $0 }
         )
+        .equatable()
+        .padding(.top, pageTopContentInset)
     }
-
-    func fittedBoxPreviewSize(for image: NSImage, maxDimension: CGFloat) -> CGSize {
-        let maxDim = max(1, maxDimension)
-        let rawWidth = max(1, image.size.width)
-        let rawHeight = max(1, image.size.height)
-        let scale = maxDim / max(rawWidth, rawHeight)
-        return CGSize(width: rawWidth * scale, height: rawHeight * scale)
-    }
-
-    func requestBoxPreviewIfNeeded(for url: URL, targetSize: CGFloat) {
-        guard model.isExpanded, model.currentPage == IslandPage.box.rawValue else { return }
-        guard visibleBoxPreviewURLs.contains(url) else { return }
-        guard BoxIconCache.shared.shouldAttemptPreview(for: url) else { return }
-        if boxPreviewImages[url] != nil {
-            touchBoxPreviewURL(url)
-            return
-        }
-        guard !boxPreviewLoadingURLs.contains(url) else { return }
-
-        let requestSize = quantizedPreviewTargetSize(targetSize)
-        boxPreviewLoadingURLs.insert(url)
-
-        BoxIconCache.shared.requestDisplayImage(for: url, targetSize: requestSize) { image in
-            boxPreviewLoadingURLs.remove(url)
-            guard model.isExpanded, model.currentPage == IslandPage.box.rawValue else { return }
-            guard model.boxFiles.contains(where: { $0.url == url }) else { return }
-            boxPreviewImages[url] = image
-            touchBoxPreviewURL(url)
-        }
-    }
-
-    private func quantizedPreviewTargetSize(_ targetSize: CGFloat) -> CGFloat {
-        let clamped = max(64, min(192, targetSize))
-        return ceil(clamped / 24) * 24
-    }
-
-    func pruneBoxPreviewState(keeping urls: [URL]) {
-        let keep = Set(urls)
-        visibleBoxPreviewURLs = visibleBoxPreviewURLs.intersection(keep)
-        boxPreviewImages = boxPreviewImages.filter { keep.contains($0.key) }
-        boxPreviewLoadingURLs = Set(boxPreviewLoadingURLs.filter { keep.contains($0) })
-        boxPreviewLRU = boxPreviewLRU.filter { keep.contains($0) }
-        scheduleSharedPreviewTrim()
-    }
-
 }

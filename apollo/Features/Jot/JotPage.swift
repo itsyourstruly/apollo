@@ -3,59 +3,165 @@ import AppKit
 
 // MARK: - Reintegrated Jot
 
-extension UnifiedNotchContainer {
-    // MARK: - Jot Page
-    var sidebarPage: some View {
-        jotPage
+struct JotPageContent: View, Equatable {
+    let notes: [JotNote]
+    let activeID: UUID?
+    let width: CGFloat
+    let height: CGFloat
+    let columnCount: Int
+    let textSize: CGFloat
+    let accentColor: NSColor
+    let closeSensitivity: CGFloat
+
+    let onOpen: (UUID) -> Void
+    let onDelete: (UUID) -> Void
+    let jotBinding: (UUID) -> Binding<String>
+    let onCloseNotchFromSwipe: () -> Void
+    let onUpdateCloseProgress: (CGFloat, Bool) -> Void
+    var isJotEditorFocused: FocusState<Bool>.Binding
+
+    static func == (lhs: JotPageContent, rhs: JotPageContent) -> Bool {
+        lhs.notes.count == rhs.notes.count &&
+        lhs.notes.first?.id == rhs.notes.first?.id &&
+        lhs.notes.first?.updatedAt == rhs.notes.first?.updatedAt &&
+        lhs.activeID == rhs.activeID &&
+        // Animated properties like width/height are removed to prevent re-renders during animations.
+        lhs.columnCount == rhs.columnCount &&
+        lhs.accentColor == rhs.accentColor &&
+        lhs.closeSensitivity == rhs.closeSensitivity
+    }
+
+    private var chunkedNotes: [[JotNote]] {
+        var chunks: [[JotNote]] = []
+        let cols = max(1, min(columnCount, notes.count))
+        guard cols > 0 else { return [] }
+        for i in stride(from: 0, to: notes.count, by: cols) {
+            let end = min(i + cols, notes.count)
+            chunks.append(Array(notes[i..<end]))
+        }
+        return chunks
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            content
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8)
+        .frame(width: max(1, width), height: max(1, height), alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
-    private func jotPageContent(width: CGFloat, height: CGFloat) -> some View {
-        if let activeID = model.activeJotID {
-            jotEditor(activeID: activeID, width: width, height: height)
-        } else if model.jotNotes.isEmpty {
-            emptyDismissableScrollView(
+    private var content: some View {
+        if let activeID = activeID {
+            UnifiedNotchContainer.JotTextEditorView(
+                text: jotBinding(activeID),
+                isFocused: isJotEditorFocused,
+                textSize: textSize,
+                closeSensitivity: closeSensitivity,
+                onOverscrollProgress: onUpdateCloseProgress,
+                onBottomOverscroll: onCloseNotchFromSwipe,
+                onScrollMetricsChange: { _, _, _ in }
+            )
+            .padding(8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .frame(
+                width: safeDimension(width - 16, fallback: 1),
+                height: max(120, safeDimension(height - 16, fallback: 120)),
+                alignment: .top
+            )
+            .onAppear {
+                isJotEditorFocused.wrappedValue = true
+            }
+        } else if notes.isEmpty {
+            UnifiedNotchContainer.DismissableScrollView(
+                closeSensitivity: closeSensitivity,
+                onOverscrollProgress: onUpdateCloseProgress,
+                onBottomOverscroll: onCloseNotchFromSwipe,
                 onMetricsChange: { _, _, _ in }
             ) {
                 Color.clear
                     .frame(maxWidth: .infinity, minHeight: max(120, height * 0.6))
             }
         } else {
-            let columnCount = max(1, min(settings.jotColumns, model.jotNotes.count))
-            let columns = Array(repeating: GridItem(.flexible(minimum: 0, maximum: .infinity), spacing: 8), count: columnCount)
-            let cellWidth = max(1, (width - CGFloat(max(0, columnCount - 1)) * 8) / CGFloat(columnCount))
-            DismissableScrollView(
-                closeSensitivity: settings.clampedCloseSensitivity,
-                onOverscrollProgress: { progress, animate in
-                    updateCloseProgress(progress, animate: animate)
-                },
-                onBottomOverscroll: { closeNotchFromSwipe() },
+            let cols = max(1, min(columnCount, notes.count))
+            let cellWidth = max(1, (width - CGFloat(max(0, cols - 1)) * 8) / CGFloat(cols))
+            UnifiedNotchContainer.DismissableScrollView(
+                closeSensitivity: closeSensitivity,
+                onOverscrollProgress: onUpdateCloseProgress,
+                onBottomOverscroll: onCloseNotchFromSwipe,
                 onMetricsChange: { _, _, _ in }
             ) {
-                LazyVGrid(columns: columns, spacing: 8) {
-                    ForEach(model.jotNotes) { note in
-                        jotCard(note, cellWidth: cellWidth)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.vertical, 2)
+                noteGrid(cols: cols, cellWidth: cellWidth)
             }
         }
     }
 
-    private var jotPage: some View {
-        jotPageWithWidth(scaledPanelWidth(for: settings), height: scaledPanelHeight(for: settings) - settings.effectiveNotchHeight)
+    private func noteGrid(cols: Int, cellWidth: CGFloat) -> some View {
+        VStack(spacing: 8) {
+            ForEach(chunkedNotes, id: \.first?.id) { row in
+                HStack(spacing: 8) {
+                    ForEach(row) { note in
+                        UnifiedNotchContainer.JotNoteCardView(
+                            note: note,
+                            accentColor: Color(accentColor),
+                            previewText: jotNotePreview(note),
+                            textSize: textSize,
+                            isEmpty: note.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                            onOpen: { onOpen(note.id) },
+                            onDelete: { onDelete(note.id) }
+                        )
+                        .frame(width: cellWidth)
+                    }
+                    if row.count < cols {
+                        ForEach(0..<(cols - row.count), id: \.self) { _ in
+                            Color.clear.frame(width: cellWidth)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, 2)
     }
 
-    private func jotPageWithWidth(_ width: CGFloat, height: CGFloat) -> some View {
-        VStack(spacing: 8) {
-            jotPageContent(width: width, height: height)
-            Spacer(minLength: 0)
-        }
+    private func jotNotePreview(_ note: JotNote) -> String {
+        let trimmed = note.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "Tap to start writing" }
+        return trimmed
+    }
+}
+
+extension UnifiedNotchContainer {
+    // MARK: - Jot Page
+    var sidebarPage: some View {
+        JotPageContent(
+            notes: model.jotNotes,
+            activeID: model.activeJotID,
+            width: scaledPanelWidth(for: settings),
+            height: max(1, scaledPanelHeight(for: settings) - settings.effectiveNotchHeight - pageTopContentInset),
+            columnCount: settings.jotColumns,
+            textSize: settings.jotTextSize,
+            accentColor: settings.accentColor,
+            closeSensitivity: settings.clampedCloseSensitivity,
+            onOpen: { model.activeJotID = $0 },
+            onDelete: { id in
+                withAnimation {
+                    model.jotNotes.removeAll { $0.id == id }
+                    if model.activeJotID == id {
+                        model.activeJotID = nil
+                    }
+                }
+            },
+            jotBinding: jotBinding(for:),
+            onCloseNotchFromSwipe: closeNotchFromSwipe,
+            onUpdateCloseProgress: { p, a in updateCloseProgress(p, animate: a) },
+            isJotEditorFocused: $isJotEditorFocused
+        )
+        .equatable()
         .padding(.top, pageTopContentInset)
-        .padding(.horizontal, 8)
-        .frame(width: max(1, width), height: max(1, height - pageTopContentInset), alignment: .top)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     func createJot() {
@@ -85,59 +191,6 @@ extension UnifiedNotchContainer {
                 model.jotNotes = notes
             }
         )
-    }
-
-    private func jotNotePreview(_ note: JotNote) -> String {
-        let trimmed = note.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "Tap to start writing" }
-        return trimmed
-    }
-
-    private func jotCard(_ note: JotNote, cellWidth: CGFloat) -> some View {
-        let accentColor = Color(settings.accentColor)
-        return JotNoteCardView(
-            note: note,
-            accentColor: accentColor,
-            previewText: jotNotePreview(note),
-            textSize: settings.jotTextSize,
-            isEmpty: note.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-            onOpen: {
-                model.activeJotID = note.id
-            },
-            onDelete: {
-                withAnimation {
-                    model.jotNotes.removeAll { $0.id == note.id }
-                    if model.activeJotID == note.id {
-                        model.activeJotID = nil
-                    }
-                }
-            }
-        )
-    }
-
-    private func jotEditor(activeID: UUID, width: CGFloat, height: CGFloat) -> some View {
-        JotTextEditorView(
-            text: jotBinding(for: activeID),
-            isFocused: $isJotEditorFocused,
-            textSize: settings.jotTextSize,
-            closeSensitivity: settings.clampedCloseSensitivity,
-            onOverscrollProgress: { progress, animate in
-                updateCloseProgress(progress, animate: animate)
-            },
-            onBottomOverscroll: { closeNotchFromSwipe() },
-            onScrollMetricsChange: { _, _, _ in }
-        )
-        .padding(8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .frame(
-            width: safeDimension(width - 16, fallback: 1),
-            height: max(120, safeDimension(height - 16, fallback: 120)),
-            alignment: .top
-        )
-        .onAppear {
-            isJotEditorFocused = true
-        }
     }
 
 }
