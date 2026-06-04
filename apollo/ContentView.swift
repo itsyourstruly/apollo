@@ -6,15 +6,9 @@
 import SwiftUI
 import AppKit
 import Combine
-<<<<<<< HEAD
 import ImageIO
 import AVFoundation
 import Darwin
-=======
-import MediaPlayer
-import ImageIO
-import AVFoundation
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
 
 // MARK: - Lightweight Page Models
 enum IslandPage: Int, CaseIterable {
@@ -75,25 +69,7 @@ enum HoverPreviewFocus {
     case delaySwipeClose
 }
 
-private enum SettingsSection: String, CaseIterable, Identifiable {
-    case general = "General"
-    case appearance = "Appearance"
-    case advanced = "Advanced"
-
-    var id: String { rawValue }
-
-    var symbolName: String {
-        switch self {
-        case .general: return "slider.horizontal.3"
-        case .appearance: return "paintbrush"
-        case .advanced: return "gearshape"
-        }
-    }
-}
-
-<<<<<<< HEAD
 private let maxStoredClipboardTextLength = 512
-private let maxDisplayedClipboardTextLength = 240
 
 private func cappedClipboardText(_ text: String?, limit: Int = maxStoredClipboardTextLength) -> String? {
     guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
@@ -102,14 +78,11 @@ private func cappedClipboardText(_ text: String?, limit: Int = maxStoredClipboar
     return String(trimmed[..<endIndex])
 }
 
-=======
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
 struct ClipboardEntry: Identifiable, Hashable, Codable {
     var id: UUID = UUID()
     var text: String?
     var filePaths: [String] = []
     var createdAt: Date = Date()
-<<<<<<< HEAD
     var isDirectoryFlags: [String: Bool]? = nil
     var fileNames: [String]? = nil
     var fileSymbols: [String]? = nil
@@ -367,21 +340,6 @@ struct ClipboardEntry: Identifiable, Hashable, Codable {
         default:
             return false
         }
-=======
-
-    init(text: String) {
-        self.text = text
-        self.filePaths = []
-    }
-
-    init(text: String?, fileURLs: [URL]) {
-        let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.text = (trimmed?.isEmpty == false) ? trimmed : nil
-        self.filePaths = fileURLs
-            .filter { $0.isFileURL }
-            .map(\.path)
-        self.createdAt = Date()
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     }
 
     var normalizedText: String {
@@ -544,22 +502,22 @@ private enum AppStorageKey {
     static let approachHeight = "approachHeight"
 }
 
-private func clamp<T: Comparable>(_ value: T, min minValue: T, max maxValue: T) -> T {
+func clamp<T: Comparable>(_ value: T, min minValue: T, max maxValue: T) -> T {
     return max(minValue, min(maxValue, value))
 }
 
-private func safeDimension(_ value: CGFloat, fallback: CGFloat) -> CGFloat {
+func safeDimension(_ value: CGFloat, fallback: CGFloat) -> CGFloat {
     guard value.isFinite else { return fallback }
     return max(1, value)
 }
 
-private func scaledPanelWidth(for settings: AppSettings) -> CGFloat {
-    let widthScale = clamp(settings.clampedNotchWidth / 210, min: 0.75, max: 1.6)
+func scaledPanelWidth(for settings: AppSettings) -> CGFloat {
+    let widthScale = settings.clampedNotchWidth / baseNotchWidth
     return safeDimension(380 * widthScale, fallback: 380)
 }
 
-private func scaledPanelHeight(for settings: AppSettings) -> CGFloat {
-    let heightScale = clamp(settings.clampedNotchHeight / 32, min: 0.75, max: 1.6)
+func scaledPanelHeight(for settings: AppSettings) -> CGFloat {
+    let heightScale = settings.clampedNotchHeight / baseNotchHeight
     return safeDimension(200 * heightScale, fallback: 200)
 }
 
@@ -596,7 +554,7 @@ private func hardwareNotchDimensions(for screen: NSScreen?) -> (x: CGFloat, widt
     return (x, safeDimension(width, fallback: baseNotchWidth), safeDimension(height, fallback: baseNotchHeight))
 }
 
-private struct BottomRoundedRectangle: Shape {
+struct BottomRoundedRectangle: Shape {
     var cornerRadius: CGFloat
 
     func path(in rect: CGRect) -> Path {
@@ -625,7 +583,6 @@ final class BoxIconCache {
     private let previewCache = NSCache<NSString, NSImage>()
     private var knownIconKeys = Set<NSURL>()
     private var knownPreviewKeys = Set<String>()
-<<<<<<< HEAD
     private var failedPreviewKeys = Set<String>()
     private let stateLock = NSLock()
     private let prewarmQueue = DispatchQueue(label: "apollo.box.prewarm", qos: .utility)
@@ -639,21 +596,12 @@ final class BoxIconCache {
     private let maintenanceQueue = DispatchQueue(label: "apollo.box.maintenance", qos: .utility)
     private var pendingTrimKeepPaths = Set<String>()
     private var pendingTrimWorkItem: DispatchWorkItem?
-=======
-    private let stateLock = NSLock()
-    private let prewarmQueue = DispatchQueue(label: "apollo.box.prewarm", qos: .utility)
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
 
     private init() {
         iconCache.countLimit = 64
         iconCache.totalCostLimit = 8 * 1024 * 1024
-<<<<<<< HEAD
         previewCache.countLimit = 48
         previewCache.totalCostLimit = 16 * 1024 * 1024
-=======
-        previewCache.countLimit = 64
-        previewCache.totalCostLimit = 24 * 1024 * 1024
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     }
 
     func icon(for url: URL) -> NSImage {
@@ -681,7 +629,6 @@ final class BoxIconCache {
             return cached
         }
 
-<<<<<<< HEAD
         stateLock.lock()
         let didPreviouslyFail = failedPreviewKeys.contains(previewKey)
         stateLock.unlock()
@@ -691,50 +638,32 @@ final class BoxIconCache {
 
         if isLikelyImageURL(url),
            let thumbnail = downsampledImage(at: url, maxPixelSize: px) {
-=======
-          if isLikelyImageURL(url),
-              let thumbnail = downsampledImage(at: url, maxPixelSize: px) {
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
             let cost = max(1, px * px * 4)
             previewCache.setObject(thumbnail, forKey: nsKey, cost: cost)
             stateLock.lock()
             knownPreviewKeys.insert(previewKey)
-<<<<<<< HEAD
             failedPreviewKeys.remove(previewKey)
-=======
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
             stateLock.unlock()
             return thumbnail
         }
 
-<<<<<<< HEAD
         if isLikelyVideoURL(url),
            let videoThumbnail = videoThumbnailImage(at: url, maxPixelSize: px) {
-=======
-          if isLikelyVideoURL(url),
-              let videoThumbnail = videoThumbnailImage(at: url, maxPixelSize: px) {
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
             let cost = max(1, px * px * 4)
             previewCache.setObject(videoThumbnail, forKey: nsKey, cost: cost)
             stateLock.lock()
             knownPreviewKeys.insert(previewKey)
-<<<<<<< HEAD
             failedPreviewKeys.remove(previewKey)
-=======
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
             stateLock.unlock()
             return videoThumbnail
         }
 
-<<<<<<< HEAD
         if isLikelyPreviewableURL(url) {
             stateLock.lock()
             failedPreviewKeys.insert(previewKey)
             stateLock.unlock()
         }
 
-=======
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         return icon(for: url)
     }
 
@@ -758,7 +687,6 @@ final class BoxIconCache {
         let asset = AVURLAsset(url: url)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
-<<<<<<< HEAD
         generator.maximumSize = CGSize(width: CGFloat(maxPixelSize), height: CGFloat(maxPixelSize))
 
         let sampleTime = CMTime(seconds: 0.1, preferredTimescale: 600)
@@ -776,26 +704,6 @@ final class BoxIconCache {
         }
 
         guard let cgImage = generatedImage else { return nil }
-=======
-        generator.maximumSize = CGSize(width: maxPixelSize, height: maxPixelSize)
-
-        let sampleTime = CMTime(seconds: 0.1, preferredTimescale: 600)
-        let semaphore = DispatchSemaphore(value: 0)
-        var generatedImage: CGImage?
-        generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: sampleTime)]) { _, image, _, result, _ in
-            if result == .succeeded {
-                generatedImage = image
-            }
-            semaphore.signal()
-        }
-        let waitResult = semaphore.wait(timeout: .now() + 0.5)
-        if waitResult == .timedOut {
-            generator.cancelAllCGImageGeneration()
-        }
-        guard let cgImage = generatedImage else {
-            return nil
-        }
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         return NSImage(cgImage: cgImage, size: NSSize(width: CGFloat(cgImage.width), height: CGFloat(cgImage.height)))
     }
 
@@ -814,10 +722,7 @@ final class BoxIconCache {
         stateLock.lock()
         let iconKeysSnapshot = knownIconKeys
         let previewKeysSnapshot = knownPreviewKeys
-<<<<<<< HEAD
         let failedPreviewKeysSnapshot = failedPreviewKeys
-=======
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         stateLock.unlock()
 
         for key in iconKeysSnapshot where !keep.contains(key) {
@@ -839,7 +744,6 @@ final class BoxIconCache {
             let path = String(key[..<pathEnd])
             return keepPaths.contains(path)
         })
-<<<<<<< HEAD
         let nextFailedPreviewKeys = Set(failedPreviewKeysSnapshot.filter { key in
             guard let pathEnd = key.firstIndex(of: "|") else { return false }
             let path = String(key[..<pathEnd])
@@ -849,11 +753,6 @@ final class BoxIconCache {
         knownIconKeys = nextIconKeys
         knownPreviewKeys = nextPreviewKeys
         failedPreviewKeys = nextFailedPreviewKeys
-=======
-        stateLock.lock()
-        knownIconKeys = nextIconKeys
-        knownPreviewKeys = nextPreviewKeys
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         stateLock.unlock()
     }
 
@@ -863,10 +762,7 @@ final class BoxIconCache {
         stateLock.lock()
         knownIconKeys.removeAll()
         knownPreviewKeys.removeAll()
-<<<<<<< HEAD
         failedPreviewKeys.removeAll()
-=======
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         stateLock.unlock()
     }
 
@@ -884,7 +780,6 @@ final class BoxIconCache {
         }
     }
 
-<<<<<<< HEAD
     func cachedPreview(for url: URL, targetSize: CGFloat) -> NSImage? {
         let px = max(24, Int(targetSize.rounded()))
         let previewKey = "\(url.path)|\(px)"
@@ -969,19 +864,14 @@ final class BoxIconCache {
         stateLock.unlock()
     }
 
-=======
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     func shouldAttemptPreview(for url: URL) -> Bool {
         isLikelyPreviewableURL(url)
     }
 
-<<<<<<< HEAD
     func shouldAttemptStillImagePreview(for url: URL) -> Bool {
         isLikelyImageURL(url)
     }
 
-=======
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     private func isLikelyPreviewableURL(_ url: URL) -> Bool {
         isLikelyImageURL(url) || isLikelyVideoURL(url)
     }
@@ -1470,12 +1360,6 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    @Published var alwaysUseApproachWhenDraggingFile: Bool {
-        didSet {
-            defaults.set(alwaysUseApproachWhenDraggingFile, forKey: AppStorageKey.alwaysUseApproachWhenDraggingFile)
-        }
-    }
-
     @Published var notchEdgeThickness: CGFloat {
         didSet {
             let clampedValue = clamp(notchEdgeThickness, min: notchEdgeThicknessRange.lowerBound, max: notchEdgeThicknessRange.upperBound)
@@ -1615,10 +1499,6 @@ final class AppSettings: ObservableObject {
         return clamp(safeValue, min: notchHeightRange.lowerBound, max: notchHeightRange.upperBound)
     }
 
-    /*
-    // This is the old implementation. The new one respects the useDefaultNotchSize toggle.
-    */
-
     var effectiveNotchWidth: CGFloat {
         hardwareNotchWidth
     }
@@ -1677,10 +1557,6 @@ final class AppSettings: ObservableObject {
 
     var clipboardActionOption: ClipboardActionOption {
         ClipboardActionOption(rawValue: clipboardAction) ?? .copy
-    }
-
-    var springAnimation: Animation {
-        .spring(response: notchAnimationResponse, dampingFraction: notchAnimationDamping)
     }
 
     var notchOpenAnimation: Animation {
@@ -2270,10 +2146,3086 @@ func titleAlignment(for page: IslandPage) -> TitleAlignmentOption {
     }
 }
 
-private struct SettingsView: View {
+private func loadClipboardHistory() -> [ClipboardEntry] {
+    let defaults = UserDefaults.standard
+    if let data = defaults.data(forKey: AppStorageKey.clipboardHistory),
+       let entries = try? JSONDecoder().decode([ClipboardEntry].self, from: data) {
+        return entries.map { $0.normalizedForLightweightStorage() }
+    }
+    let savedTexts = defaults.stringArray(forKey: AppStorageKey.clipboardHistory) ?? []
+    return savedTexts.map { ClipboardEntry(text: $0) }
+}
+
+private final class PersistenceWriteCoordinator {
+    static let shared = PersistenceWriteCoordinator()
+
+    private let defaults = UserDefaults.standard
+    private let queue = DispatchQueue(label: "apollo.persistence.coalesced-writes", qos: .utility)
+    private let flushDelay: TimeInterval = 0.35
+
+    private var pendingClipboardEntries: [ClipboardEntry]?
+    private var pendingJotNotes: [JotNote]?
+    private var flushWorkItem: DispatchWorkItem?
+
+    private init() {}
+
+    func scheduleClipboardHistory(_ entries: [ClipboardEntry]) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.pendingClipboardEntries = entries
+            self.scheduleFlushLocked()
+        }
+    }
+
+    func scheduleJotNotes(_ notes: [JotNote]) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.pendingJotNotes = notes
+            self.scheduleFlushLocked()
+        }
+    }
+
+    func flushNow() {
+        queue.sync {
+            flushLocked()
+        }
+    }
+
+    private func scheduleFlushLocked() {
+        flushWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.flushLocked()
+        }
+        flushWorkItem = workItem
+        queue.asyncAfter(deadline: .now() + flushDelay, execute: workItem)
+    }
+
+    private func flushLocked() {
+        flushWorkItem?.cancel()
+        flushWorkItem = nil
+
+        if let entries = pendingClipboardEntries,
+           let data = try? JSONEncoder().encode(entries) {
+            defaults.set(data, forKey: AppStorageKey.clipboardHistory)
+        }
+        pendingClipboardEntries = nil
+
+        if let notes = pendingJotNotes,
+           let data = try? JSONEncoder().encode(notes) {
+            defaults.set(data, forKey: AppStorageKey.jotNotes)
+        }
+        pendingJotNotes = nil
+    }
+}
+
+func persistClipboardHistory(_ entries: [ClipboardEntry]) {
+    PersistenceWriteCoordinator.shared.scheduleClipboardHistory(entries.map { $0.normalizedForLightweightStorage() })
+}
+
+private func loadJotNotes() -> [JotNote] {
+    guard let data = UserDefaults.standard.data(forKey: AppStorageKey.jotNotes),
+          let notes = try? JSONDecoder().decode([JotNote].self, from: data) else {
+        return []
+    }
+    return notes
+}
+
+private func persistJotNotes(_ notes: [JotNote]) {
+    PersistenceWriteCoordinator.shared.scheduleJotNotes(notes)
+}
+
+// MARK: - Global Coordinate Proximity Driver
+private final class SingleInstanceLock {
+    private var fileDescriptor: Int32 = -1
+
+    func acquire(bundleIdentifier: String) -> Bool {
+        guard fileDescriptor == -1 else { return true }
+        let lockPath = (NSTemporaryDirectory() as NSString)
+            .appendingPathComponent("\(bundleIdentifier).instance.lock")
+        let descriptor = open(lockPath, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+        guard descriptor >= 0 else { return true }
+        if flock(descriptor, LOCK_EX | LOCK_NB) == 0 {
+            fileDescriptor = descriptor
+            return true
+        }
+        close(descriptor)
+        return false
+    }
+
+    deinit {
+        guard fileDescriptor >= 0 else { return }
+        close(fileDescriptor)
+        fileDescriptor = -1
+    }
+}
+
+class AppDelegate: NSObject, NSApplicationDelegate {
+    var islandWindow: IslandPanel!
+    var notchWindow: IslandPanel! { islandWindow }
+    private var clipboardTimer: DispatchSourceTimer?
+    private var clipboardActivationObserver: NSObjectProtocol?
+    private var memoryPressureSource: DispatchSourceMemoryPressure?
+    private var idleCompactionWorkItem: DispatchWorkItem?
+    private var pendingHideWorkItem: DispatchWorkItem?
+    private var statusItem: NSStatusItem?
+    private let model = NotchMenuModel()
+    private let settings = AppSettings.shared
+    private var settingsCancellables = Set<AnyCancellable>()
+    private var hoverCloseWorkItem: DispatchWorkItem?
+    private var swipeCloseWorkItem: DispatchWorkItem?
+
+    private var notchPreviewWorkItem: DispatchWorkItem?
+    private var lastCloseProgressEmission: CGFloat = 0
+    private var lastCarouselOffsetEmission: CGFloat = 0
+    private var lastClipboardChangeCount = NSPasteboard.general.changeCount
+    private var lastWorkspaceClipboardPollTime: TimeInterval = 0
+    private var lastImmediateClipboardPollTime: TimeInterval = 0
+    private let clipboardQueue = DispatchQueue(label: "apollo.clipboard.poll", qos: .utility)
+    private var folderMonitors: [String: FolderMonitor] = [:]
+    private var folderSnapshots: [String: Set<String>] = [:]
+    private var suppressProximityUntilExit = false
+    private var isCursorInActivationZone = false
+    private var pendingWindowHeightUpdate: CGFloat?
+    private var windowFrameUpdateWorkItem: DispatchWorkItem?
+    private let singleInstanceLock = SingleInstanceLock()
+
+    // Event-driven proximity tracking
+    private var proximityWakeWindow: ProximityWakeWindow?   // notch-edge / approach (open trigger)
+    private var islandOpenMousePollTimer: DispatchSourceTimer?
+    private var approachWorkItem: DispatchWorkItem?
+    private var isDraggingOverProximity = false
+    private var lastApproachProgressSampleTime: TimeInterval = 0
+    private var lastApproachProgressEmitted: CGFloat = -1
+    private var lastPanelExpandedAt: TimeInterval = 0
+    private var panelVisibilityEpoch: UInt64 = 0
+
+    // Dynamic structural dimensions
+    private var notchWidth: CGFloat = 210
+    private var notchHeight: CGFloat = 32
+    private var panelWidth: CGFloat = 380
+    private var panelHeight: CGFloat = 160
+
+    // Proximity variables
+    private let activationYBuffer: CGFloat = 80
+    private let exactTriggerPadding: CGFloat = 20
+    private let approachProgressUpdateInterval: TimeInterval = 1.0 / 30.0
+    private let approachProgressDeltaThreshold: CGFloat = 0.02
+    private let idleCompactionDelay: TimeInterval = 4.0
+    private let clipboardActivePollingInterval: TimeInterval = 3.0
+    private let clipboardWorkspaceActivationPollDebounce: TimeInterval = 0.7
+    private let clipboardImmediatePollDebounce: TimeInterval = 0.25
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        guard acquireSingleInstanceLock() else {
+            activateExistingInstance()
+            NSApp.terminate(nil)
+            return
+        }
+
+        NSApp.setActivationPolicy(.accessory)
+
+        calculateScreenNotchDimensions()
+        model.currentPage = settings.reopenLastPage ? settings.lastVisitedPage : settings.defaultPage
+        setupNotchWindow()
+        setupStatusItem()
+        observeSettings()
+        startMemoryPressureMonitoring()
+        startGlobalProximityTracking()
+        startBackgroundStateTracking()
+        if settings.reopenLastPage {
+            model.currentPage = settings.lastVisitedPage
+        } else {
+            model.currentPage = settings.defaultPage
+        }
+        model.clipboardItems = loadClipboardHistory()
+        model.jotNotes = loadJotNotes()
+        refreshChunkedClipboard()
+        normalizeClipboardDirectoryFlagsIfNeeded()
+        applyClipboardLimitIfNeeded()
+        persistClipboardHistory(model.clipboardItems)
+        persistJotNotes(model.jotNotes)
+        refreshNativeState()
+    }
+
+    private func acquireSingleInstanceLock() -> Bool {
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return true }
+        return singleInstanceLock.acquire(bundleIdentifier: bundleIdentifier)
+    }
+
+    private func activateExistingInstance() {
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return }
+        let currentPID = ProcessInfo.processInfo.processIdentifier
+        guard let runningInstance = NSRunningApplication
+            .runningApplications(withBundleIdentifier: bundleIdentifier)
+            .first(where: { $0.processIdentifier != currentPID }) else {
+            return
+        }
+        runningInstance.activate(options: [])
+    }
+
+    func refreshChunkedClipboard() {
+        let items = model.clipboardItems
+        let columns = max(1, settings.clipboardColumns)
+        clipboardQueue.async { [weak self] in
+            var chunked: [[ClipboardEntry]] = []
+            for i in stride(from: 0, to: items.count, by: columns) {
+                let end = min(i + columns, items.count)
+                chunked.append(Array(items[i..<end]))
+            }
+            DispatchQueue.main.async {
+                self?.model.chunkedClipboardRows = chunked
+            }
+        }
+    }
+
+    private func normalizeClipboardDirectoryFlagsIfNeeded() {
+        let entries = model.clipboardItems
+        guard entries.contains(where: { entry in
+            entry.text != nil && !entry.filePaths.isEmpty
+            || entry.fileNames?.count != entry.filePaths.count
+            || entry.fileSymbols?.count != entry.filePaths.count
+            || entry.isDirectoryFlags == nil && !entry.filePaths.isEmpty
+        }) else { return }
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let normalizedEntries = entries.map { entry -> ClipboardEntry in
+                var updated = entry
+                if updated.isDirectoryFlags == nil, !updated.filePaths.isEmpty {
+                    var flags: [String: Bool] = [:]
+                    for path in entry.filePaths {
+                        var isDir: ObjCBool = false
+                        if FileManager.default.fileExists(atPath: path, isDirectory: &isDir) {
+                            flags[path] = isDir.boolValue
+                        } else {
+                            flags[path] = false
+                        }
+                    }
+                    updated.isDirectoryFlags = flags
+                }
+                return updated.normalizedForLightweightStorage()
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                guard self.model.clipboardItems.map(\.id) == entries.map(\.id) else { return }
+                self.model.clipboardItems = normalizedEntries
+                persistClipboardHistory(normalizedEntries)
+                self.refreshChunkedClipboard()
+            }
+        }
+    }
+
+private func setupStatusItem() {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let button = item.button {
+            button.image = NSImage(systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: "Apollo")
+            button.action = #selector(statusItemClicked(_:))
+            button.target = self
+        }
+        item.menu = makeStatusMenu()
+        statusItem = item
+    }
+
+private func makeStatusMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem(title: "Show Island", action: #selector(showNotchFromMenu), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Pin Island", action: #selector(togglePinnedState), keyEquivalent: ""))
+        let settingsItem = NSMenuItem()
+        settingsItem.view = NSHostingView(rootView: SettingsLink {
+            Text("Settings...")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 4)
+                .padding(.horizontal, 6)
+        })
+        menu.addItem(settingsItem)
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q"))
+        menu.items.forEach { $0.target = self }
+        return menu
+    }
+
+    @objc private func statusItemClicked(_ sender: Any?) {
+        togglePinnedState()
+    }
+
+    @objc private func showNotchFromMenu() {
+        showPanel(expanded: true, pinned: true)
+    }
+
+    @objc private func togglePinnedState() {
+        model.isPinned.toggle()
+        if model.isPinned {
+            showPanel(expanded: true, pinned: true)
+        } else if !model.isExpanded {
+            hidePanel()
+        }
+    }
+
+    @objc private func quitApp() {
+        NSApp.terminate(nil)
+    }
+
+    private func calculateScreenNotchDimensions() {
+        let (x, width, height) = hardwareNotchDimensions(for: NSScreen.screens.first)
+        settings.updateHardwareNotchDimensions(x: x, width: width, height: height)
+        applySettingsNotchSize()
+    }
+
+    private func applySettingsNotchSize() {
+        notchWidth = settings.effectiveNotchWidth
+        notchHeight = settings.effectiveNotchHeight
+        panelWidth = scaledPanelWidth(for: settings)
+        panelHeight = scaledPanelHeight(for: settings)
+    }
+
+    private func observeSettings() {
+        settings.$notchWidth
+            .combineLatest(settings.$notchHeight)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.applySettingsNotchSize()
+                self.updateNotchWindowFrame()
+                self.updateProximityWakeWindowFrame()
+                self.previewNotchResize()
+            }
+            .store(in: &settingsCancellables)
+
+        Publishers.MergeMany(
+            settings.$disableApproach.map { _ in () }.eraseToAnyPublisher(),
+            settings.$alwaysUseApproachWhenDraggingFile.map { _ in () }.eraseToAnyPublisher(),
+            settings.$approachWidth.map { _ in () }.eraseToAnyPublisher(),
+            settings.$approachHeight.map { _ in () }.eraseToAnyPublisher(),
+            settings.$notchEdgeThickness.map { _ in () }.eraseToAnyPublisher()
+        )
+        .sink { [weak self] in
+            self?.updateProximityWakeWindowFrame()
+        }
+        .store(in: &settingsCancellables)
+
+        settings.$rememberClips
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.applyClipboardLimitIfNeeded()
+                persistClipboardHistory(self.model.clipboardItems)
+                self.refreshChunkedClipboard()
+            }
+            .store(in: &settingsCancellables)
+
+        settings.$clipboardColumns
+            .sink { [weak self] _ in
+                self?.refreshChunkedClipboard()
+            }
+            .store(in: &settingsCancellables)
+
+        settings.$defaultPage
+            .sink { [weak self] _ in
+                guard let self, !self.model.isExpanded, !self.settings.reopenLastPage else { return }
+                self.model.currentPage = self.settings.defaultPage
+            }
+            .store(in: &settingsCancellables)
+
+        model.$currentPage
+            .sink { [weak self] page in
+                self?.settings.lastVisitedPage = page
+            }
+            .store(in: &settingsCancellables)
+
+        settings.$observedFolders
+            .sink { [weak self] folders in
+                self?.configureFolderMonitors(with: folders)
+            }
+            .store(in: &settingsCancellables)
+
+        model.$boxFiles
+            .sink { files in
+                let urls = files.map(\.url)
+                if urls.isEmpty {
+                    BoxIconCache.shared.removeAll()
+                } else {
+                    BoxIconCache.shared.trim(keeping: urls)
+                }
+            }
+            .store(in: &settingsCancellables)
+
+        model.$jotNotes
+            .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
+            .sink { notes in
+                persistJotNotes(notes)
+            }
+            .store(in: &settingsCancellables)
+
+        settings.$hoverPreviewFocus
+            .sink { [weak self] focus in
+                guard let self else { return }
+                if focus == .all {
+                    if !self.model.isExpanded && !self.model.isPinned {
+                        self.hidePanel()
+                    }
+                } else {
+                    self.showSettingsPreview()
+                }
+                self.updateClipboardObservationMode(immediatePoll: focus != .all)
+            }
+            .store(in: &settingsCancellables)
+    }
+
+    private func startMemoryPressureMonitoring() {
+        guard memoryPressureSource == nil else { return }
+        let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: DispatchQueue.global(qos: .utility))
+        source.setEventHandler { [weak self] in
+            self?.purgeCachesForMemoryPressure()
+        }
+        source.resume()
+        memoryPressureSource = source
+    }
+
+    private func purgeCachesForMemoryPressure() {
+        let urls = model.boxFiles.map(\.url)
+        if urls.isEmpty {
+            BoxIconCache.shared.removeAll()
+        } else {
+            BoxIconCache.shared.trim(keeping: urls)
+        }
+    }
+
+    private func showSettingsPreview() {
+        guard let window = islandWindow else { return }
+        cancelIdleCompaction()
+        pendingHideWorkItem?.cancel()
+        pendingHideWorkItem = nil
+        hoverCloseWorkItem?.cancel()
+        hoverCloseWorkItem = nil
+        model.isExpanded = false
+        model.isPinned = false
+        model.expansionProgress = 0.0
+        model.closeGestureProgress = 0
+        model.carouselDragOffset = 0
+        updateNotchWindowFrame(heightOverride: panelHeight)
+        window.alphaValue = 1.0
+        window.ignoresMouseEvents = true
+        window.orderFrontRegardless()
+        updateClipboardObservationMode(immediatePoll: true)
+    }
+
+    private func notchTopAnchorY(for screen: NSScreen) -> CGFloat {
+        screen.frame.maxY
+    }
+
+    private func updateNotchWindowFrame(widthOverride: CGFloat? = nil, heightOverride: CGFloat? = nil) {
+        guard let screen = NSScreen.screens.first, let window = notchWindow else { return }
+        let screenRect = screen.frame
+        let defaultWidth = max(panelWidth, notchWidth)
+        let windowWidth = widthOverride ?? defaultWidth
+        let windowHeight = heightOverride ?? window.frame.height
+
+        // Correct window positioning: Center the window's midpoint on the hardware notch's midpoint
+        let notchX = settings.hardwareNotchX
+        let notchWidth = settings.effectiveNotchWidth
+        let windowX = notchX - (windowWidth - notchWidth) / 2
+        let windowY = screenRect.maxY - windowHeight
+
+        window.setFrame(NSRect(x: windowX, y: windowY, width: windowWidth, height: windowHeight), display: true)
+    }
+
+    private func previewNotchResize() {
+        notchPreviewWorkItem?.cancel()
+        notchPreviewWorkItem = nil
+
+        if model.isPinned {
+            showPanel(expanded: true, pinned: true)
+            return
+        }
+
+        showPanel(expanded: true, pinned: false)
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, !self.model.isPinned else { return }
+            self.hidePanel()
+        }
+        notchPreviewWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: workItem)
+    }
+
+    private let scrollBottomTolerance: CGFloat = 24
+
+    func isCurrentPageAtBottom() -> Bool {
+        guard model.isExpanded, !model.isPinned else { return false }
+        guard let window = islandWindow else { return true }
+        guard let scrollView = window.contentView?.findScrollView() else {
+            // If there's no scroll view, it's always ready to close.
+            return true
+        }
+        guard let documentView = scrollView.documentView else { return true }
+        let visibleRect = scrollView.documentVisibleRect
+        let contentHeight = documentView.frame.height
+        let viewportHeight = visibleRect.height
+
+        // If content is shorter than the viewport, it's always at the bottom!
+        if contentHeight <= viewportHeight { return true }
+
+        return visibleRect.maxY >= (contentHeight - scrollBottomTolerance)
+    }
+
+    private func setupNotchWindow() {
+        guard let screen = NSScreen.screens.first else { return }
+        let screenRect = screen.frame
+        let windowWidth = max(panelWidth, notchWidth)
+        let windowHeight = settings.effectiveNotchHeight
+
+        let notchX = settings.hardwareNotchX
+        let notchWidthActual = settings.effectiveNotchWidth
+        let windowX = notchX - (windowWidth - notchWidthActual) / 2
+        let windowY = screenRect.maxY - settings.effectiveNotchHeight
+
+        let initialRect = NSRect(x: windowX, y: windowY, width: windowWidth, height: windowHeight)
+        islandWindow = IslandPanel(
+            contentRect: initialRect,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+
+        notchWindow.backgroundColor = .clear
+        notchWindow.isOpaque = false
+        notchWindow.hasShadow = false
+        notchWindow.level = .statusBar + 2
+        notchWindow.alphaValue = 0.0
+        notchWindow.ignoresMouseEvents = true
+        notchWindow.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+
+        notchWindow.isActiveProvider = { [weak self] in
+            guard let self else { return false }
+            return self.model.isExpanded || self.model.isPinned
+        }
+        notchWindow.canTriggerVertical = { [weak self] in
+            self?.isCurrentPageAtBottom() ?? false
+        }
+        notchWindow.onSwipeLeft = { [weak self] in
+            self?.advancePage(direction: 1)
+        }
+        notchWindow.onSwipeRight = { [weak self] in
+            self?.advancePage(direction: -1)
+        }
+        notchWindow.onSwipeUp = { [weak self] in
+            self?.closeNotchFromSwipe()
+        }
+        notchWindow.onCloseProgressLegacy = { [weak self] progress, animate in
+            guard let self else { return }
+            let clamped = max(0, min(1, progress))
+            if abs(self.lastCloseProgressEmission - clamped) < 0.02 {
+                return
+            }
+            self.lastCloseProgressEmission = clamped
+            if animate {
+                if clamped == 0 {
+                    withAnimation(.easeOut(duration: 0.05)) {
+                        self.model.closeGestureProgress = clamped
+                    }
+                } else {
+                    withAnimation(self.settings.swipeAnimation) {
+                        self.model.closeGestureProgress = clamped
+                    }
+                }
+            } else {
+                self.model.closeGestureProgress = clamped
+            }
+        }
+        notchWindow.onCarouselOffset = { [weak self] offset, animate in
+            guard let self else { return }
+            if abs(self.lastCarouselOffsetEmission - offset) < (animate ? 0.01 : 0.6) {
+                return
+            }
+            self.lastCarouselOffsetEmission = offset
+            if animate {
+                withAnimation(.easeOut(duration: 0.05)) {
+                    self.model.carouselDragOffset = offset
+                }
+            } else {
+                self.model.carouselDragOffset = offset
+            }
+        }
+        notchWindow.carouselSensitivityProvider = { [weak self] in
+            self?.settings.clampedCarouselSensitivity ?? 1.0
+        }
+        notchWindow.closeSensitivityProvider = { [weak self] in
+            self?.settings.clampedCloseSensitivity ?? 1.0
+        }
+
+        let rootHubView = UnifiedNotchContainer(model: model, settings: settings)
+            .onPreferenceChange(UnifiedNotchContainer.ShellHeightKey.self) { [weak self] newHeight in
+                guard let self else { return }
+                self.scheduleWindowFrameUpdate(for: newHeight)
+            }
+
+        notchWindow.contentView = IslandHostingView(rootView: rootHubView)
+        // Don't order front at startup — window will be ordered front on first show.
+        // Keeping it ordered out eliminates all NSTrackingArea and SwiftUI hover
+        // events while the panel is idle, preventing CPU usage from cursor movement.
+    }
+
+    private func advancePage(direction: Int) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let next = clamp(self.model.currentPage + direction, min: IslandPage.clipboard.rawValue, max: IslandPage.box.rawValue)
+            self.model.carouselDragOffset = 0
+            withAnimation(self.settings.carouselAnimation) {
+                self.model.currentPage = next
+            }
+        }
+    }
+
+    private func startBackgroundStateTracking() {
+        startClipboardObservation()
+    }
+
+    private func startClipboardObservation() {
+        observeWorkspaceActivationForClipboardIfNeeded()
+        updateClipboardObservationMode(immediatePoll: true)
+    }
+
+    private func shouldKeepClipboardTimerRunning() -> Bool {
+        (model.isExpanded || model.isPinned) && model.currentPage == IslandPage.clipboard.rawValue
+    }
+
+    private func updateClipboardObservationMode(immediatePoll: Bool = false) {
+        let shouldPollActively = shouldKeepClipboardTimerRunning()
+        if shouldPollActively {
+            startClipboardPollingTimerIfNeeded()
+        } else {
+            stopClipboardObservation()
+        }
+        if immediatePoll, shouldPollActively {
+            let now = ProcessInfo.processInfo.systemUptime
+            guard now - lastImmediateClipboardPollTime >= clipboardImmediatePollDebounce else {
+                return
+            }
+            lastImmediateClipboardPollTime = now
+            // Avoid forced payload reads on page transitions: a normal poll first
+            // checks pasteboard changeCount and only decodes payload when changed.
+            pollClipboard()
+        }
+    }
+
+    private func startClipboardPollingTimerIfNeeded() {
+        guard clipboardTimer == nil else { return }
+
+        let timer = DispatchSource.makeTimerSource(queue: clipboardQueue)
+        timer.schedule(
+            deadline: .now() + 1.2,
+            repeating: clipboardActivePollingInterval,
+            leeway: .seconds(2)
+        )
+        timer.setEventHandler { [weak self] in
+            self?.pollClipboard()
+        }
+        timer.resume()
+        clipboardTimer = timer
+    }
+
+    private func stopClipboardObservation() {
+        clipboardTimer?.cancel()
+        clipboardTimer = nil
+    }
+
+    private func observeWorkspaceActivationForClipboardIfNeeded() {
+        guard clipboardActivationObserver == nil else { return }
+        clipboardActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleWorkspaceActivationForClipboard()
+        }
+    }
+
+    private func handleWorkspaceActivationForClipboard() {
+        guard !shouldKeepClipboardTimerRunning() else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastWorkspaceClipboardPollTime >= clipboardWorkspaceActivationPollDebounce else {
+            return
+        }
+        lastWorkspaceClipboardPollTime = now
+        pollClipboard()
+    }
+
+    func updateObservationState(for page: Int) {
+        updateClipboardObservationMode(immediatePoll: page == IslandPage.clipboard.rawValue)
+    }
+
+    private func refreshNativeState() {
+        pollClipboard(force: true)
+    }
+
+    private func pollClipboard(force: Bool = false) {
+        if Thread.isMainThread {
+            pollClipboardFromPasteboard(force: force)
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.pollClipboardFromPasteboard(force: force)
+            }
+        }
+    }
+
+    private func pollClipboardFromPasteboard(force: Bool = false) {
+        let pasteboard = NSPasteboard.general
+        let currentChangeCount = pasteboard.changeCount
+        guard force || currentChangeCount != lastClipboardChangeCount else { return }
+        lastClipboardChangeCount = currentChangeCount
+
+        let fileURLs = (pasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL] ?? [])
+        .filter(\.isFileURL)
+
+        let trimmedText: String?
+        if fileURLs.isEmpty {
+            trimmedText = cappedClipboardText(pasteboard.string(forType: .string))
+        } else {
+            trimmedText = nil
+        }
+
+        guard (trimmedText?.isEmpty == false) || !fileURLs.isEmpty else { return }
+
+        clipboardQueue.async { [weak self] in
+            let entry = ClipboardEntry(text: trimmedText, fileURLs: fileURLs).normalizedForLightweightStorage()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                guard self.model.clipboardItems.first?.signature != entry.signature else { return }
+
+                self.model.clipboardItems.removeAll { $0.signature == entry.signature }
+                self.model.clipboardItems.insert(entry, at: 0)
+                self.applyClipboardLimitIfNeeded()
+                persistClipboardHistory(self.model.clipboardItems)
+                self.refreshChunkedClipboard()
+            }
+        }
+    }
+
+    func copyClipboardEntry(_ entry: ClipboardEntry) {
+        let entry = entry.normalizedForLightweightStorage()
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        if entry.hasText {
+            pasteboard.setString(entry.normalizedText, forType: .string)
+        }
+        if entry.hasFiles {
+            _ = pasteboard.writeObjects(entry.fileURLs as [NSURL])
+        }
+        model.clipboardPulseItemID = entry.id
+        model.clipboardItems.removeAll { $0.signature == entry.signature }
+        model.clipboardItems.insert(entry, at: 0)
+        applyClipboardLimitIfNeeded()
+        persistClipboardHistory(model.clipboardItems)
+        refreshChunkedClipboard()
+    }
+
+    func clearClipboardHistory() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        lastClipboardChangeCount = pasteboard.changeCount
+        model.clipboardItems.removeAll()
+        model.chunkedClipboardRows.removeAll()
+        model.clipboardPulseItemID = nil
+        persistClipboardHistory(model.clipboardItems)
+        refreshChunkedClipboard()
+    }
+
+    private func applyClipboardLimitIfNeeded() {
+        guard let limit = settings.effectiveRememberClips else { return }
+        if model.clipboardItems.count > limit {
+            model.clipboardItems = Array(model.clipboardItems.prefix(limit))
+            refreshChunkedClipboard()
+        }
+    }
+
+    func addBoxItems(from urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        for url in urls.reversed() {
+            if !model.boxFiles.contains(where: { $0.url == url }) {
+                model.boxFiles.insert(BoxFile(url: url), at: 0)
+            }
+        }
+        showPanel(expanded: true, pinned: false, preferredPage: IslandPage.box.rawValue)
+    }
+
+    func openBoxPage() {
+        showPanel(expanded: true, pinned: false, preferredPage: IslandPage.box.rawValue)
+    }
+
+    func closeNotchFromSwipe() {
+        guard !model.isPinned else { return }
+        suppressProximityUntilExit = true
+        swipeCloseWorkItem?.cancel()
+        swipeCloseWorkItem = nil
+        let delay = settings.swipeCloseDelay
+        if delay <= 0 {
+            hidePanel()
+            return
+        }
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.hidePanel()
+        }
+        swipeCloseWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    func postPasteCommand() {
+        let keyCodeV: CGKeyCode = 9
+        let source = CGEventSource(stateID: .combinedSessionState)
+        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCodeV, keyDown: true)
+        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCodeV, keyDown: false)
+        keyDown?.flags = .maskCommand
+        keyUp?.flags = .maskCommand
+        keyDown?.post(tap: .cghidEventTap)
+        keyUp?.post(tap: .cghidEventTap)
+    }
+
+    private func startGlobalProximityTracking() {
+        setupProximityWakeWindow()
+        updateProximityWakeWindowFrame()
+    }
+
+    private func setupProximityWakeWindow() {
+        guard proximityWakeWindow == nil else { return }
+        let wake = ProximityWakeWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1, height: 1),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        wake.isOpaque = false
+        wake.backgroundColor = .clear
+        wake.hasShadow = false
+        wake.level = .statusBar + 1
+        wake.alphaValue = 0.001
+        wake.ignoresMouseEvents = false
+        wake.acceptsMouseMovedEvents = true
+        wake.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        wake.hidesOnDeactivate = false
+        wake.onMouseEntered = { [weak self] in self?.handleProximityWakeEntered() }
+        wake.onMouseExited = { [weak self] in self?.handleProximityWakeExited() }
+        wake.onApproachMouseMoved = { [weak self] pt in self?.handleProximityApproachMouseMoved(to: pt) }
+        wake.onDraggingEntered = { [weak self] in self?.handleProximityDraggingEntered() }
+        wake.onDraggingUpdated = { [weak self] pt in self?.handleProximityDraggingUpdated(to: pt) }
+        wake.onDraggingExited = { [weak self] in self?.handleProximityDraggingExited() }
+        wake.orderFrontRegardless()
+        proximityWakeWindow = wake
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleScreenParametersChanged),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleScreenParametersChanged() {
+        calculateScreenNotchDimensions()
+        updateNotchWindowFrame()
+        updateProximityWakeWindowFrame()
+    }
+
+    private func updateProximityWakeWindowFrame() {
+        guard let wake = proximityWakeWindow,
+              let screen = NSScreen.screens.first else { return }
+        let screenRect = screen.frame
+
+        // proximityWakeWindow tracks notch edge + approach zone while island is closed.
+        let shouldWakeTrackCursor =
+            !model.isExpanded &&
+            !model.isPinned &&
+            model.observedFileToast == nil &&
+            !(settings.showHoverPreviews && settings.hoverPreviewFocus != .all)
+        guard shouldWakeTrackCursor else {
+            resetApproachProgressSampling()
+            wake.orderOut(nil)
+            return
+        }
+        // Cursor is approaching the notch; reset the suppression flag so hover-to-open works.
+        suppressProximityUntilExit = false
+        let edge = settings.clampedNotchEdgeThickness
+        let edgeNotchWidth = settings.effectiveNotchWidth
+        let edgeNotchHeight = settings.effectiveNotchHeight
+        let edgeNotchLeft = settings.hardwareNotchX
+        let edgeNotchRect = CGRect(
+            x: edgeNotchLeft,
+            y: screenRect.maxY - edgeNotchHeight,
+            width: edgeNotchWidth,
+            height: edgeNotchHeight
+        ).insetBy(dx: -edge, dy: -edge)
+
+        let approachScale: CGFloat = settings.alwaysUseApproachWhenDraggingFile ? 2.0 : 1.0
+        let approachWidth = settings.disableApproach ? 0 : settings.clampedApproachWidth * approachScale
+        let approachHeight = settings.disableApproach ? 0 : settings.clampedApproachHeight * approachScale
+
+        let cushion: CGFloat = 6
+        let totalHeight = edgeNotchRect.height + approachHeight + cushion
+        let totalWidth = edgeNotchRect.width + approachWidth * 2
+        let originX = edgeNotchRect.minX - approachWidth
+        let originY = screenRect.maxY - totalHeight
+        let approachRect = CGRect(
+            x: edgeNotchRect.minX - approachWidth,
+            y: edgeNotchRect.minY - approachHeight,
+            width: edgeNotchRect.width + (approachWidth * 2),
+            height: approachHeight
+        )
+
+        wake.setFrame(NSRect(x: originX, y: originY, width: totalWidth, height: totalHeight), display: false)
+        if !wake.isVisible {
+            wake.orderFrontRegardless()
+        }
+        wake.updateTrackingGeometry(
+            notchEdgeRect: edgeNotchRect.offsetBy(dx: -originX, dy: -originY),
+            approachRect: approachRect.offsetBy(dx: -originX, dy: -originY)
+        )
+
+        // If tracking geometry moves under a stationary cursor, AppKit may not
+        // emit mouseEntered. Keep activation state in sync, but do not force
+        // open from here so hover-open uses the same mouseEntered path.
+        let cursor = NSEvent.mouseLocation
+        if edgeNotchRect.contains(cursor) {
+            setActivationZoneState(true)
+        }
+    }
+
+    private func handleProximityWakeEntered() {
+        guard !suppressProximityUntilExit else { return }
+        // Only the notch-edge/notch itself should count as activation.
+        // Entering approach alone should progressively expand, not open.
+        let point = NSEvent.mouseLocation
+        if let screen = NSScreen.screens.first {
+            let zones = makeProximityZones(screenRect: screen.frame, point: point, isFileDrag: false)
+            setActivationZoneState(zones.isInsideNotch || zones.isHoveringEdge)
+            if zones.isInsideNotch || zones.isHoveringEdge {
+                showPanel(expanded: true, pinned: false)
+            }
+        } else {
+            setActivationZoneState(false)
+        }
+        // Evaluate cursor when tracking areas are entered so approach progress
+        // updates immediately, but open only occurs at notch-edge/notch.
+        evaluateMouseCoordinates(point, isFileDrag: false)
+    }
+
+    private func handleProximityWakeExited() {
+        suppressProximityUntilExit = false
+        resetApproachProgressSampling()
+        setActivationZoneState(false)
+    }
+
+    private func handleProximityApproachMouseMoved(to point: NSPoint) {
+        guard !suppressProximityUntilExit, !model.isExpanded, !model.isPinned else { return }
+        evaluateMouseCoordinates(point, isFileDrag: false)
+    }
+
+    private func setActivationZoneState(_ isInside: Bool) {
+        guard isCursorInActivationZone != isInside else { return }
+        isCursorInActivationZone = isInside
+        applyCursorPresenceState()
+    }
+
+    private func applyCursorPresenceState() {
+        guard !model.isPinned else {
+            hoverCloseWorkItem?.cancel()
+            hoverCloseWorkItem = nil
+            return
+        }
+
+        if model.isExpanded {
+            hoverCloseWorkItem?.cancel()
+            hoverCloseWorkItem = nil
+            return
+        }
+
+        guard isCursorInActivationZone, !suppressProximityUntilExit else { return }
+    }
+
+    private func clearCursorPresenceState() {
+        isCursorInActivationZone = false
+    }
+
+    private func handleLegacyProximityWakeExitedFallback() {
+        approachWorkItem?.cancel()
+        approachWorkItem = nil
+        let globalPoint = NSEvent.mouseLocation
+        let isWithinExpandedPanel = notchWindow?.frame.contains(globalPoint) ?? false
+        if model.isExpanded {
+            if !isWithinExpandedPanel {
+                scheduleHoverCloseIfNeeded()
+            }
+        } else if !model.isPinned && model.expansionProgress > 0 {
+            withAnimation(settings.notchOpenAnimation) {
+                model.expansionProgress = 0
+            }
+            let checkWindow = notchWindow
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                guard let self, !self.model.isExpanded, self.model.expansionProgress == 0 else { return }
+                checkWindow?.alphaValue = 0.0
+                checkWindow?.ignoresMouseEvents = true
+                checkWindow?.orderOut(nil)
+            }
+        }
+    }
+
+    private func handleProximityDraggingEntered() {
+        isDraggingOverProximity = true
+        suppressProximityUntilExit = false
+        evaluateMouseCoordinates(NSEvent.mouseLocation, isFileDrag: true)
+    }
+
+    private func handleProximityDraggingUpdated(to point: NSPoint) {
+        evaluateMouseCoordinates(point, isFileDrag: true)
+    }
+
+    private func handleProximityDraggingExited() {
+        isDraggingOverProximity = false
+        handleLegacyProximityWakeExitedFallback()
+    }
+
+    private struct ProximityZones {
+        let notchRect: CGRect
+        let notchEdgeRect: CGRect
+        let approachRect: CGRect
+        let isHoveringEdge: Bool
+        let isInsideNotch: Bool
+    }
+
+    private func makeProximityZones(screenRect: CGRect, point: NSPoint, isFileDrag: Bool) -> ProximityZones {
+        let edge = settings.clampedNotchEdgeThickness
+        let forceApproachForDrag = isFileDrag && settings.alwaysUseApproachWhenDraggingFile
+        let disableApproachForCurrentInput = settings.disableApproach && !forceApproachForDrag
+        let approachScale: CGFloat = forceApproachForDrag ? 2.0 : 1.0
+        let approachWidth = disableApproachForCurrentInput ? 0 : settings.clampedApproachWidth * approachScale
+        let approachHeight = disableApproachForCurrentInput ? 0 : settings.clampedApproachHeight * approachScale
+        let edgeNotchWidth = settings.effectiveNotchWidth
+        let edgeNotchHeight = settings.effectiveNotchHeight
+        let edgeNotchLeft = settings.hardwareNotchX
+
+        let notchRect = CGRect(
+            x: edgeNotchLeft,
+            // Use global screen-space Y (maxY), not local height, to keep
+            // inside-notch detection correct on all display origins.
+            y: screenRect.maxY - edgeNotchHeight,
+            width: edgeNotchWidth,
+            height: edgeNotchHeight
+        )
+        let notchEdgeRect = notchRect.insetBy(dx: -edge, dy: -edge)
+        let approachRect = CGRect(
+            x: notchEdgeRect.minX - approachWidth,
+            y: notchEdgeRect.minY - approachHeight,
+            width: notchEdgeRect.width + approachWidth * 2,
+            height: approachHeight
+        )
+        let isInsideNotch = notchRect.contains(point)
+        let isHoveringEdge = isPointInNotchEdge(point, notchRect: notchRect, edge: edge)
+
+        return ProximityZones(
+            notchRect: notchRect,
+            notchEdgeRect: notchEdgeRect,
+            approachRect: approachRect,
+            isHoveringEdge: isHoveringEdge,
+            isInsideNotch: isInsideNotch
+        )
+    }
+
+    private func isPointInNotchEdge(_ point: NSPoint, notchRect: CGRect, edge: CGFloat) -> Bool {
+        if notchRect.contains(point) {
+            return true
+        }
+        let thickness = max(0, edge)
+        guard thickness > 0 else { return false }
+        let hitThickness = max(6, thickness)
+        let outerRect = notchRect.insetBy(dx: -hitThickness, dy: -hitThickness)
+        return outerRect.contains(point)
+    }
+
+    private func scheduleHoverCloseIfNeeded() {
+        guard hoverCloseWorkItem == nil else { return }
+        let delay = settings.hoverCloseDelay
+        if delay <= 0 {
+            hidePanel()
+            return
+        }
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.hidePanel()
+        }
+        hoverCloseWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    private func startIslandOpenMousePolling() {
+        guard islandOpenMousePollTimer == nil else { return }
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + .milliseconds(400), repeating: .milliseconds(400), leeway: .milliseconds(150))
+        timer.setEventHandler { [weak self] in
+            self?.handleIslandOpenMousePollTick()
+        }
+        islandOpenMousePollTimer = timer
+        timer.resume()
+    }
+
+    private func stopIslandOpenMousePolling() {
+        islandOpenMousePollTimer?.cancel()
+        islandOpenMousePollTimer = nil
+    }
+
+    private func handleIslandOpenMousePollTick() {
+        guard model.isExpanded, !model.isPinned, let window = islandWindow else {
+            stopIslandOpenMousePolling()
+            return
+        }
+        let point = NSEvent.mouseLocation
+        let now = ProcessInfo.processInfo.systemUptime
+        // Give the panel a brief settling window so fast notch-entry doesn't
+        // get interpreted as an immediate leave before geometry catches up.
+        if now - lastPanelExpandedAt < 0.45 {
+            return
+        }
+
+        if window.frame.contains(point) || isPointInsideNotchActivationZone(point) {
+            return
+        }
+        scheduleHoverCloseIfNeeded()
+    }
+
+    private func isPointInsideNotchActivationZone(_ point: NSPoint) -> Bool {
+        guard let screen = NSScreen.screens.first else { return false }
+        let zones = makeProximityZones(screenRect: screen.frame, point: point, isFileDrag: false)
+        return zones.isInsideNotch || zones.isHoveringEdge
+    }
+
+    private func resetApproachProgressSampling() {
+        lastApproachProgressSampleTime = 0
+        lastApproachProgressEmitted = -1
+    }
+
+    private func applyApproachProgressIfNeeded(_ targetProgress: CGFloat) {
+        let clamped = min(1.0, max(0.0, targetProgress))
+        let now = ProcessInfo.processInfo.systemUptime
+
+        if lastApproachProgressEmitted < 0 {
+            lastApproachProgressEmitted = clamped
+            lastApproachProgressSampleTime = now
+            if abs(model.expansionProgress - clamped) > 0.005 {
+                model.expansionProgress = clamped
+            }
+            return
+        }
+
+        let delta = abs(clamped - lastApproachProgressEmitted)
+        let elapsed = now - lastApproachProgressSampleTime
+        let isLargeStep = delta >= 0.08
+        guard isLargeStep || (delta >= approachProgressDeltaThreshold && elapsed >= approachProgressUpdateInterval) else {
+            return
+        }
+
+        lastApproachProgressEmitted = clamped
+        lastApproachProgressSampleTime = now
+        if abs(model.expansionProgress - clamped) > 0.005 {
+            model.expansionProgress = clamped
+        }
+    }
+
+    private func evaluateMouseCoordinates(_ globalPoint: NSPoint, isFileDrag: Bool) {
+        guard let screen = NSScreen.screens.first else { return }
+        let screenRect = screen.frame
+        let zones = makeProximityZones(screenRect: screenRect, point: globalPoint, isFileDrag: isFileDrag)
+        let isInsideActiveZone = zones.isInsideNotch || zones.isHoveringEdge || zones.approachRect.contains(globalPoint)
+
+        if isInsideActiveZone {
+            hoverCloseWorkItem?.cancel()
+            hoverCloseWorkItem = nil
+        }
+
+        if model.isPinned {
+            showPanel(expanded: true, pinned: true)
+            return
+        }
+
+        if model.isExpanded {
+            let isWithinExpandedPanel = notchWindow?.frame.contains(globalPoint) ?? false
+            if isWithinExpandedPanel || zones.isInsideNotch || zones.isHoveringEdge {
+                hoverCloseWorkItem?.cancel()
+                hoverCloseWorkItem = nil
+            } else {
+                scheduleHoverCloseIfNeeded()
+            }
+            return
+        }
+
+        let isDirectHoverOverNotch = zones.isInsideNotch || zones.isHoveringEdge
+        let forceApproachForDrag = isFileDrag && settings.alwaysUseApproachWhenDraggingFile
+        let disableApproachForCurrentInput = settings.disableApproach && !forceApproachForDrag
+
+        if disableApproachForCurrentInput {
+            if isDirectHoverOverNotch, isFileDrag {
+                let preferredPage = isFileDrag ? IslandPage.box.rawValue : nil
+                showPanel(expanded: true, pinned: false, preferredPage: preferredPage)
+            } else {
+                hidePanel()
+            }
+            return
+        }
+
+        if isInsideActiveZone {
+            let totalHeight = max(1.0, zones.approachRect.height)
+            let distance = max(0.0, zones.notchEdgeRect.minY - globalPoint.y)
+            let baseProgress = min(1.0, max(0.0, 1.0 - (distance / totalHeight)))
+            let targetProgress = zones.isHoveringEdge ? 1.0 : baseProgress
+
+            // When cursor is already on the notch edge, skip approach prefill.
+            // Let showPanel drive a full, consistent open animation instead of
+            // arriving with expansionProgress already at 1.0.
+            if !isDirectHoverOverNotch {
+                applyApproachProgressIfNeeded(targetProgress)
+            }
+            if notchWindow?.alphaValue != 1.0 {
+                notchWindow?.alphaValue = 1.0
+            }
+            if notchWindow?.isVisible == false {
+                notchWindow?.orderFrontRegardless()
+            }
+            let shouldIgnoreMouseEvents = !(isFileDrag && zones.approachRect.contains(globalPoint))
+            if notchWindow?.ignoresMouseEvents != shouldIgnoreMouseEvents {
+                notchWindow?.ignoresMouseEvents = shouldIgnoreMouseEvents
+            }
+
+            if isDirectHoverOverNotch, isFileDrag {
+                approachWorkItem?.cancel()
+                approachWorkItem = nil
+                resetApproachProgressSampling()
+                let preferredPage = isFileDrag ? IslandPage.box.rawValue : nil
+                showPanel(expanded: true, pinned: false, preferredPage: preferredPage)
+            } else {
+                approachWorkItem?.cancel()
+                approachWorkItem = nil
+            }
+        } else {
+            approachWorkItem?.cancel()
+            approachWorkItem = nil
+            resetApproachProgressSampling()
+            hidePanel()
+        }
+    }
+
+    private func showPanel(expanded: Bool, pinned: Bool, preferredPage: Int? = nil) {
+        guard let window = islandWindow else { return }
+
+        if expanded {
+            panelVisibilityEpoch &+= 1
+        }
+
+        let resolvedPage: Int?
+        if let preferredPage {
+            resolvedPage = preferredPage
+        } else if expanded {
+            if settings.reopenLastPage {
+                resolvedPage = settings.lastVisitedPage
+            } else if settings.defaultToBoxIfItems, !model.boxFiles.isEmpty {
+                resolvedPage = IslandPage.box.rawValue
+            } else {
+                resolvedPage = settings.defaultPage
+            }
+        } else {
+            resolvedPage = nil
+        }
+
+        let stateMatches = model.isExpanded == expanded && model.isPinned == pinned
+        let pageMatches = resolvedPage == nil || model.currentPage == resolvedPage
+        if stateMatches,
+           pageMatches,
+           abs(model.expansionProgress - 1.0) < 0.001,
+           abs(model.closeGestureProgress) < 0.001,
+           abs(model.carouselDragOffset) < 0.001 {
+            if window.alphaValue != 1.0 {
+                window.alphaValue = 1.0
+            }
+            if window.ignoresMouseEvents {
+                window.ignoresMouseEvents = false
+            }
+            if !window.isVisible {
+                window.orderFrontRegardless()
+            }
+            updateClipboardObservationMode(immediatePoll: true)
+            updateProximityWakeWindowFrame()
+            if expanded {
+                startIslandOpenMousePolling()
+            } else {
+                stopIslandOpenMousePolling()
+            }
+            return
+        }
+
+        cancelIdleCompaction()
+        pendingHideWorkItem?.cancel()
+        pendingHideWorkItem = nil
+        hoverCloseWorkItem?.cancel()
+        hoverCloseWorkItem = nil
+        swipeCloseWorkItem?.cancel()
+        swipeCloseWorkItem = nil
+
+        let isFreshOpenRequest = expanded && !model.isExpanded
+        let wasExpanded = model.isExpanded
+        let shouldAnimateOpen = expanded && (isFreshOpenRequest || !wasExpanded || model.expansionProgress < 0.999 || model.closeGestureProgress > 0.001)
+        if model.isExpanded != expanded {
+            model.isExpanded = expanded
+        }
+        if model.isPinned != pinned {
+            model.isPinned = pinned
+        }
+
+        if shouldAnimateOpen {
+            var resetTransaction = Transaction()
+            resetTransaction.animation = nil
+            withTransaction(resetTransaction) {
+                model.expansionProgress = 0
+                model.closeGestureProgress = 0
+                model.carouselDragOffset = 0
+            }
+            withAnimation(settings.notchOpenAnimation) {
+                model.expansionProgress = 1.0
+                model.closeGestureProgress = 0
+                model.carouselDragOffset = 0
+            }
+        } else {
+            if abs(model.expansionProgress - 1.0) > 0.001 {
+                model.expansionProgress = 1.0
+            }
+            if abs(model.closeGestureProgress) > 0.001 {
+                model.closeGestureProgress = 0
+            }
+            if abs(model.carouselDragOffset) > 0.001 {
+                model.carouselDragOffset = 0
+            }
+        }
+        lastCloseProgressEmission = 0
+        lastCarouselOffsetEmission = 0
+        if let resolvedPage, model.currentPage != resolvedPage {
+            model.currentPage = resolvedPage
+        }
+        if window.alphaValue != 1.0 {
+            window.alphaValue = 1.0
+        }
+        if window.ignoresMouseEvents {
+            window.ignoresMouseEvents = false
+        }
+        if !window.isVisible {
+            window.orderFrontRegardless()
+        }
+        if expanded {
+            lastPanelExpandedAt = ProcessInfo.processInfo.systemUptime
+        }
+        isCursorInActivationZone = window.frame.contains(NSEvent.mouseLocation)
+        updateClipboardObservationMode(immediatePoll: true)
+        updateProximityWakeWindowFrame()
+        if expanded {
+            startIslandOpenMousePolling()
+        } else {
+            stopIslandOpenMousePolling()
+        }
+    }
+
+    private func hidePanel(preserveCloseProgress: Bool = false) {
+        guard let window = islandWindow else { return }
+        if (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded {
+            return
+        }
+        if model.isPinned { return }
+        pendingHideWorkItem?.cancel()
+        swipeCloseWorkItem?.cancel()
+        swipeCloseWorkItem = nil
+        hoverCloseWorkItem?.cancel()
+        hoverCloseWorkItem = nil
+        stopIslandOpenMousePolling()
+        // Match open exactly: use the same notch spring for collapse.
+        // Keep the window visible long enough for the spring to settle.
+        withAnimation(settings.notchOpenAnimation) {
+            model.isExpanded = false
+            model.expansionProgress = 0.0
+            if !preserveCloseProgress {
+                model.closeGestureProgress = 0
+            }
+            model.carouselDragOffset = 0
+        }
+        // Reactivate notch/approach tracking immediately on close start so
+        // quick re-entry can reopen without waiting for final orderOut.
+        updateProximityWakeWindowFrame()
+        lastCloseProgressEmission = 0
+        lastCarouselOffsetEmission = 0
+
+        panelVisibilityEpoch &+= 1
+        let hideEpoch = panelVisibilityEpoch
+
+        let hideWorkItem = DispatchWorkItem { [weak self] in
+            guard let self, !self.model.isPinned else { return }
+            guard self.panelVisibilityEpoch == hideEpoch else { return }
+            window.alphaValue = 0.0
+            window.ignoresMouseEvents = true
+            window.orderOut(nil)
+            self.clearCursorPresenceState()
+            self.model.expansionProgress = 0
+            self.scheduleIdleCompactionIfNeeded()
+            self.updateClipboardObservationMode()
+            self.updateProximityWakeWindowFrame()
+        }
+        scheduleHideAfterCollapse(
+            window: window,
+            hideWorkItem: hideWorkItem,
+            startedAt: ProcessInfo.processInfo.systemUptime,
+            hideEpoch: hideEpoch
+        )
+    }
+
+    private func scheduleHideAfterCollapse(window: NSWindow, hideWorkItem: DispatchWorkItem, startedAt: TimeInterval, hideEpoch: UInt64) {
+        let pollWorkItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            guard self.panelVisibilityEpoch == hideEpoch else { return }
+            guard !self.model.isPinned else { return }
+            guard !self.model.isExpanded else { return }
+
+            let elapsed = ProcessInfo.processInfo.systemUptime - startedAt
+            // Frame updates are quantized to rounded points in
+            // `scheduleWindowFrameUpdate`, so compare against the same final value.
+            let targetNotchHeight = self.settings.effectiveNotchHeight.rounded()
+            let currentHeight = window.frame.height
+            let hasCollapsedToNotch = abs(currentHeight - targetNotchHeight) <= 0.01
+
+            // Require a small minimum visible duration so close remains
+            // perceptible even when frame updates arrive quickly.
+            if hasCollapsedToNotch && elapsed >= 0.10 {
+                hideWorkItem.perform()
+                return
+            }
+
+            if elapsed >= 1.2 {
+                // Safety net: force an exact final-notch frame before hiding.
+                self.updateNotchWindowFrame(heightOverride: targetNotchHeight)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+                    guard self.panelVisibilityEpoch == hideEpoch else { return }
+                    hideWorkItem.perform()
+                }
+                return
+            }
+
+            self.scheduleHideAfterCollapse(window: window, hideWorkItem: hideWorkItem, startedAt: startedAt, hideEpoch: hideEpoch)
+        }
+
+        pendingHideWorkItem = pollWorkItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + (1.0 / 60.0), execute: pollWorkItem)
+    }
+
+    private func cancelIdleCompaction() {
+        idleCompactionWorkItem?.cancel()
+        idleCompactionWorkItem = nil
+    }
+
+    private func scheduleIdleCompactionIfNeeded() {
+        cancelIdleCompaction()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            guard !self.model.isExpanded,
+                  !self.model.isPinned,
+                  self.model.observedFileToast == nil,
+                  !self.model.isToastDismissing,
+                  !(self.settings.showHoverPreviews && self.settings.hoverPreviewFocus != .all) else {
+                return
+            }
+            self.performIdleCompaction()
+        }
+        idleCompactionWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + idleCompactionDelay, execute: workItem)
+    }
+
+    private func performIdleCompaction() {
+        BoxIconCache.shared.removeAll()
+        if !model.isExpanded && !model.isPinned {
+            model.carouselDragOffset = 0
+            model.closeGestureProgress = 0
+        }
+    }
+
+    private func configureFolderMonitors(with folders: [String]) {
+        let desired = Set(folders)
+        let existing = Set(folderMonitors.keys)
+
+        let toRemove = existing.subtracting(desired)
+        let toAdd = desired.subtracting(existing)
+
+        for path in toRemove {
+            folderMonitors[path]?.stop()
+            folderMonitors.removeValue(forKey: path)
+            folderSnapshots.removeValue(forKey: path)
+        }
+
+        for path in toAdd {
+            let url = URL(fileURLWithPath: path)
+            folderSnapshots[path] = snapshotFiles(in: url)
+            let monitor = FolderMonitor(url: url) { [weak self] in
+                self?.handleFolderChange(for: url)
+            }
+            monitor.start()
+            folderMonitors[path] = monitor
+        }
+    }
+
+    private func snapshotFiles(in folder: URL) -> Set<String> {
+        let manager = FileManager.default
+        let files = (try? manager.contentsOfDirectory(
+            at: folder,
+            includingPropertiesForKeys: [.isDirectoryKey, .creationDateKey, .contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+
+        let filtered = files.filter { url in
+            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
+            return values?.isDirectory != true
+        }
+
+        return Set(filtered.map { $0.path })
+    }
+
+    private func handleFolderChange(for folder: URL) {
+        let path = folder.path
+        let previous = folderSnapshots[path] ?? []
+        let current = snapshotFiles(in: folder)
+        folderSnapshots[path] = current
+
+        let added = current.subtracting(previous)
+        guard !added.isEmpty else { return }
+
+        let newURLs = added.map { URL(fileURLWithPath: $0) }
+        let newest = newURLs.max { lhs, rhs in
+            let lhsValues = try? lhs.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
+            let rhsValues = try? rhs.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
+            let lhsDate = lhsValues?.creationDate ?? lhsValues?.contentModificationDate ?? .distantPast
+            let rhsDate = rhsValues?.creationDate ?? rhsValues?.contentModificationDate ?? .distantPast
+            return lhsDate < rhsDate
+        }
+
+        guard let fileURL = newest else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.showObservedFileToast(fileURL: fileURL, folderURL: folder)
+        }
+    }
+
+    private func showObservedFileToast(fileURL: URL, folderURL: URL) {
+        withAnimation(settings.notchOpenAnimation) {
+            model.observedFileToast = ObservedFileToast(fileURL: fileURL, folderURL: folderURL)
+        }
+        showToastPanel()
+    }
+
+    private func showToastPanel() {
+        guard let window = islandWindow else { return }
+        cancelIdleCompaction()
+        pendingHideWorkItem?.cancel()
+        pendingHideWorkItem = nil
+        model.isToastDismissing = false
+        model.isExpanded = false
+        model.isPinned = false
+        model.expansionProgress = 0.0
+        window.alphaValue = 1.0
+        window.ignoresMouseEvents = false
+        window.orderFrontRegardless()
+        withAnimation(settings.notchOpenAnimation) {
+            model.expansionProgress = 1.0
+        }
+        updateClipboardObservationMode(immediatePoll: true)
+    }
+
+    func dismissToastAndHideNotch() {
+        scheduleIdleCompactionIfNeeded()
+        pendingHideWorkItem?.cancel()
+        pendingHideWorkItem = nil
+        suppressProximityUntilExit = true
+        model.isToastDismissing = true
+        model.observedFileToast = nil
+        model.isExpanded = false
+        model.isPinned = false
+        model.expansionProgress = 0.0
+        model.closeGestureProgress = 0
+        updateNotchWindowFrame(heightOverride: panelHeight)
+        if let window = notchWindow {
+            window.alphaValue = 0.0
+            window.ignoresMouseEvents = true
+            window.orderOut(nil)
+        }
+        updateClipboardObservationMode(immediatePoll: true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            self?.suppressProximityUntilExit = true
+            self?.model.isToastDismissing = false
+            self?.updateClipboardObservationMode()
+        }
+    }
+
+    private func updateWindowFrameForNewHeight(_ newHeight: CGFloat) {
+        guard let screen = NSScreen.screens.first, let window = notchWindow else { return }
+
+        // Don't interfere when settings previews are active, as they use a fixed large frame.
+        if settings.showHoverPreviews && settings.hoverPreviewFocus != .all {
+            return
+        }
+
+        guard newHeight.isFinite, newHeight > 1 else { return }
+
+        // Keep the window width fixed at the maximum possible panel width to avoid clipping content during animation.
+        let windowWidth = max(self.panelWidth, self.notchWidth)
+        let windowHeight = newHeight
+
+        // Correct window positioning: Center the window's midpoint on the hardware notch's midpoint
+        let notchX = settings.hardwareNotchX
+        let notchWidth = settings.effectiveNotchWidth
+        let windowX = notchX - (windowWidth - notchWidth) / 2
+        let windowY = screen.frame.maxY - windowHeight
+
+        let newFrame = NSRect(x: windowX, y: windowY, width: windowWidth, height: windowHeight)
+
+        let current = window.frame
+        if abs(current.origin.x - newFrame.origin.x) < 1.0,
+           abs(current.origin.y - newFrame.origin.y) < 1.0,
+           abs(current.size.width - newFrame.size.width) < 1.0,
+           abs(current.size.height - newFrame.size.height) < 1.0 {
+            return
+        }
+        window.setFrame(newFrame, display: false)
+    }
+
+    private func scheduleWindowFrameUpdate(for newHeight: CGFloat) {
+        guard newHeight.isFinite, newHeight > 1 else { return }
+        if !model.isExpanded,
+           !model.isPinned,
+           model.observedFileToast == nil,
+           let window = notchWindow,
+           window.alphaValue <= 0.001 {
+            pendingWindowHeightUpdate = nil
+            return
+        }
+        let quantizedHeight = newHeight.rounded()
+        if let pending = pendingWindowHeightUpdate, abs(pending - quantizedHeight) < 0.6 {
+            return
+        }
+        pendingWindowHeightUpdate = quantizedHeight
+        guard windowFrameUpdateWorkItem == nil else { return }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.windowFrameUpdateWorkItem = nil
+            guard let targetHeight = self.pendingWindowHeightUpdate else { return }
+            self.pendingWindowHeightUpdate = nil
+            self.updateWindowFrameForNewHeight(targetHeight)
+        }
+        windowFrameUpdateWorkItem = workItem
+        let frameDelay: TimeInterval = model.isExpanded ? 0.05 : 0.07
+        DispatchQueue.main.asyncAfter(deadline: .now() + frameDelay, execute: workItem)
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        cancelIdleCompaction()
+        stopIslandOpenMousePolling()
+        stopClipboardObservation()
+        settings.flushPendingWrites()
+        PersistenceWriteCoordinator.shared.flushNow()
+        windowFrameUpdateWorkItem?.cancel()
+        windowFrameUpdateWorkItem = nil
+        pendingWindowHeightUpdate = nil
+        if let clipboardActivationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(clipboardActivationObserver)
+            self.clipboardActivationObserver = nil
+        }
+        memoryPressureSource?.cancel()
+        memoryPressureSource = nil
+        for monitor in folderMonitors.values {
+            monitor.stop()
+        }
+    }
+}
+
+final class FolderMonitor {
+    private let url: URL
+    private let onChange: () -> Void
+    private var source: DispatchSourceFileSystemObject?
+    private var fileDescriptor: CInt = -1
+
+    init(url: URL, onChange: @escaping () -> Void) {
+        self.url = url
+        self.onChange = onChange
+    }
+
+    func start() {
+        guard source == nil else { return }
+        fileDescriptor = open(url.path, O_EVTONLY)
+        guard fileDescriptor >= 0 else { return }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fileDescriptor,
+            eventMask: [.write, .rename, .delete, .attrib],
+            queue: DispatchQueue.global(qos: .utility)
+        )
+        source.setEventHandler(handler: onChange)
+        source.setCancelHandler { [weak self] in
+            guard let self else { return }
+            if self.fileDescriptor >= 0 {
+                close(self.fileDescriptor)
+            }
+            self.fileDescriptor = -1
+        }
+        source.resume()
+        self.source = source
+    }
+
+    func stop() {
+        source?.cancel()
+        source = nil
+    }
+}
+
+// MARK: - Trackpad Swipe Interceptor
+struct TrackpadSwipeReader: NSViewRepresentable {
+    var onSwipeLeft: () -> Void
+    var onSwipeRight: () -> Void
+    var onSwipeUp: () -> Void
+    var canTriggerVertical: () -> Bool
+    var isActive: Bool
+
+    class Coordinator: NSObject {
+        var onSwipeLeft: () -> Void
+        var onSwipeRight: () -> Void
+        var onSwipeUp: () -> Void
+        var canTriggerVertical: () -> Bool
+        var isActive: Bool
+        private var accumulatedDeltaX: CGFloat = 0
+        private var accumulatedDeltaY: CGFloat = 0
+        private var localMonitor: Any?
+        private var didTriggerPage = false
+        private var didTriggerClose = false
+        private var lastEventTimestamp: TimeInterval = 0
+        private let horizontalThreshold: CGFloat = 40
+        private let verticalThreshold: CGFloat = 70
+
+        init(
+            onSwipeLeft: @escaping () -> Void,
+            onSwipeRight: @escaping () -> Void,
+            onSwipeUp: @escaping () -> Void,
+            canTriggerVertical: @escaping () -> Bool,
+            isActive: Bool
+        ) {
+            self.onSwipeLeft = onSwipeLeft
+            self.onSwipeRight = onSwipeRight
+            self.onSwipeUp = onSwipeUp
+            self.canTriggerVertical = canTriggerVertical
+            self.isActive = isActive
+            super.init()
+        }
+
+        deinit {
+            if let localMonitor {
+                NSEvent.removeMonitor(localMonitor)
+            }
+        }
+
+        func startMonitoring() {
+            guard localMonitor == nil else { return }
+            localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel, .swipe]) { [weak self] event in
+                self?.handleEvent(event)
+                return event
+            }
+        }
+
+        func handleEvent(_ event: NSEvent) {
+            guard isActive else { return }
+            guard isPointerOverNotch() else { return }
+            let timestamp = event.timestamp
+            if timestamp == lastEventTimestamp { return }
+            lastEventTimestamp = timestamp
+
+            if event.type == .swipe {
+                let swipeX = event.deltaX
+                let swipeY = event.deltaY
+                if abs(swipeX) >= abs(swipeY) {
+                    if swipeX < 0 {
+                        onSwipeLeft()
+                    } else if swipeX > 0 {
+                        onSwipeRight()
+                    }
+                } else if swipeY > 0, canTriggerVertical() {
+                    onSwipeUp()
+                }
+                return
+            }
+
+            let rawDeltaX = event.scrollingDeltaX != 0 ? event.scrollingDeltaX : event.deltaX
+            let rawDeltaY = event.scrollingDeltaY != 0 ? event.scrollingDeltaY : event.deltaY
+            guard rawDeltaX != 0 || rawDeltaY != 0 else { return }
+
+            let isTrackpadLike = event.hasPreciseScrollingDeltas || event.phase != [] || event.momentumPhase != []
+            if !isTrackpadLike {
+                guard abs(rawDeltaX) > abs(rawDeltaY) else { return }
+            }
+
+            let fingerDeltaX = event.isDirectionInvertedFromDevice ? -rawDeltaX : rawDeltaX
+            let fingerDeltaY = event.isDirectionInvertedFromDevice ? -rawDeltaY : rawDeltaY
+
+            if event.phase == .began || event.phase == .mayBegin || event.momentumPhase == .began {
+                resetAccumulation()
+            }
+
+            if abs(fingerDeltaX) >= abs(fingerDeltaY) {
+                guard !didTriggerPage else { return }
+                accumulatedDeltaX += fingerDeltaX
+                if abs(accumulatedDeltaX) > horizontalThreshold {
+                    if accumulatedDeltaX < 0 {
+                        onSwipeLeft()
+                    } else {
+                        onSwipeRight()
+                    }
+                    didTriggerPage = true
+                }
+            } else {
+                guard isTrackpadLike, !didTriggerClose else { return }
+                accumulatedDeltaY += fingerDeltaY
+                if accumulatedDeltaY > verticalThreshold, canTriggerVertical() {
+                    onSwipeUp()
+                    didTriggerClose = true
+                }
+            }
+
+            if event.phase == .ended || event.phase == .cancelled || event.momentumPhase == .ended {
+                resetAccumulation()
+            }
+        }
+
+        private func resetAccumulation() {
+            accumulatedDeltaX = 0
+            accumulatedDeltaY = 0
+            didTriggerPage = false
+            didTriggerClose = false
+        }
+
+        private func isPointerOverNotch() -> Bool {
+            guard let delegate = NSApp.delegate as? AppDelegate else { return false }
+            guard let window = delegate.notchWindow else { return false }
+            return window.frame.contains(NSEvent.mouseLocation)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            onSwipeLeft: onSwipeLeft,
+            onSwipeRight: onSwipeRight,
+            onSwipeUp: onSwipeUp,
+            canTriggerVertical: canTriggerVertical,
+            isActive: isActive
+        )
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        context.coordinator.startMonitoring()
+        return view
+    }
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.isActive = isActive
+        context.coordinator.onSwipeLeft = onSwipeLeft
+        context.coordinator.onSwipeRight = onSwipeRight
+        context.coordinator.onSwipeUp = onSwipeUp
+        context.coordinator.canTriggerVertical = canTriggerVertical
+    }
+}
+
+// Invisible panel anchored to the top-of-screen activation band. Its content
+// view installs an NSTrackingArea so AppKit notifies us only when the cursor
+// crosses the union of notch + approach rects, replacing always-on polling.
+final class ProximityWakeWindow: NSPanel {
+    var onMouseEntered: (() -> Void)?
+    var onMouseExited: (() -> Void)?
+    var onApproachMouseMoved: ((NSPoint) -> Void)?
+    var onDraggingEntered: (() -> Void)?
+    var onDraggingUpdated: ((NSPoint) -> Void)?
+    var onDraggingExited: (() -> Void)?
+
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+
+    override init(contentRect: NSRect, styleMask style: NSWindow.StyleMask, backing backingStoreType: NSWindow.BackingStoreType, defer flag: Bool) {
+        super.init(contentRect: contentRect, styleMask: style, backing: backingStoreType, defer: flag)
+        let view = TrackingHostView(frame: NSRect(origin: .zero, size: contentRect.size))
+        view.onMouseEntered = { [weak self] in self?.onMouseEntered?() }
+        view.onMouseExited = { [weak self] in self?.onMouseExited?() }
+        view.onApproachMouseMoved = { [weak self] pt in self?.onApproachMouseMoved?(pt) }
+        view.onDraggingEntered = { [weak self] in self?.onDraggingEntered?() }
+        view.onDraggingUpdated = { [weak self] pt in self?.onDraggingUpdated?(pt) }
+        view.onDraggingExited = { [weak self] in self?.onDraggingExited?() }
+        contentView = view
+    }
+
+    func updateTrackingGeometry(notchEdgeRect: CGRect, approachRect: CGRect) {
+        (contentView as? TrackingHostView)?.updateTrackingGeometry(
+            notchEdgeRect: notchEdgeRect,
+            approachRect: approachRect
+        )
+    }
+
+    final class TrackingHostView: NSView {
+        private enum ZoneID: String {
+            case notchEdge
+            case approach
+        }
+
+        var onMouseEntered: (() -> Void)?
+        var onMouseExited: (() -> Void)?
+        var onApproachMouseMoved: ((NSPoint) -> Void)?
+        var onDraggingEntered: (() -> Void)?
+        var onDraggingUpdated: ((NSPoint) -> Void)?
+        var onDraggingExited: (() -> Void)?
+        private var notchEdgeTrackingArea: NSTrackingArea?
+        private var approachTrackingArea: NSTrackingArea?
+        private var notchEdgeRect: CGRect = .zero
+        private var approachRect: CGRect = .zero
+        private var activeZones = Set<ZoneID>()
+
+        override init(frame frameRect: NSRect) {
+            super.init(frame: frameRect)
+            registerForDraggedTypes([.fileURL, .URL])
+        }
+
+        required init?(coder: NSCoder) {
+            super.init(coder: coder)
+            registerForDraggedTypes([.fileURL, .URL])
+        }
+
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            rebuildTrackingArea()
+        }
+
+        func updateTrackingGeometry(notchEdgeRect: CGRect, approachRect: CGRect) {
+            self.notchEdgeRect = notchEdgeRect
+            self.approachRect = approachRect
+            rebuildTrackingArea()
+        }
+
+        func rebuildTrackingArea() {
+            if let existing = notchEdgeTrackingArea {
+                removeTrackingArea(existing)
+                notchEdgeTrackingArea = nil
+            }
+            if let existing = approachTrackingArea {
+                removeTrackingArea(existing)
+                approachTrackingArea = nil
+            }
+            activeZones.removeAll()
+
+            if notchEdgeRect.width > 0, notchEdgeRect.height > 0 {
+                let area = NSTrackingArea(
+                    rect: notchEdgeRect,
+                    options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways],
+                    owner: self,
+                    userInfo: ["zone": ZoneID.notchEdge.rawValue]
+                )
+                addTrackingArea(area)
+                notchEdgeTrackingArea = area
+            }
+
+            if approachRect.width > 0, approachRect.height > 0 {
+                let area = NSTrackingArea(
+                    rect: approachRect,
+                    options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways],
+                    owner: self,
+                    userInfo: ["zone": ZoneID.approach.rawValue]
+                )
+                addTrackingArea(area)
+                approachTrackingArea = area
+            }
+        }
+
+        override func mouseEntered(with event: NSEvent) {
+            guard let zone = zoneID(from: event) else { return }
+            let inserted = activeZones.insert(zone).inserted
+            if inserted {
+                onMouseEntered?()
+            }
+        }
+
+        override func mouseExited(with event: NSEvent) {
+            guard let zone = zoneID(from: event) else { return }
+            activeZones.remove(zone)
+            if activeZones.isEmpty {
+                onMouseExited?()
+            }
+        }
+
+        override func mouseMoved(with event: NSEvent) {
+            let localPoint = convert(event.locationInWindow, from: nil)
+            if notchEdgeRect.contains(localPoint) {
+                let inserted = activeZones.insert(.notchEdge).inserted
+                if inserted {
+                    onMouseEntered?()
+                }
+                onApproachMouseMoved?(NSEvent.mouseLocation)
+                return
+            }
+            if approachRect.contains(localPoint) {
+                let inserted = activeZones.insert(.approach).inserted
+                if inserted {
+                    onMouseEntered?()
+                }
+                onApproachMouseMoved?(NSEvent.mouseLocation)
+                return
+            }
+        }
+
+        private func zoneID(from event: NSEvent) -> ZoneID? {
+            guard let raw = event.trackingArea?.userInfo?["zone"] as? String else { return nil }
+            return ZoneID(rawValue: raw)
+        }
+
+        override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+            onDraggingEntered?()
+            return .copy
+        }
+
+        override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+            onDraggingUpdated?(NSEvent.mouseLocation)
+            return .copy
+        }
+
+        override func draggingExited(_ sender: NSDraggingInfo?) {
+            onDraggingExited?()
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil } // never intercept clicks
+    }
+}
+
+struct IslandExitTracker {}
+
+final class IslandHostingView<Content: View>: NSHostingView<Content> {}
+
+final class IslandPanel: NSPanel {
+    var onSwipeLeft: (() -> Void)?
+    var onSwipeRight: (() -> Void)?
+    var onSwipeUp: (() -> Void)?
+    var isActiveProvider: (() -> Bool)?
+    var canTriggerVertical: (() -> Bool)?
+    var onCloseProgress: ((NSDirectionalRectEdge, CGFloat, Bool) -> Void)?
+    var onCloseProgressLegacy: ((CGFloat, Bool) -> Void)?
+    var onCarouselOffset: ((CGFloat, Bool) -> Void)?
+    var carouselSensitivityProvider: (() -> CGFloat)?
+    var closeSensitivityProvider: (() -> CGFloat)?
+
+    private var accumulatedDeltaX: CGFloat = 0
+    private var accumulatedDeltaY: CGFloat = 0
+    private let baseHorizontalThreshold: CGFloat = 80
+    private let baseVerticalThreshold: CGFloat = 110
+    private let axisLockThreshold: CGFloat = 4
+    private let maxCarouselGive: CGFloat = 36
+    private var snapBackWorkItem: DispatchWorkItem?
+    private var ignoreScrollUntil: TimeInterval = 0
+    private var didCommitThisGesture = false
+    private var lastCarouselCommitTime: TimeInterval = 0
+    private var lastCarouselOffsetEmitTime: TimeInterval = 0
+    private var lastCarouselOffsetEmitValue: CGFloat = 0
+    private var lastCloseProgressEmitTime: TimeInterval = 0
+    private var lastCloseProgressEmitValue: CGFloat = 0
+    private var verticalCloseArmed = false
+    private enum GestureAxis {
+        case horizontal
+        case vertical
+    }
+    private var gestureAxis: GestureAxis?
+
+    override var canBecomeKey: Bool { true }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .scrollWheel || event.type == .swipe {
+            if handleGestureEvent(event) {
+                return
+            }
+        }
+        super.sendEvent(event)
+    }
+
+    private func handleGestureEvent(_ event: NSEvent) -> Bool {
+        guard isActiveProvider?() == true else { return false }
+        guard frame.contains(NSEvent.mouseLocation) else { return false }
+        if event.timestamp < ignoreScrollUntil {
+            return true
+        }
+
+        if event.phase == .began || event.phase == .mayBegin || event.momentumPhase == .began {
+            resetAccumulation(resetProgress: false)
+            gestureAxis = nil
+            snapBackWorkItem?.cancel()
+            didCommitThisGesture = false
+            lastCarouselOffsetEmitTime = 0
+            lastCarouselOffsetEmitValue = 0
+            lastCloseProgressEmitTime = 0
+            lastCloseProgressEmitValue = 0
+            verticalCloseArmed = false
+        }
+
+        if event.type == .swipe {
+            let swipeX = event.deltaX
+            let swipeY = event.deltaY
+            if abs(swipeX) >= abs(swipeY) {
+                if swipeX < 0 {
+                    onSwipeRight?()
+                } else if swipeX > 0 {
+                    onSwipeLeft?()
+                }
+                onCloseProgressLegacy?(0, true)
+                return true
+            }
+            if swipeY > 0, canTriggerVertical?() == true {
+                onSwipeUp?()
+                onCloseProgressLegacy?(0, true)
+                return true
+            }
+            onCloseProgressLegacy?(0, true)
+            return false
+        }
+
+        let rawDeltaX = event.scrollingDeltaX
+        let rawDeltaY = event.scrollingDeltaY
+        guard rawDeltaX != 0 || rawDeltaY != 0 else { return false }
+
+        let isTrackpadLike = event.hasPreciseScrollingDeltas || event.phase != [] || event.momentumPhase != []
+        let fingerDeltaX = event.isDirectionInvertedFromDevice ? -rawDeltaX : rawDeltaX
+        let fingerDeltaY = event.isDirectionInvertedFromDevice ? -rawDeltaY : rawDeltaY
+        let absX = abs(fingerDeltaX)
+        let absY = abs(fingerDeltaY)
+
+        let carouselSensitivity = max(0.2, carouselSensitivityProvider?() ?? 1.0)
+        let closeSensitivity = max(0.2, closeSensitivityProvider?() ?? 1.0)
+        let horizontalThreshold = baseHorizontalThreshold / carouselSensitivity
+        let verticalThreshold = baseVerticalThreshold / closeSensitivity
+
+        if gestureAxis == nil {
+            if max(absX, absY) < axisLockThreshold {
+                if event.phase == .ended || event.phase == .cancelled || event.momentumPhase == .ended {
+                    scheduleSnapBack(immediate: true)
+                }
+                return false
+            }
+            gestureAxis = absX >= absY ? .horizontal : .vertical
+        }
+
+        if gestureAxis == .horizontal {
+            if !isTrackpadLike && abs(rawDeltaX) <= abs(rawDeltaY) {
+                return false
+            }
+            if didCommitThisGesture {
+                return true
+            }
+            accumulatedDeltaX += fingerDeltaX
+            let rawOffset = (accumulatedDeltaX / max(1, horizontalThreshold)) * maxCarouselGive
+            let clampedOffset = clamp(-rawOffset, min: -maxCarouselGive, max: maxCarouselGive)
+            let minEmitDelta: CGFloat = isTrackpadLike ? 1.8 : 2.3
+            let minEmitInterval: TimeInterval = isTrackpadLike ? (1.0 / 48.0) : (1.0 / 30.0)
+            if abs(clampedOffset - lastCarouselOffsetEmitValue) >= minEmitDelta,
+               (event.timestamp - lastCarouselOffsetEmitTime) >= minEmitInterval {
+                onCarouselOffset?(clampedOffset, false)
+                lastCarouselOffsetEmitValue = clampedOffset
+                lastCarouselOffsetEmitTime = event.timestamp
+            }
+            if abs(accumulatedDeltaX) > horizontalThreshold {
+                if event.timestamp - lastCarouselCommitTime < 0.08 {
+                    return true
+                }
+                lastCarouselCommitTime = event.timestamp
+                didCommitThisGesture = true
+                if accumulatedDeltaX < 0 {
+                    onSwipeRight?()
+                } else {
+                    onSwipeLeft?()
+                }
+                onCarouselOffset?(0, true)
+                lastCarouselOffsetEmitValue = 0
+                lastCarouselOffsetEmitTime = event.timestamp
+                snapBackWorkItem?.cancel()
+                resetAccumulation(resetProgress: true)
+                gestureAxis = nil
+                ignoreScrollUntil = event.timestamp + 0.18
+                return true
+            }
+            if event.phase == .ended || event.phase == .cancelled || event.momentumPhase == .ended {
+                onCarouselOffset?(0, true)
+                lastCarouselOffsetEmitValue = 0
+                lastCarouselOffsetEmitTime = event.timestamp
+                resetAccumulation(resetProgress: true)
+                gestureAxis = nil
+                scheduleSnapBack(immediate: true)
+            }
+            return true
+        }
+
+        onCarouselOffset?(0, true)
+
+        if canTriggerVertical?() == true && fingerDeltaY > 0 {
+            if !verticalCloseArmed {
+                if event.phase == .began || event.phase == .mayBegin || event.momentumPhase == .began {
+                    verticalCloseArmed = true
+                } else {
+                    return false
+                }
+            }
+            accumulatedDeltaY = max(0, accumulatedDeltaY + fingerDeltaY)
+            let progress = max(0, min(1, accumulatedDeltaY / verticalThreshold))
+            let minEmitDelta: CGFloat = 0.03
+            let minEmitInterval: TimeInterval = 1.0 / 50.0
+            if progress >= 1
+                || (abs(progress - lastCloseProgressEmitValue) >= minEmitDelta
+                    && (event.timestamp - lastCloseProgressEmitTime) >= minEmitInterval) {
+                onCloseProgressLegacy?(progress, false)
+                lastCloseProgressEmitValue = progress
+                lastCloseProgressEmitTime = event.timestamp
+            }
+            if progress >= 1 {
+                onSwipeUp?()
+                accumulatedDeltaY = 0
+                gestureAxis = nil
+                verticalCloseArmed = false
+                lastCloseProgressEmitValue = 0
+                lastCloseProgressEmitTime = event.timestamp
+                ignoreScrollUntil = event.timestamp + 0.12
+                return true
+            }
+            if event.phase == .ended || event.phase == .cancelled || event.momentumPhase == .ended {
+                onCloseProgressLegacy?(0, true)
+                accumulatedDeltaY = 0
+                gestureAxis = nil
+                didCommitThisGesture = false
+                verticalCloseArmed = false
+                lastCloseProgressEmitValue = 0
+                lastCloseProgressEmitTime = event.timestamp
+                scheduleSnapBack(immediate: true)
+            }
+            return true
+        } else {
+            if accumulatedDeltaY > 0 {
+                onCloseProgressLegacy?(0, true)
+                accumulatedDeltaY = 0
+                lastCloseProgressEmitValue = 0
+                lastCloseProgressEmitTime = event.timestamp
+            }
+            if event.phase == .ended || event.phase == .cancelled || event.momentumPhase == .ended {
+                gestureAxis = nil
+                didCommitThisGesture = false
+                verticalCloseArmed = false
+            }
+            return false
+        }
+    }
+
+    private func resetAccumulation(resetProgress: Bool = true) {
+        accumulatedDeltaX = 0
+        accumulatedDeltaY = 0
+        lastCloseProgressEmitTime = 0
+        lastCloseProgressEmitValue = 0
+        if resetProgress {
+            onCloseProgressLegacy?(0, true)
+        }
+    }
+
+    private func scheduleSnapBack(immediate: Bool = false) {
+        snapBackWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.onCarouselOffset?(0, true)
+            self.onCloseProgressLegacy?(0, true)
+        }
+        snapBackWorkItem = workItem
+        if immediate {
+            DispatchQueue.main.async(execute: workItem)
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02, execute: workItem)
+        }
+    }
+}
+
+// MARK: - Master Container Structural Layout
+struct UnifiedNotchContainer: View {
+    @ObservedObject var model: NotchMenuModel
+    @ObservedObject var settings: AppSettings
+
+    @FocusState var isJotEditorFocused: Bool
+
+    @State var highlightedClipboardID: UUID?
+    @State var clipboardTapFeedbackProgress: CGFloat = 0
+    @State var isNotchFileDropTargeted = false
+    @State var isBoxDropTargeted = false
+    @State var selectedBoxFileIDs = Set<UUID>()
+    @State var boxPreviewImages: [URL: NSImage] = [:]
+    @State var boxPreviewLoadingURLs = Set<URL>()
+    @State var boxPreviewLRU: [URL] = []
+    @State var visibleBoxPreviewURLs = Set<URL>()
+    @State var pendingBoxPreviewRemovalWorkItems: [URL: DispatchWorkItem] = [:]
+    @State var pendingSharedPreviewTrimWorkItem: DispatchWorkItem?
+    @State var clipboardFilePreviews: [String: NSImage] = [:]
+    @State var clipboardFilePreviewLoadingPaths = Set<String>()
+    let maxBoxPreviewCount = 64
+    let retainedInvisibleBoxPreviewCount = 12
+    let adjacentPageRenderActivationOffset: CGFloat = 14
+    let pageTopContentInset: CGFloat = 8
+
+    // This preference key is used to report the animated height of the island back to the AppDelegate.
+    struct ShellHeightKey: PreferenceKey {
+        static var defaultValue: CGFloat = 0
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = nextValue()
+        }
+    }
+
+    func updateCloseProgress(_ progress: CGFloat, animate: Bool) {
+        let clamped = max(0, min(1, progress))
+        if clamped >= 1, model.isExpanded, !model.isPinned {
+            DispatchQueue.main.async {
+                closeNotchFromSwipe()
+            }
+        }
+        if animate {
+            if clamped == 0 {
+                withAnimation(.easeOut(duration: 0.05)) {
+                    model.closeGestureProgress = clamped
+                }
+            } else {
+                withAnimation(settings.swipeAnimation) {
+                    model.closeGestureProgress = clamped
+                }
+            }
+        } else {
+            model.closeGestureProgress = clamped
+        }
+    }
+
+    func closeNotchFromSwipe() {
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.closeNotchFromSwipe()
+        }
+    }
+
+    private func previewBadge(_ text: String, accent: Color) -> some View {
+        Text(text)
+            .font(.caption)
+            .foregroundColor(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(accent.opacity(0.35)))
+            .overlay(Capsule().stroke(accent.opacity(0.7), lineWidth: 1))
+    }
+
+    private func previewTitleSample(page: IslandPage, width: CGFloat) -> some View {
+        let size = settings.titleSize(for: page)
+        let color = Color(settings.titleColor(for: page))
+        let alignment = settings.titleAlignment(for: page).alignment
+        return Text("Title")
+            .font(.system(size: size, weight: .semibold))
+            .foregroundColor(color)
+            .frame(width: width, alignment: alignment)
+    }
+
+    private var boxMenuBarControls: some View {
+        let isBoxPage = (IslandPage(rawValue: model.currentPage) ?? .clipboard) == .box
+        let showControls = model.isExpanded && isBoxPage && !model.boxFiles.isEmpty
+        return GeometryReader { geo in
+            let edgeNotchWidth = settings.effectiveNotchWidth
+            let notchRight = (geo.size.width + edgeNotchWidth) / 2
+            let controlWidth: CGFloat = 180
+            let xOffset = notchRight + 10
+
+            HStack(spacing: 10) {
+                Button {
+                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                        if selectedBoxFileIDs.count == model.boxFiles.count {
+                            selectedBoxFileIDs.removeAll()
+                        } else {
+                            selectedBoxFileIDs = Set(model.boxFiles.map { $0.id })
+                        }
+                    }
+                } label: {
+                    Text(selectedBoxFileIDs.count == model.boxFiles.count ? "Deselect" : "Select All")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.85))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    withAnimation {
+                        if selectedBoxFileIDs.isEmpty {
+                            model.boxFiles.removeAll()
+                            selectedBoxFileIDs.removeAll()
+                        } else {
+                            model.boxFiles.removeAll { selectedBoxFileIDs.contains($0.id) }
+                            selectedBoxFileIDs.removeAll()
+                        }
+                    }
+                } label: {
+                    Text(selectedBoxFileIDs.isEmpty ? "Clear" : "Clear Selected")
+                        .font(.caption)
+                        .foregroundColor(.red.opacity(0.9))
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(width: controlWidth, alignment: .leading)
+            .offset(x: xOffset, y: 6)
+            .opacity(showControls ? 1.0 : 0.0)
+            .zIndex(5)
+        }
+    }
+
+    var body: some View {
+        let panelWidth = scaledPanelWidth(for: settings)
+        let panelHeight = scaledPanelHeight(for: settings)
+
+        let notchWidth = settings.effectiveNotchWidth
+        let notchHeight = settings.effectiveNotchHeight
+        let rawProgress = model.expansionProgress
+        let progress = rawProgress.isFinite ? max(0, min(1, rawProgress)) : 0
+        let easedProgress = progress * progress * (3 - 2 * progress)
+        let rawShellWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress)
+        let rawShellHeight = notchHeight + ((panelHeight - notchHeight) * easedProgress)
+        let shellWidth = safeDimension(rawShellWidth, fallback: panelWidth)
+        let shellHeight = safeDimension(rawShellHeight, fallback: panelHeight)
+        let islandWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress * 0.4)
+        let targetIslandWidth = notchWidth + ((panelWidth - notchWidth) * 0.4)
+        let islandHeight = notchHeight
+        let pagerRowHeight: CGFloat = settings.showPagers ? 14 : 0
+        let pagerBottomInset: CGFloat = settings.showPagers ? 8 : 0
+        let pagerReservedHeight = pagerRowHeight + pagerBottomInset
+        let contentAreaHeight = max(1, shellHeight - islandHeight - pagerReservedHeight)
+        let cornerRadius = safeDimension(max(4, settings.cornerRadius * (0.6 + 0.4 * easedProgress)), fallback: 8)
+        let contentProgress = easedProgress.isFinite ? max(0, min(1, (easedProgress - 0.18) / 0.82)) : 0
+        let showToastOnly = (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded && !model.isPinned
+        let containerHeight = safeDimension(showToastOnly ? max(panelHeight, toastPanelHeight) : panelHeight, fallback: panelHeight)
+        let toastWidth = toastPanelWidth
+        let containerWidth = max(panelWidth, notchWidth)
+        let closeProgress = max(0, min(1, model.closeGestureProgress))
+        let closeEase = closeProgress * closeProgress * (3 - 2 * closeProgress)
+        let closeOffset = -44 * closeEase
+        let closeScale = 1 - (0.14 * closeEase)
+        let shouldRenderExpandedContent = model.isExpanded || model.isPinned
+
+        ZStack(alignment: .top) {
+            // Overlay previews so they don't impact the measured height of the island body
+            if settings.showHoverPreviews {
+                settingsPreviewOverlay
+                    .zIndex(100)
+            }
+
+            if let toast = model.observedFileToast {
+                ObservedFileToastView(
+                    toast: toast,
+                    progress: easedProgress,
+                    onClose: {
+                        withAnimation(settings.notchOpenAnimation) {
+                            model.expansionProgress = 0.0
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            if let delegate = NSApp.delegate as? AppDelegate {
+                                delegate.dismissToastAndHideNotch()
+                            } else {
+                                model.observedFileToast = nil
+                            }
+                        }
+                    },
+                    baseWidth: toastWidth,
+                    baseHeight: notchHeight,
+                    expandedHeight: toastPanelHeight,
+                    backgroundColor: Color(settings.backgroundColor),
+                    cornerRadius: settings.cornerRadius
+                )
+                .offset(y: baseNotchHeight - 2)
+                .background(GeometryReader { proxy in
+                    Color.clear.preference(key: ShellHeightKey.self, value: proxy.size.height + (baseNotchHeight - 2))
+                })
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .zIndex(2)
+            }
+
+            if !showToastOnly {
+                VStack(spacing: 0) {
+                    VStack(spacing: 0) {
+                        // UNIFIED FIX: Pad internal layouts to offset default top window inset masking values
+                        ZStack {
+                            Capsule()
+                                .fill(Color(nsColor: settings.backgroundColor.withAlphaComponent(1.0)))
+                                .frame(width: islandWidth, height: islandHeight)
+
+                            if shouldRenderExpandedContent && contentProgress > 0.01 {
+                                globalTitleOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
+                                    .opacity(contentProgress)
+                                globalControlsOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
+                                    .opacity(contentProgress)
+                            }
+                        }
+
+                        .compositingGroup()
+                        .frame(width: islandWidth, height: islandHeight)
+                        .padding(.top, 0) // PULLED FLUSH
+
+                        if shouldRenderExpandedContent && contentProgress > 0.01 {
+                            HStack(spacing: 0) {
+                                ForEach(0..<3) { index in
+                                    Group {
+                                        if shouldRenderCarouselPage(index) {
+                                            switch index {
+                                            case 0: clipboardPage
+                                            case 1: sidebarPage
+                                            case 2: boxPage
+                                            default: EmptyView()
+                                            }
+                                        } else {
+                                            Color.clear
+                                        }
+                                    }
+                                    .frame(width: panelWidth)
+                                }
+                            }
+                            .frame(width: panelWidth, height: contentAreaHeight, alignment: .leading)
+                            .offset(x: -CGFloat(model.currentPage) * panelWidth + model.carouselDragOffset)
+                            .frame(width: shellWidth, height: contentAreaHeight)
+                            .opacity(contentProgress)
+                            .offset(y: (1.0 - contentProgress) * 12)
+                            .clipped()
+                        } else {
+                            Color.clear.frame(height: 1)
+                        }
+
+                        if settings.showPagers {
+                            HStack(spacing: 8) {
+                                ForEach(0..<3) { index in
+                                    Button {
+                                        setPageFromCarousel(index)
+                                    } label: {
+                                        Capsule(style: .continuous)
+                                            .fill(model.currentPage == index ? Color.white : Color.white.opacity(0.28))
+                                            .frame(width: model.currentPage == index ? 24 : 14, height: 4)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: pagerRowHeight)
+                            .opacity(contentProgress)
+                            .padding(.bottom, pagerBottomInset)
+                        }
+                    }
+                    .frame(width: shellWidth, height: shellHeight, alignment: .top)
+                    .background(Color(settings.backgroundColor))
+                    .clipShape(BottomRoundedRectangle(cornerRadius: cornerRadius))
+                    // Static shadow: fixed radius/offset gated on a Bool instead of
+                    // multiplying by contentProgress. An animated radius forces an
+                    // offscreen gaussian blur of the entire island on every frame of
+                    // the open/close spring; a constant radius is blurred once.
+                    .shadow(
+                        color: Color.black.opacity(shouldRenderExpandedContent ? 0.22 : 0),
+                        radius: shouldRenderExpandedContent ? 18 : 0,
+                        x: 0,
+                        y: shouldRenderExpandedContent ? 10 : 0
+                    )
+                    .animation(settings.notchOpenAnimation, value: model.expansionProgress)
+                    .background(GeometryReader { proxy in
+                        Color.clear.preference(key: ShellHeightKey.self, value: proxy.size.height)
+                    })
+                } // End if !showToastOnly
+            } // End ZStack
+        } // End ZStack
+        .frame(width: containerWidth, height: containerHeight, alignment: .top)
+        .overlay(alignment: .topLeading) {
+            boxMenuBarControls
+                .zIndex(50)
+        }
+        .scaleEffect(closeScale, anchor: .top)
+        .offset(y: closeOffset)
+        // Keep swipe paging, but don't preempt taps on pager buttons.
+        .simultaneousGesture(horizontalPagingGesture)
+        .contextMenu {
+            SettingsLink {
+                Text("Settings")
+            }
+        }
+        .onDrop(of: [.fileURL], isTargeted: $isNotchFileDropTargeted, perform: handleNotchFileDrop)
+        .onChange(of: isNotchFileDropTargeted) { _, targeted in
+            if targeted {
+                if let delegate = NSApp.delegate as? AppDelegate {
+                    delegate.openBoxPage()
+                }
+            }
+        }
+        .onReceive(model.$currentPage) { newValue in
+            if let delegate = NSApp.delegate as? AppDelegate {
+                delegate.updateObservationState(for: newValue)
+            }
+            unloadInactivePageState(activePage: newValue)
+        }
+        .onReceive(model.$isExpanded) { expanded in
+            if !expanded {
+                unloadCollapsedPageState()
+            }
+        }
+        .onReceive(model.$clipboardItems) { items in
+            pruneClipboardPreviewState(keeping: items)
+        }
+        .onReceive(model.$boxFiles) { files in
+            pruneBoxPreviewState(keeping: files.map(\.url))
+        }
+    }
+
+    @ViewBuilder
+    private var settingsPreviewOverlay: some View {
+        GeometryReader { geo in
+            let edgeNotchWidth = settings.effectiveNotchWidth
+            let edgeNotchHeight = settings.effectiveNotchHeight
+            let edge = settings.clampedNotchEdgeThickness
+            let approachWidth = settings.clampedApproachWidth
+            let approachHeight = settings.clampedApproachHeight
+            let focus = settings.hoverPreviewFocus
+            let accent = Color(settings.accentColor)
+            let edgeNotchX = (geo.size.width - edgeNotchWidth) / 2
+            let edgeNotchRect = CGRect(x: edgeNotchX, y: 0, width: edgeNotchWidth, height: edgeNotchHeight)
+            let edgeInset = max(0, edge)
+            let outerRect = edgeNotchRect.insetBy(dx: -edgeInset, dy: -edgeInset)
+            let approachRect = CGRect(
+                x: edgeNotchRect.minX - edgeInset - approachWidth,
+                y: edgeNotchRect.maxY + edgeInset,
+                width: edgeNotchRect.width + (edgeInset * 2) + approachWidth * 2,
+                height: approachHeight
+            )
+            let clipboardLimitText = settings.clampedRememberClips == 0 ? "Unlimited" : "\(settings.clampedRememberClips)"
+            let previewY = edgeNotchRect.maxY + 28
+            let innerRadius = settings.cornerRadius * 0.6
+
+            ZStack(alignment: .topLeading) {
+                Group {
+                    switch focus {
+                    case .all:
+                        if approachHeight > 0 || approachWidth > 0 {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color.white.opacity(0.75), style: StrokeStyle(lineWidth: 2, dash: [6, 6]))
+                                .frame(width: approachRect.width, height: approachRect.height)
+                                .position(x: approachRect.midX, y: approachRect.midY)
+                        }
+                        if edgeInset > 0 {
+                            BottomRoundedRectangle(cornerRadius: innerRadius + edgeInset)
+                                .fill(accent.opacity(0.45))
+                                .frame(width: outerRect.width, height: outerRect.height)
+                                .position(x: outerRect.midX, y: outerRect.midY)
+                        }
+                        BottomRoundedRectangle(cornerRadius: innerRadius)
+                            .fill(Color(settings.backgroundColor))
+                            .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
+                            .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
+                        BottomRoundedRectangle(cornerRadius: innerRadius)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
+                            .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
+                    case .islandSize:
+                        EmptyView()
+                    case .notchEdge:
+                        if edgeInset > 0 {
+                            BottomRoundedRectangle(cornerRadius: innerRadius + edgeInset)
+                                .fill(accent.opacity(0.55))
+                                .frame(width: outerRect.width, height: outerRect.height)
+                                .position(x: outerRect.midX, y: outerRect.midY)
+                        }
+                        BottomRoundedRectangle(cornerRadius: innerRadius)
+                            .fill(Color(settings.backgroundColor))
+                            .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
+                            .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
+                        BottomRoundedRectangle(cornerRadius: innerRadius)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
+                            .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
+                    case .approach:
+                        if approachHeight > 0 || approachWidth > 0 {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color.white.opacity(0.75), style: StrokeStyle(lineWidth: 2, dash: [6, 6]))
+                                .frame(width: approachRect.width, height: approachRect.height)
+                                .position(x: approachRect.midX, y: approachRect.midY)
+                        }
+                    case .clipboardLimit:
+                        previewBadge("Clip limit \(clipboardLimitText)", accent: accent)
+                            .position(x: edgeNotchRect.midX, y: previewY)
+                    case .titleSize:
+                        previewTitleSample(page: settings.hoverPreviewTitlePage, width: edgeNotchRect.width)
+                            .position(x: edgeNotchRect.midX, y: previewY)
+                    case .cornerRadius:
+                        RoundedRectangle(cornerRadius: settings.cornerRadius, style: .continuous)
+                            .stroke(Color.white.opacity(0.7), lineWidth: 2)
+                            .frame(width: 140, height: 52)
+                            .position(x: edgeNotchRect.midX, y: previewY)
+                    case .sensitivityCarousel:
+                        previewBadge("Carousel sensitivity \(String(format: "%.2f", settings.carouselSensitivity))", accent: accent)
+                            .position(x: edgeNotchRect.midX, y: previewY)
+                    default:
+                        EmptyView()
+                    }
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        .opacity(0.8)
+        .padding(.top, 4)
+        .drawingGroup()
+    }
+
+    private var horizontalPagingGesture: some Gesture {
+        DragGesture(minimumDistance: 14, coordinateSpace: .local)
+            .onEnded { value in
+                guard abs(value.translation.width) > abs(value.translation.height), abs(value.translation.width) > 40 else { return }
+                let nextPage = value.translation.width < 0
+                    ? min(IslandPage.box.rawValue, model.currentPage + 1)
+                    : max(IslandPage.clipboard.rawValue, model.currentPage - 1)
+                setPageFromCarousel(nextPage)
+            }
+    }
+
+    private func setPageFromCarousel(_ page: Int) {
+        let nextPage = clamp(page, min: IslandPage.clipboard.rawValue, max: IslandPage.box.rawValue)
+        model.carouselDragOffset = 0
+        withAnimation(settings.carouselAnimation) {
+            model.currentPage = nextPage
+        }
+    }
+
+    func shouldRenderCarouselPage(_ index: Int) -> Bool {
+        if index == model.currentPage {
+            return true
+        }
+
+        let offset = model.carouselDragOffset
+        if abs(offset) <= adjacentPageRenderActivationOffset {
+            return false
+        }
+
+        if offset < 0 {
+            let next = min(IslandPage.box.rawValue, model.currentPage + 1)
+            return index == next
+        }
+
+        let previous = max(IslandPage.clipboard.rawValue, model.currentPage - 1)
+        return index == previous
+    }
+
+    func touchBoxPreviewURL(_ url: URL) {
+        if let existingIndex = boxPreviewLRU.firstIndex(of: url) {
+            boxPreviewLRU.remove(at: existingIndex)
+        }
+        boxPreviewLRU.append(url)
+        while boxPreviewLRU.count > maxBoxPreviewCount {
+            let removed = boxPreviewLRU.removeFirst()
+            boxPreviewImages.removeValue(forKey: removed)
+        }
+    }
+
+    private func sharedPreviewKeepPaths() -> Set<String> {
+        let warmBoxPaths = Set(boxPreviewLRU.suffix(retainedInvisibleBoxPreviewCount).map(\.path))
+        let visibleBoxPaths = Set(visibleBoxPreviewURLs.map(\.path))
+        return visibleBoxPaths
+            .union(warmBoxPaths)
+    }
+
+    func scheduleSharedPreviewTrim() {
+        pendingSharedPreviewTrimWorkItem?.cancel()
+        let keepPaths = sharedPreviewKeepPaths()
+        let workItem = DispatchWorkItem {
+            BoxIconCache.shared.schedulePreviewTrim(keepingPaths: keepPaths, debounce: 0.08)
+        }
+        pendingSharedPreviewTrimWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: workItem)
+    }
+
+    func clearBoxPreviewState() {
+        for workItem in pendingBoxPreviewRemovalWorkItems.values {
+            workItem.cancel()
+        }
+        pendingBoxPreviewRemovalWorkItems.removeAll()
+        visibleBoxPreviewURLs.removeAll()
+        boxPreviewLoadingURLs.removeAll()
+        boxPreviewImages.removeAll()
+        boxPreviewLRU.removeAll()
+    }
+
+    func updateBoxPreviewVisibility(for url: URL, isVisible: Bool, targetSize: CGFloat) {
+        if isVisible {
+            if let pending = pendingBoxPreviewRemovalWorkItems.removeValue(forKey: url) {
+                pending.cancel()
+            }
+            visibleBoxPreviewURLs.insert(url)
+            if boxPreviewImages[url] == nil {
+                requestBoxPreviewIfNeeded(for: url, targetSize: targetSize)
+            } else {
+                touchBoxPreviewURL(url)
+            }
+            scheduleSharedPreviewTrim()
+            return
+        }
+
+        guard pendingBoxPreviewRemovalWorkItems[url] == nil else { return }
+        let workItem = DispatchWorkItem {
+            pendingBoxPreviewRemovalWorkItems.removeValue(forKey: url)
+            visibleBoxPreviewURLs.remove(url)
+            boxPreviewLoadingURLs.remove(url)
+            scheduleSharedPreviewTrim()
+        }
+        pendingBoxPreviewRemovalWorkItems[url] = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: workItem)
+    }
+
+    private func unloadInactivePageState(activePage: Int) {
+        // Clipboard-only transient UI should reset when the clipboard page is inactive.
+        if activePage != IslandPage.clipboard.rawValue {
+            highlightedClipboardID = nil
+            clipboardTapFeedbackProgress = 0
+        }
+
+        // Cancel box preview work only when the Box page is inactive.
+        // We deliberately do NOT trim the shared NSCache here — it has its own
+        // count/cost limits and a memory-pressure handler.
+        if activePage != IslandPage.box.rawValue {
+            BoxIconCache.shared.cancelQueuedPreviewLoads()
+            for workItem in pendingBoxPreviewRemovalWorkItems.values {
+                workItem.cancel()
+            }
+            pendingBoxPreviewRemovalWorkItems.removeAll()
+            visibleBoxPreviewURLs.removeAll()
+            boxPreviewLoadingURLs.removeAll()
+            selectedBoxFileIDs.removeAll()
+        }
+
+        if activePage != IslandPage.jot.rawValue {
+            isJotEditorFocused = false
+        }
+    }
+
+    private func unloadCollapsedPageState() {
+        // Cancel transient in-flight work but keep the preview dictionaries
+        // and the shared NSCache populated so the next open is cheap. Eviction
+        // is delegated to NSCache limits and `purgeCachesForMemoryPressure`.
+        unloadInactivePageState(activePage: -1)
+        pendingSharedPreviewTrimWorkItem?.cancel()
+        pendingSharedPreviewTrimWorkItem = nil
+        BoxIconCache.shared.cancelQueuedPreviewLoads()
+        for workItem in pendingBoxPreviewRemovalWorkItems.values {
+            workItem.cancel()
+        }
+        pendingBoxPreviewRemovalWorkItems.removeAll()
+        visibleBoxPreviewURLs.removeAll()
+        boxPreviewLoadingURLs.removeAll()
+    }
+
+    func emptyDismissableScrollView<Content: View>(
+        onMetricsChange: @escaping (CGFloat, CGFloat, CGFloat) -> Void,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        DismissableScrollView(
+            closeSensitivity: settings.clampedCloseSensitivity,
+            onOverscrollProgress: { progress, animate in
+                updateCloseProgress(progress, animate: animate)
+            },
+            onBottomOverscroll: { closeNotchFromSwipe() },
+            onMetricsChange: { offset, contentHeight, viewportHeight in
+                onMetricsChange(offset, contentHeight, viewportHeight)
+            }
+        ) {
+            content()
+        }
+    }
+
+    // MARK: - Drop Handling
+    func handleNotchFileDrop(providers: [NSItemProvider]) -> Bool {
+        handleFileDrop(providers: providers, openBoxPage: true)
+    }
+
+    func handleBoxDrop(providers: [NSItemProvider]) -> Bool {
+        handleFileDrop(providers: providers, openBoxPage: false)
+    }
+
+    func handleFileDrop(providers: [NSItemProvider], openBoxPage: Bool) -> Bool {
+        let acceptedProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
+        guard !acceptedProviders.isEmpty else { return false }
+
+        let loadGroup = DispatchGroup()
+        let resultLock = NSLock()
+        var droppedURLs: [URL] = []
+
+        for provider in acceptedProviders {
+            loadGroup.enter()
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                defer { loadGroup.leave() }
+                guard let fileUrl = url else { return }
+                resultLock.lock()
+                droppedURLs.append(fileUrl)
+                resultLock.unlock()
+            }
+        }
+
+        loadGroup.notify(queue: .main) {
+            let existing = Set(model.boxFiles.map(\.url))
+            var seen = Set<URL>()
+            var urlsToInsert: [URL] = []
+
+            for url in droppedURLs where !existing.contains(url) {
+                if seen.insert(url).inserted {
+                    urlsToInsert.append(url)
+                }
+            }
+
+            if !urlsToInsert.isEmpty {
+                model.boxFiles.insert(contentsOf: urlsToInsert.reversed().map(BoxFile.init(url:)), at: 0)
+                BoxIconCache.shared.prewarmDisplayImages(for: Array(urlsToInsert.prefix(24)), targetSize: 220)
+            }
+
+            if openBoxPage {
+                model.currentPage = 2
+                model.isExpanded = true
+                model.expansionProgress = 1.0
+            }
+        }
+
+        return true
+    }
+
+    // MARK: - Shared UI
+    @ViewBuilder
+    private func headerControls<Content: View>(@ViewBuilder trailing: () -> Content) -> some View {
+        HStack {
+            Spacer()
+            trailing()
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+
+    private func globalControlsOverlay(islandWidth: CGFloat, islandHeight: CGFloat) -> some View {
+        let page = IslandPage(rawValue: model.currentPage) ?? .clipboard
+        let edgeNotchWidth = settings.effectiveNotchWidth
+
+        return Color.clear
+            .overlay(alignment: .topLeading) {
+                GeometryReader { geo in
+                    let notchRight = (geo.size.width + edgeNotchWidth) / 2
+                    HStack {
+                        switch page {
+                        case .clipboard:
+                            if !model.clipboardItems.isEmpty {
+                                Button {
+                                    clearClipboardHistory()
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .foregroundColor(.white.opacity(0.7))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        case .jot:
+                            Button {
+                                if model.activeJotID == nil {
+                                    createJot()
+                                } else {
+                                    closeActiveJot()
+                                }
+                            } label: {
+                                Image(systemName: model.activeJotID == nil ? "plus" : "chevron.left")
+                                    .foregroundColor(.white)
+                            }
+                            .buttonStyle(.plain)
+                        case .box:
+                            EmptyView()
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .offset(x: notchRight + 12, y: 2)
+                }
+            }
+            .frame(width: islandWidth, height: islandHeight)
+    }
+
+    private func globalTitleOverlay(islandWidth: CGFloat, islandHeight: CGFloat) -> some View {
+        let page = IslandPage(rawValue: model.currentPage) ?? .clipboard
+        let edgeNotchWidth = settings.effectiveNotchWidth
+        let title: String
+        let symbol: String
+        switch page {
+        case .clipboard:
+            title = "Clip"
+            symbol = "doc.on.clipboard"
+        case .jot:
+            title = "Jot"
+            symbol = "note.text"
+        case .box:
+            title = "Box"
+            symbol = "shippingbox.fill"
+        }
+
+        return Color.clear
+            .overlay(alignment: .topLeading) {
+                GeometryReader { geo in
+                    let notchLeft = (geo.size.width - edgeNotchWidth) / 2
+                    if symbol != "empty" {
+                        header(title: title, symbol: symbol, page: page)
+                            .frame(maxWidth: max(0, notchLeft - 12), alignment: .trailing)
+                            .offset(y: 2)
+                    }
+                }
+            }
+            .frame(width: islandWidth, height: islandHeight)
+    }
+
+    private func header(title: String, symbol: String, page: IslandPage) -> some View {
+        let displaySymbol = settings.titleSymbol(for: page, fallback: symbol)
+        return Label(title, systemImage: displaySymbol)
+            .font(.system(size: settings.titleSize(for: page), weight: .bold))
+            .foregroundColor(Color(settings.titleColor(for: page)))
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .minimumScaleFactor(0.8)
+            .allowsTightening(true)
+    }
+}
+
+extension NSView {
+    func findScrollView() -> NSScrollView? {
+        if let scrollView = self as? NSScrollView {
+            return scrollView
+        }
+        for subview in subviews {
+            if let found = subview.findScrollView() {
+                return found
+            }
+        }
+        return nil
+    }
+}
+
+// MARK: - Reintegrated Settings
+
+private enum SettingsSection: String, CaseIterable, Identifiable {
+    case general = "General"
+    case appearance = "Appearance"
+    case advanced = "Advanced"
+
+    var id: String { rawValue }
+
+    var symbolName: String {
+        switch self {
+        case .general: return "slider.horizontal.3"
+        case .appearance: return "paintbrush"
+        case .advanced: return "gearshape"
+        }
+    }
+}
+
+private extension View {
+    func nativeSettingsFormStyle() -> some View {
+        formStyle(.grouped)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 14)
+    }
+}
+
+struct SettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
     @State private var selection: SettingsSection? = .general
-@State private var selectedTitlePage: IslandPage = .clipboard
+    @State private var selectedTitlePage: IslandPage = .clipboard
     @State private var showTitleOverrides = false
     @State private var showAdvancedAnimation = false
 
@@ -3014,3496 +5966,12 @@ private struct SettingsWindowChromeConfigurator: NSViewRepresentable {
     }
 }
 
-private func loadClipboardHistory() -> [ClipboardEntry] {
-    let defaults = UserDefaults.standard
-    if let data = defaults.data(forKey: AppStorageKey.clipboardHistory),
-       let entries = try? JSONDecoder().decode([ClipboardEntry].self, from: data) {
-<<<<<<< HEAD
-        return entries.map { $0.normalizedForLightweightStorage() }
-=======
-        return entries
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-    }
-    let savedTexts = defaults.stringArray(forKey: AppStorageKey.clipboardHistory) ?? []
-    return savedTexts.map { ClipboardEntry(text: $0) }
-}
 
-private final class PersistenceWriteCoordinator {
-    static let shared = PersistenceWriteCoordinator()
+// MARK: - Reintegrated Clip
 
-    private let defaults = UserDefaults.standard
-    private let queue = DispatchQueue(label: "apollo.persistence.coalesced-writes", qos: .utility)
-    private let flushDelay: TimeInterval = 0.35
-
-    private var pendingClipboardEntries: [ClipboardEntry]?
-    private var pendingJotNotes: [JotNote]?
-    private var flushWorkItem: DispatchWorkItem?
-
-    private init() {}
-
-    func scheduleClipboardHistory(_ entries: [ClipboardEntry]) {
-        queue.async { [weak self] in
-            guard let self else { return }
-            self.pendingClipboardEntries = entries
-            self.scheduleFlushLocked()
-        }
-    }
-
-    func scheduleJotNotes(_ notes: [JotNote]) {
-        queue.async { [weak self] in
-            guard let self else { return }
-            self.pendingJotNotes = notes
-            self.scheduleFlushLocked()
-        }
-    }
-
-    func flushNow() {
-        queue.sync {
-            flushLocked()
-        }
-    }
-
-    private func scheduleFlushLocked() {
-        flushWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            self?.flushLocked()
-        }
-        flushWorkItem = workItem
-        queue.asyncAfter(deadline: .now() + flushDelay, execute: workItem)
-    }
-
-    private func flushLocked() {
-        flushWorkItem?.cancel()
-        flushWorkItem = nil
-
-        if let entries = pendingClipboardEntries,
-           let data = try? JSONEncoder().encode(entries) {
-            defaults.set(data, forKey: AppStorageKey.clipboardHistory)
-        }
-        pendingClipboardEntries = nil
-
-        if let notes = pendingJotNotes,
-           let data = try? JSONEncoder().encode(notes) {
-            defaults.set(data, forKey: AppStorageKey.jotNotes)
-        }
-        pendingJotNotes = nil
-    }
-}
-
-private extension View {
-    func nativeSettingsFormStyle() -> some View {
-        formStyle(.grouped)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 14)
-    }
-}
-
-private func persistClipboardHistory(_ entries: [ClipboardEntry]) {
-<<<<<<< HEAD
-    PersistenceWriteCoordinator.shared.scheduleClipboardHistory(entries.map { $0.normalizedForLightweightStorage() })
-=======
-    guard let data = try? JSONEncoder().encode(entries) else { return }
-    UserDefaults.standard.set(data, forKey: AppStorageKey.clipboardHistory)
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-}
-
-private func loadJotNotes() -> [JotNote] {
-    guard let data = UserDefaults.standard.data(forKey: AppStorageKey.jotNotes),
-          let notes = try? JSONDecoder().decode([JotNote].self, from: data) else {
-        return []
-    }
-    return notes
-}
-
-private func persistJotNotes(_ notes: [JotNote]) {
-    PersistenceWriteCoordinator.shared.scheduleJotNotes(notes)
-}
-
-// MARK: - Global Coordinate Proximity Driver
-private final class SingleInstanceLock {
-    private var fileDescriptor: Int32 = -1
-
-    func acquire(bundleIdentifier: String) -> Bool {
-        guard fileDescriptor == -1 else { return true }
-        let lockPath = (NSTemporaryDirectory() as NSString)
-            .appendingPathComponent("\(bundleIdentifier).instance.lock")
-        let descriptor = open(lockPath, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
-        guard descriptor >= 0 else { return true }
-        if flock(descriptor, LOCK_EX | LOCK_NB) == 0 {
-            fileDescriptor = descriptor
-            return true
-        }
-        close(descriptor)
-        return false
-    }
-
-    deinit {
-        guard fileDescriptor >= 0 else { return }
-        close(fileDescriptor)
-        fileDescriptor = -1
-    }
-}
-
-class AppDelegate: NSObject, NSApplicationDelegate {
-    var islandWindow: IslandPanel!
-    var notchWindow: IslandPanel! { islandWindow }
-    private var clipboardTimer: DispatchSourceTimer?
-<<<<<<< HEAD
-    private var clipboardActivationObserver: NSObjectProtocol?
-=======
-    private var nowPlayingTimer: Timer?
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-    private var memoryPressureSource: DispatchSourceMemoryPressure?
-    private var idleCompactionWorkItem: DispatchWorkItem?
-    private var pendingHideWorkItem: DispatchWorkItem?
-    private var statusItem: NSStatusItem?
-    private let model = NotchMenuModel()
-    private let settings = AppSettings.shared
-    private var settingsCancellables = Set<AnyCancellable>()
-    private var hoverCloseWorkItem: DispatchWorkItem?
-    private var swipeCloseWorkItem: DispatchWorkItem?
-
-    private var notchPreviewWorkItem: DispatchWorkItem?
-    private var lastCloseProgressEmission: CGFloat = 0
-    private var lastCarouselOffsetEmission: CGFloat = 0
-    private var lastClipboardChangeCount = NSPasteboard.general.changeCount
-    private var lastWorkspaceClipboardPollTime: TimeInterval = 0
-    private var lastImmediateClipboardPollTime: TimeInterval = 0
-    private let clipboardQueue = DispatchQueue(label: "apollo.clipboard.poll", qos: .utility)
-    private var folderMonitors: [String: FolderMonitor] = [:]
-    private var folderSnapshots: [String: Set<String>] = [:]
-    private var suppressProximityUntilExit = false
-    private var isCursorInActivationZone = false
-    private var pendingWindowHeightUpdate: CGFloat?
-    private var windowFrameUpdateWorkItem: DispatchWorkItem?
-    private let singleInstanceLock = SingleInstanceLock()
-
-    // Event-driven proximity tracking
-    private var proximityWakeWindow: ProximityWakeWindow?   // notch-edge / approach (open trigger)
-    private var islandOpenMousePollTimer: DispatchSourceTimer?
-    private var approachWorkItem: DispatchWorkItem?
-    private var isDraggingOverProximity = false
-    private var lastApproachProgressSampleTime: TimeInterval = 0
-    private var lastApproachProgressEmitted: CGFloat = -1
-    private var lastPanelExpandedAt: TimeInterval = 0
-    private var panelVisibilityEpoch: UInt64 = 0
-
-    // Dynamic structural dimensions
-    private var notchWidth: CGFloat = 210
-    private var notchHeight: CGFloat = 32
-    private var panelWidth: CGFloat = 380
-    private var panelHeight: CGFloat = 160
-
-    // Proximity variables
-    private let activationYBuffer: CGFloat = 80
-    private let exactTriggerPadding: CGFloat = 20
-<<<<<<< HEAD
-    private let approachProgressUpdateInterval: TimeInterval = 1.0 / 30.0
-    private let approachProgressDeltaThreshold: CGFloat = 0.02
-    private let idleCompactionDelay: TimeInterval = 4.0
-    private let clipboardActivePollingInterval: TimeInterval = 3.0
-    private let clipboardWorkspaceActivationPollDebounce: TimeInterval = 0.7
-    private let clipboardImmediatePollDebounce: TimeInterval = 0.25
-
-=======
-    private let mouseFastInterval: TimeInterval = 0.08
-    private let mouseOpenInterval: TimeInterval = 0.14
-    private let mouseApproachInterval: TimeInterval = 0.12
-    private let mouseNearInterval: TimeInterval = 0.25
-    private let mouseHardSleepInterval: TimeInterval = 0.45
-    private let idleCompactionDelay: TimeInterval = 4.0
-    
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        guard acquireSingleInstanceLock() else {
-            activateExistingInstance()
-            NSApp.terminate(nil)
-            return
-        }
-
-        NSApp.setActivationPolicy(.accessory)
-
-        calculateScreenNotchDimensions()
-        model.currentPage = settings.reopenLastPage ? settings.lastVisitedPage : settings.defaultPage
-        setupNotchWindow()
-        setupStatusItem()
-        observeSettings()
-        startMemoryPressureMonitoring()
-        startGlobalProximityTracking()
-        startBackgroundStateTracking()
-        if settings.reopenLastPage {
-            model.currentPage = settings.lastVisitedPage
-        } else {
-            model.currentPage = settings.defaultPage
-        }
-        model.clipboardItems = loadClipboardHistory()
-        model.jotNotes = loadJotNotes()
-        refreshChunkedClipboard()
-        normalizeClipboardDirectoryFlagsIfNeeded()
-        applyClipboardLimitIfNeeded()
-        persistClipboardHistory(model.clipboardItems)
-        persistJotNotes(model.jotNotes)
-        refreshNativeState()
-    }
-
-    private func acquireSingleInstanceLock() -> Bool {
-        guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return true }
-        return singleInstanceLock.acquire(bundleIdentifier: bundleIdentifier)
-    }
-
-    private func activateExistingInstance() {
-        guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return }
-        let currentPID = ProcessInfo.processInfo.processIdentifier
-        guard let runningInstance = NSRunningApplication
-            .runningApplications(withBundleIdentifier: bundleIdentifier)
-            .first(where: { $0.processIdentifier != currentPID }) else {
-            return
-        }
-        runningInstance.activate(options: [])
-    }
-
-    func refreshChunkedClipboard() {
-        let items = model.clipboardItems
-        let columns = max(1, settings.clipboardColumns)
-        clipboardQueue.async { [weak self] in
-            var chunked: [[ClipboardEntry]] = []
-            for i in stride(from: 0, to: items.count, by: columns) {
-                let end = min(i + columns, items.count)
-                chunked.append(Array(items[i..<end]))
-            }
-            DispatchQueue.main.async {
-                self?.model.chunkedClipboardRows = chunked
-            }
-        }
-    }
-
-    private func normalizeClipboardDirectoryFlagsIfNeeded() {
-        let entries = model.clipboardItems
-        guard entries.contains(where: { entry in
-            entry.text != nil && !entry.filePaths.isEmpty
-            || entry.fileNames?.count != entry.filePaths.count
-            || entry.fileSymbols?.count != entry.filePaths.count
-            || entry.isDirectoryFlags == nil && !entry.filePaths.isEmpty
-        }) else { return }
-
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            let normalizedEntries = entries.map { entry -> ClipboardEntry in
-                var updated = entry
-                if updated.isDirectoryFlags == nil, !updated.filePaths.isEmpty {
-                    var flags: [String: Bool] = [:]
-                    for path in entry.filePaths {
-                        var isDir: ObjCBool = false
-                        if FileManager.default.fileExists(atPath: path, isDirectory: &isDir) {
-                            flags[path] = isDir.boolValue
-                        } else {
-                            flags[path] = false
-                        }
-                    }
-                    updated.isDirectoryFlags = flags
-                }
-                return updated.normalizedForLightweightStorage()
-            }
-
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                guard self.model.clipboardItems.map(\.id) == entries.map(\.id) else { return }
-                self.model.clipboardItems = normalizedEntries
-                persistClipboardHistory(normalizedEntries)
-                self.refreshChunkedClipboard()
-            }
-        }
-    }
-
-private func setupStatusItem() {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = item.button {
-            button.image = NSImage(systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: "Apollo")
-            button.action = #selector(statusItemClicked(_:))
-            button.target = self
-        }
-        item.menu = makeStatusMenu()
-        statusItem = item
-    }
-
-private func makeStatusMenu() -> NSMenu {
-        let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Show Island", action: #selector(showNotchFromMenu), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Pin Island", action: #selector(togglePinnedState), keyEquivalent: ""))
-        let settingsItem = NSMenuItem()
-        settingsItem.view = NSHostingView(rootView: SettingsLink {
-            Text("Settings...")
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 4)
-                .padding(.horizontal, 6)
-        })
-        menu.addItem(settingsItem)
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q"))
-        menu.items.forEach { $0.target = self }
-        return menu
-    }
-
-    @objc private func statusItemClicked(_ sender: Any?) {
-        togglePinnedState()
-    }
-
-    @objc private func showNotchFromMenu() {
-        showPanel(expanded: true, pinned: true)
-    }
-
-    @objc private func togglePinnedState() {
-        model.isPinned.toggle()
-        if model.isPinned {
-            showPanel(expanded: true, pinned: true)
-        } else if !model.isExpanded {
-            hidePanel()
-        }
-    }
-
-    @objc private func quitApp() {
-        NSApp.terminate(nil)
-    }
-
-    private func calculateScreenNotchDimensions() {
-        let (x, width, height) = hardwareNotchDimensions(for: NSScreen.screens.first)
-        settings.updateHardwareNotchDimensions(x: x, width: width, height: height)
-        applySettingsNotchSize()
-    }
-
-    private func applySettingsNotchSize() {
-        notchWidth = settings.effectiveNotchWidth
-        notchHeight = settings.effectiveNotchHeight
-        panelWidth = scaledPanelWidth(for: settings)
-        panelHeight = scaledPanelHeight(for: settings)
-    }
-
-    private func observeSettings() {
-        settings.$notchWidth
-            .combineLatest(settings.$notchHeight)
-            .sink { [weak self] _ in
-                guard let self else { return }
-                self.applySettingsNotchSize()
-                self.updateNotchWindowFrame()
-                self.updateProximityWakeWindowFrame()
-                self.previewNotchResize()
-            }
-            .store(in: &settingsCancellables)
-
-        Publishers.MergeMany(
-            settings.$disableApproach.map { _ in () }.eraseToAnyPublisher(),
-            settings.$alwaysUseApproachWhenDraggingFile.map { _ in () }.eraseToAnyPublisher(),
-            settings.$approachWidth.map { _ in () }.eraseToAnyPublisher(),
-            settings.$approachHeight.map { _ in () }.eraseToAnyPublisher(),
-            settings.$notchEdgeThickness.map { _ in () }.eraseToAnyPublisher()
-        )
-        .sink { [weak self] in
-            self?.updateProximityWakeWindowFrame()
-        }
-        .store(in: &settingsCancellables)
-
-        settings.$rememberClips
-            .sink { [weak self] _ in
-                guard let self else { return }
-                self.applyClipboardLimitIfNeeded()
-                persistClipboardHistory(self.model.clipboardItems)
-                self.refreshChunkedClipboard()
-            }
-            .store(in: &settingsCancellables)
-
-        settings.$clipboardColumns
-            .sink { [weak self] _ in
-                self?.refreshChunkedClipboard()
-            }
-            .store(in: &settingsCancellables)
-
-        settings.$defaultPage
-            .sink { [weak self] _ in
-                guard let self, !self.model.isExpanded, !self.settings.reopenLastPage else { return }
-                self.model.currentPage = self.settings.defaultPage
-            }
-            .store(in: &settingsCancellables)
-
-        model.$currentPage
-            .sink { [weak self] page in
-                self?.settings.lastVisitedPage = page
-            }
-            .store(in: &settingsCancellables)
-
-        settings.$observedFolders
-            .sink { [weak self] folders in
-                self?.configureFolderMonitors(with: folders)
-            }
-            .store(in: &settingsCancellables)
-
-        model.$boxFiles
-            .sink { files in
-                let urls = files.map(\.url)
-                if urls.isEmpty {
-                    BoxIconCache.shared.removeAll()
-                } else {
-                    BoxIconCache.shared.trim(keeping: urls)
-                }
-            }
-            .store(in: &settingsCancellables)
-
-        model.$jotNotes
-            .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
-            .sink { notes in
-                persistJotNotes(notes)
-            }
-            .store(in: &settingsCancellables)
-
-        settings.$hoverPreviewFocus
-            .sink { [weak self] focus in
-                guard let self else { return }
-                if focus == .all {
-                    if !self.model.isExpanded && !self.model.isPinned {
-                        self.hidePanel()
-                    }
-                } else {
-                    self.showSettingsPreview()
-                }
-                self.updateClipboardObservationMode(immediatePoll: focus != .all)
-            }
-            .store(in: &settingsCancellables)
-    }
-
-    private func startMemoryPressureMonitoring() {
-        guard memoryPressureSource == nil else { return }
-        let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: DispatchQueue.global(qos: .utility))
-        source.setEventHandler { [weak self] in
-            self?.purgeCachesForMemoryPressure()
-        }
-        source.resume()
-        memoryPressureSource = source
-    }
-
-    private func purgeCachesForMemoryPressure() {
-        let urls = model.boxFiles.map(\.url)
-        if urls.isEmpty {
-            BoxIconCache.shared.removeAll()
-        } else {
-            BoxIconCache.shared.trim(keeping: urls)
-        }
-    }
-
-    private func showSettingsPreview() {
-        guard let window = islandWindow else { return }
-        cancelIdleCompaction()
-        pendingHideWorkItem?.cancel()
-        pendingHideWorkItem = nil
-        hoverCloseWorkItem?.cancel()
-        hoverCloseWorkItem = nil
-        model.isExpanded = false
-        model.isPinned = false
-        model.expansionProgress = 0.0
-        model.closeGestureProgress = 0
-        model.carouselDragOffset = 0
-        updateNotchWindowFrame(heightOverride: panelHeight)
-        window.alphaValue = 1.0
-        window.ignoresMouseEvents = true
-        window.orderFrontRegardless()
-        updateClipboardObservationMode(immediatePoll: true)
-    }
-
-    private func notchTopAnchorY(for screen: NSScreen) -> CGFloat {
-        screen.frame.maxY
-    }
-
-    private func updateNotchWindowFrame(widthOverride: CGFloat? = nil, heightOverride: CGFloat? = nil) {
-        guard let screen = NSScreen.screens.first, let window = notchWindow else { return }
-        let screenRect = screen.frame
-        let defaultWidth = max(panelWidth, notchWidth)
-        let windowWidth = widthOverride ?? defaultWidth
-        let windowHeight = heightOverride ?? window.frame.height
-
-        // Correct window positioning: Center the window's midpoint on the hardware notch's midpoint
-        let notchX = settings.hardwareNotchX
-        let notchWidth = settings.effectiveNotchWidth
-        let windowX = notchX - (windowWidth - notchWidth) / 2
-        let windowY = screenRect.maxY - windowHeight
-
-        window.setFrame(NSRect(x: windowX, y: windowY, width: windowWidth, height: windowHeight), display: true)
-    }
-
-    private func previewNotchResize() {
-        notchPreviewWorkItem?.cancel()
-        notchPreviewWorkItem = nil
-
-        if model.isPinned {
-            showPanel(expanded: true, pinned: true)
-            return
-        }
-
-        showPanel(expanded: true, pinned: false)
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self, !self.model.isPinned else { return }
-            self.hidePanel()
-        }
-        notchPreviewWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: workItem)
-    }
-
-    private let scrollBottomTolerance: CGFloat = 24
-
-    func isCurrentPageAtBottom() -> Bool {
-        guard model.isExpanded, !model.isPinned else { return false }
-        guard let window = islandWindow else { return true }
-        guard let scrollView = window.contentView?.findScrollView() else {
-            // If there's no scroll view, it's always ready to close.
-            return true
-        }
-        guard let documentView = scrollView.documentView else { return true }
-        let visibleRect = scrollView.documentVisibleRect
-        let contentHeight = documentView.frame.height
-        let viewportHeight = visibleRect.height
-
-        // If content is shorter than the viewport, it's always at the bottom!
-        if contentHeight <= viewportHeight { return true }
-
-        return visibleRect.maxY >= (contentHeight - scrollBottomTolerance)
-    }
-
-    private func setupNotchWindow() {
-        guard let screen = NSScreen.screens.first else { return }
-        let screenRect = screen.frame
-        let windowWidth = max(panelWidth, notchWidth)
-        let windowHeight = settings.effectiveNotchHeight
-
-        let notchX = settings.hardwareNotchX
-        let notchWidthActual = settings.effectiveNotchWidth
-        let windowX = notchX - (windowWidth - notchWidthActual) / 2
-        let windowY = screenRect.maxY - settings.effectiveNotchHeight
-
-        let initialRect = NSRect(x: windowX, y: windowY, width: windowWidth, height: windowHeight)
-        islandWindow = IslandPanel(
-            contentRect: initialRect,
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-
-        notchWindow.backgroundColor = .clear
-        notchWindow.isOpaque = false
-        notchWindow.hasShadow = false
-        notchWindow.level = .statusBar + 2
-        notchWindow.alphaValue = 0.0
-        notchWindow.ignoresMouseEvents = true
-        notchWindow.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-
-        notchWindow.isActiveProvider = { [weak self] in
-            guard let self else { return false }
-            return self.model.isExpanded || self.model.isPinned
-        }
-        notchWindow.canTriggerVertical = { [weak self] in
-            self?.isCurrentPageAtBottom() ?? false
-        }
-        notchWindow.onSwipeLeft = { [weak self] in
-            self?.advancePage(direction: 1)
-        }
-        notchWindow.onSwipeRight = { [weak self] in
-            self?.advancePage(direction: -1)
-        }
-        notchWindow.onSwipeUp = { [weak self] in
-            self?.closeNotchFromSwipe()
-        }
-        notchWindow.onCloseProgressLegacy = { [weak self] progress, animate in
-            guard let self else { return }
-            let clamped = max(0, min(1, progress))
-            if abs(self.lastCloseProgressEmission - clamped) < 0.02 {
-                return
-            }
-            self.lastCloseProgressEmission = clamped
-            if animate {
-                if clamped == 0 {
-                    withAnimation(.easeOut(duration: 0.05)) {
-                        self.model.closeGestureProgress = clamped
-                    }
-                } else {
-                    withAnimation(self.settings.swipeAnimation) {
-                        self.model.closeGestureProgress = clamped
-                    }
-                }
-            } else {
-                self.model.closeGestureProgress = clamped
-            }
-        }
-        notchWindow.onCarouselOffset = { [weak self] offset, animate in
-            guard let self else { return }
-            if abs(self.lastCarouselOffsetEmission - offset) < (animate ? 0.01 : 0.6) {
-                return
-            }
-            self.lastCarouselOffsetEmission = offset
-            if animate {
-                withAnimation(.easeOut(duration: 0.05)) {
-                    self.model.carouselDragOffset = offset
-                }
-            } else {
-                self.model.carouselDragOffset = offset
-            }
-        }
-        notchWindow.carouselSensitivityProvider = { [weak self] in
-            self?.settings.clampedCarouselSensitivity ?? 1.0
-        }
-        notchWindow.closeSensitivityProvider = { [weak self] in
-            self?.settings.clampedCloseSensitivity ?? 1.0
-        }
-
-        let rootHubView = UnifiedNotchContainer(model: model, settings: settings)
-            .onPreferenceChange(UnifiedNotchContainer.ShellHeightKey.self) { [weak self] newHeight in
-                guard let self else { return }
-                self.scheduleWindowFrameUpdate(for: newHeight)
-            }
-
-        notchWindow.contentView = IslandHostingView(rootView: rootHubView)
-        // Don't order front at startup — window will be ordered front on first show.
-        // Keeping it ordered out eliminates all NSTrackingArea and SwiftUI hover
-        // events while the panel is idle, preventing CPU usage from cursor movement.
-    }
-
-    private func advancePage(direction: Int) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            let next = clamp(self.model.currentPage + direction, min: IslandPage.clipboard.rawValue, max: IslandPage.box.rawValue)
-            self.model.carouselDragOffset = 0
-            withAnimation(self.settings.carouselAnimation) {
-                self.model.currentPage = next
-            }
-        }
-    }
-
-    private func startBackgroundStateTracking() {
-        startClipboardObservation()
-    }
-
-    private func startClipboardObservation() {
-        observeWorkspaceActivationForClipboardIfNeeded()
-        updateClipboardObservationMode(immediatePoll: true)
-    }
-
-    private func shouldKeepClipboardTimerRunning() -> Bool {
-        (model.isExpanded || model.isPinned) && model.currentPage == IslandPage.clipboard.rawValue
-    }
-
-    private func updateClipboardObservationMode(immediatePoll: Bool = false) {
-        let shouldPollActively = shouldKeepClipboardTimerRunning()
-        if shouldPollActively {
-            startClipboardPollingTimerIfNeeded()
-        } else {
-            stopClipboardObservation()
-        }
-        if immediatePoll, shouldPollActively {
-            let now = ProcessInfo.processInfo.systemUptime
-            guard now - lastImmediateClipboardPollTime >= clipboardImmediatePollDebounce else {
-                return
-            }
-            lastImmediateClipboardPollTime = now
-            // Avoid forced payload reads on page transitions: a normal poll first
-            // checks pasteboard changeCount and only decodes payload when changed.
-            pollClipboard()
-        }
-    }
-
-    private func startClipboardPollingTimerIfNeeded() {
-        guard clipboardTimer == nil else { return }
-
-        let timer = DispatchSource.makeTimerSource(queue: clipboardQueue)
-        timer.schedule(
-            deadline: .now() + 1.2,
-            repeating: clipboardActivePollingInterval,
-            leeway: .seconds(2)
-        )
-        timer.setEventHandler { [weak self] in
-            self?.pollClipboard()
-        }
-        timer.resume()
-        clipboardTimer = timer
-    }
-
-    private func stopClipboardObservation() {
-        clipboardTimer?.cancel()
-        clipboardTimer = nil
-    }
-
-    private func observeWorkspaceActivationForClipboardIfNeeded() {
-        guard clipboardActivationObserver == nil else { return }
-        clipboardActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.handleWorkspaceActivationForClipboard()
-        }
-    }
-
-    private func handleWorkspaceActivationForClipboard() {
-        guard !shouldKeepClipboardTimerRunning() else { return }
-        let now = ProcessInfo.processInfo.systemUptime
-        guard now - lastWorkspaceClipboardPollTime >= clipboardWorkspaceActivationPollDebounce else {
-            return
-        }
-        lastWorkspaceClipboardPollTime = now
-        pollClipboard()
-    }
-
-    func updateObservationState(for page: Int) {
-        updateClipboardObservationMode(immediatePoll: page == IslandPage.clipboard.rawValue)
-    }
-
-    private func refreshNativeState() {
-        pollClipboard(force: true)
-    }
-
-    private func pollClipboard(force: Bool = false) {
-        if Thread.isMainThread {
-            pollClipboardFromPasteboard(force: force)
-        } else {
-            DispatchQueue.main.async { [weak self] in
-                self?.pollClipboardFromPasteboard(force: force)
-            }
-        }
-    }
-
-    private func pollClipboardFromPasteboard(force: Bool = false) {
-        let pasteboard = NSPasteboard.general
-        let currentChangeCount = pasteboard.changeCount
-        guard force || currentChangeCount != lastClipboardChangeCount else { return }
-        lastClipboardChangeCount = currentChangeCount
-
-<<<<<<< HEAD
-        let fileURLs = (pasteboard.readObjects(
-            forClasses: [NSURL.self],
-            options: [.urlReadingFileURLsOnly: true]
-        ) as? [URL] ?? [])
-        .filter(\.isFileURL)
-
-        let trimmedText: String?
-        if fileURLs.isEmpty {
-            trimmedText = cappedClipboardText(pasteboard.string(forType: .string))
-=======
-        let rawText = pasteboard.string(forType: .string)
-        let trimmedText = rawText?.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let fileURLs = (pasteboard.readObjects(
-            forClasses: [NSURL.self],
-            options: [.urlReadingFileURLsOnly: true]
-        ) as? [URL] ?? [])
-        .filter(\.isFileURL)
-
-        guard (trimmedText?.isEmpty == false) || !fileURLs.isEmpty else { return }
-
-        let entry = ClipboardEntry(text: trimmedText, fileURLs: fileURLs)
-        guard model.clipboardItems.first?.signature != entry.signature else { return }
-
-        model.clipboardItems.removeAll { $0.signature == entry.signature }
-        model.clipboardItems.insert(entry, at: 0)
-        applyClipboardLimitIfNeeded()
-        persistClipboardHistory(model.clipboardItems)
-    }
-
-    private func refreshNowPlayingState() {
-        if let info = MPNowPlayingInfoCenter.default().nowPlayingInfo,
-           let title = info[MPMediaItemPropertyTitle] as? String,
-           !title.isEmpty {
-            model.currentTrack = title
-            model.currentArtist = (info[MPMediaItemPropertyArtist] as? String) ?? ""
-            if let rate = info[MPNowPlayingInfoPropertyPlaybackRate] as? Double {
-                model.isPlaying = rate > 0
-            } else {
-                model.isPlaying = true
-            }
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-        } else {
-            trimmedText = nil
-        }
-
-        guard (trimmedText?.isEmpty == false) || !fileURLs.isEmpty else { return }
-
-        clipboardQueue.async { [weak self] in
-            let entry = ClipboardEntry(text: trimmedText, fileURLs: fileURLs).normalizedForLightweightStorage()
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                guard self.model.clipboardItems.first?.signature != entry.signature else { return }
-
-                self.model.clipboardItems.removeAll { $0.signature == entry.signature }
-                self.model.clipboardItems.insert(entry, at: 0)
-                self.applyClipboardLimitIfNeeded()
-                persistClipboardHistory(self.model.clipboardItems)
-                self.refreshChunkedClipboard()
-            }
-        }
-    }
-
-    func copyClipboardEntry(_ entry: ClipboardEntry) {
-        let entry = entry.normalizedForLightweightStorage()
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        if entry.hasText {
-            pasteboard.setString(entry.normalizedText, forType: .string)
-        }
-        if entry.hasFiles {
-            _ = pasteboard.writeObjects(entry.fileURLs as [NSURL])
-        }
-        model.clipboardPulseItemID = entry.id
-        model.clipboardItems.removeAll { $0.signature == entry.signature }
-        model.clipboardItems.insert(entry, at: 0)
-        applyClipboardLimitIfNeeded()
-        persistClipboardHistory(model.clipboardItems)
-        refreshChunkedClipboard()
-    }
-
-    func clearClipboardHistory() {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        lastClipboardChangeCount = pasteboard.changeCount
-        model.clipboardItems.removeAll()
-        model.chunkedClipboardRows.removeAll()
-        model.clipboardPulseItemID = nil
-        persistClipboardHistory(model.clipboardItems)
-        refreshChunkedClipboard()
-    }
-
-    private func applyClipboardLimitIfNeeded() {
-        guard let limit = settings.effectiveRememberClips else { return }
-        if model.clipboardItems.count > limit {
-            model.clipboardItems = Array(model.clipboardItems.prefix(limit))
-            refreshChunkedClipboard()
-        }
-    }
-
-    func addBoxItems(from urls: [URL]) {
-        guard !urls.isEmpty else { return }
-        for url in urls.reversed() {
-            if !model.boxFiles.contains(where: { $0.url == url }) {
-                model.boxFiles.insert(BoxFile(url: url), at: 0)
-            }
-        }
-        showPanel(expanded: true, pinned: false, preferredPage: IslandPage.box.rawValue)
-    }
-
-    func openBoxPage() {
-        showPanel(expanded: true, pinned: false, preferredPage: IslandPage.box.rawValue)
-    }
-
-    func closeNotchFromSwipe() {
-        guard !model.isPinned else { return }
-        suppressProximityUntilExit = true
-        swipeCloseWorkItem?.cancel()
-        swipeCloseWorkItem = nil
-        let delay = settings.swipeCloseDelay
-        if delay <= 0 {
-            hidePanel()
-            return
-        }
-        let workItem = DispatchWorkItem { [weak self] in
-            self?.hidePanel()
-        }
-        swipeCloseWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
-    }
-
-    func postPasteCommand() {
-        let keyCodeV: CGKeyCode = 9
-        let source = CGEventSource(stateID: .combinedSessionState)
-        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCodeV, keyDown: true)
-        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCodeV, keyDown: false)
-        keyDown?.flags = .maskCommand
-        keyUp?.flags = .maskCommand
-        keyDown?.post(tap: .cghidEventTap)
-        keyUp?.post(tap: .cghidEventTap)
-    }
-
-    private func startGlobalProximityTracking() {
-        setupProximityWakeWindow()
-        updateProximityWakeWindowFrame()
-    }
-
-<<<<<<< HEAD
-    private func setupProximityWakeWindow() {
-        guard proximityWakeWindow == nil else { return }
-        let wake = ProximityWakeWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1, height: 1),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        wake.isOpaque = false
-        wake.backgroundColor = .clear
-        wake.hasShadow = false
-        wake.level = .statusBar + 1
-        wake.alphaValue = 0.001
-        wake.ignoresMouseEvents = false
-        wake.acceptsMouseMovedEvents = true
-        wake.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-        wake.hidesOnDeactivate = false
-        wake.onMouseEntered = { [weak self] in self?.handleProximityWakeEntered() }
-        wake.onMouseExited = { [weak self] in self?.handleProximityWakeExited() }
-        wake.onApproachMouseMoved = { [weak self] pt in self?.handleProximityApproachMouseMoved(to: pt) }
-        wake.onDraggingEntered = { [weak self] in self?.handleProximityDraggingEntered() }
-        wake.onDraggingUpdated = { [weak self] pt in self?.handleProximityDraggingUpdated(to: pt) }
-        wake.onDraggingExited = { [weak self] in self?.handleProximityDraggingExited() }
-        wake.orderFrontRegardless()
-        proximityWakeWindow = wake
-
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleScreenParametersChanged),
-            name: NSApplication.didChangeScreenParametersNotification,
-            object: nil
-        )
-=======
-    private func stopMousePolling() {
-        mouseTimer?.cancel()
-        mouseTimer = nil
-    }
-
-    private func startMousePolling() {
-        if mouseTimer != nil { return }
-        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.main)
-        timer.schedule(deadline: .now() + mousePollingInterval, repeating: mousePollingInterval, leeway: .milliseconds(140))
-        timer.setEventHandler { [weak self] in
-            self?.pollMouseLocation()
-        }
-        timer.resume()
-        mouseTimer = timer
-    }
-
-    private struct ProximityZones {
-        let notchRect: CGRect
-        let notchEdgeRect: CGRect
-        let approachRect: CGRect
-        let isHoveringEdge: Bool
-    }
-
-    private func makeProximityZones(screenRect: CGRect, point: NSPoint) -> ProximityZones {
-        let edge = settings.clampedNotchEdgeThickness
-        let isFileDrag = isDraggingFile()
-        let forceApproachForDrag = isFileDrag && settings.alwaysUseApproachWhenDraggingFile
-        let disableApproachForCurrentInput = settings.disableApproach && !forceApproachForDrag
-        let approachScale: CGFloat = forceApproachForDrag ? 2.0 : 1.0
-        let approachWidth = disableApproachForCurrentInput ? 0 : settings.clampedApproachWidth * approachScale
-        let approachHeight = disableApproachForCurrentInput ? 0 : settings.clampedApproachHeight * approachScale
-        let edgeNotchWidth = settings.effectiveNotchWidth
-        let edgeNotchHeight = settings.effectiveNotchHeight
-        let edgeNotchLeft = settings.hardwareNotchX
-
-        let notchRect = CGRect(
-            x: edgeNotchLeft,
-            y: screenRect.height - edgeNotchHeight,
-            width: edgeNotchWidth,
-            height: edgeNotchHeight
-        )
-        let notchEdgeRect = notchRect.insetBy(dx: -edge, dy: -edge)
-        let approachRect = CGRect(
-            x: notchEdgeRect.minX - approachWidth,
-            y: notchEdgeRect.minY - approachHeight,
-            width: notchEdgeRect.width + approachWidth * 2,
-            height: approachHeight
-        )
-        let isHoveringEdge = isPointInNotchEdge(point, notchRect: notchRect, edge: edge)
-
-        return ProximityZones(
-            notchRect: notchRect,
-            notchEdgeRect: notchEdgeRect,
-            approachRect: approachRect,
-            isHoveringEdge: isHoveringEdge
-        )
-    }
-
-    private func shouldTrack(point: NSPoint, zones: ProximityZones) -> Bool {
-        zones.isHoveringEdge || zones.approachRect.contains(point)
-    }
-
-    private func updateMousePollingInterval(for point: NSPoint, screenRect: CGRect, isTrackingZone: Bool, isHoveringEdge: Bool) {
-        let distanceToTop = screenRect.height - point.y
-        let edge = settings.clampedNotchEdgeThickness
-        let approachHeight = settings.disableApproach ? 0 : settings.clampedApproachHeight
-        let nearTopBand = distanceToTop <= (activationYBuffer + edge + approachHeight + 220)
-
-        let desiredInterval: TimeInterval
-        if model.isExpanded || model.isPinned {
-            desiredInterval = mouseOpenInterval
-        } else if isHoveringEdge {
-            desiredInterval = mouseFastInterval
-        } else if isTrackingZone {
-            desiredInterval = mouseApproachInterval
-        } else if nearTopBand {
-            desiredInterval = mouseNearInterval
-        } else {
-            desiredInterval = mouseHardSleepInterval
-        }
-
-        let targetInterval = (!model.isExpanded && model.expansionProgress > 0 && !model.isPinned)
-            ? min(desiredInterval, 0.05)
-            : desiredInterval
-
-        if targetInterval != mousePollingInterval {
-            mousePollingInterval = targetInterval
-            mouseTimer?.schedule(
-                deadline: .now() + mousePollingInterval,
-                repeating: mousePollingInterval,
-                leeway: .milliseconds(180)
-            )
-        }
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-    }
-
-    @objc private func handleScreenParametersChanged() {
-        calculateScreenNotchDimensions()
-        updateNotchWindowFrame()
-        updateProximityWakeWindowFrame()
-    }
-
-    private func updateProximityWakeWindowFrame() {
-        guard let wake = proximityWakeWindow,
-              let screen = NSScreen.screens.first else { return }
-        let screenRect = screen.frame
-
-<<<<<<< HEAD
-        // proximityWakeWindow tracks notch edge + approach zone while island is closed.
-        let shouldWakeTrackCursor =
-            !model.isExpanded &&
-            !model.isPinned &&
-            model.observedFileToast == nil &&
-            !(settings.showHoverPreviews && settings.hoverPreviewFocus != .all)
-        guard shouldWakeTrackCursor else {
-            resetApproachProgressSampling()
-            wake.orderOut(nil)
-            return
-        }
-        // Cursor is approaching the notch; reset the suppression flag so hover-to-open works.
-        suppressProximityUntilExit = false
-        let edge = settings.clampedNotchEdgeThickness
-        let edgeNotchWidth = settings.effectiveNotchWidth
-        let edgeNotchHeight = settings.effectiveNotchHeight
-        let edgeNotchLeft = settings.hardwareNotchX
-        let edgeNotchRect = CGRect(
-            x: edgeNotchLeft,
-            y: screenRect.maxY - edgeNotchHeight,
-            width: edgeNotchWidth,
-            height: edgeNotchHeight
-        ).insetBy(dx: -edge, dy: -edge)
-
-        let approachScale: CGFloat = settings.alwaysUseApproachWhenDraggingFile ? 2.0 : 1.0
-        let approachWidth = settings.disableApproach ? 0 : settings.clampedApproachWidth * approachScale
-        let approachHeight = settings.disableApproach ? 0 : settings.clampedApproachHeight * approachScale
-
-        let cushion: CGFloat = 6
-        let totalHeight = edgeNotchRect.height + approachHeight + cushion
-        let totalWidth = edgeNotchRect.width + approachWidth * 2
-        let originX = edgeNotchRect.minX - approachWidth
-        let originY = screenRect.maxY - totalHeight
-        let approachRect = CGRect(
-            x: edgeNotchRect.minX - approachWidth,
-            y: edgeNotchRect.minY - approachHeight,
-            width: edgeNotchRect.width + (approachWidth * 2),
-            height: approachHeight
-        )
-
-        wake.setFrame(NSRect(x: originX, y: originY, width: totalWidth, height: totalHeight), display: false)
-        if !wake.isVisible {
-            wake.orderFrontRegardless()
-=======
-        let deltaX = abs(mouseX - lastMousePoint.x)
-        let deltaY = abs(mouseY - lastMousePoint.y)
-        let zones = makeProximityZones(screenRect: screenRect, point: globalPoint)
-        let isTrackingZone = shouldTrack(point: globalPoint, zones: zones)
-
-        if deltaX < 0.75 && deltaY < 0.75 && !model.isExpanded {
-            if (model.observedFileToast != nil || model.isToastDismissing) {
-                return
-            }
-
-            if !isTrackingZone, !model.isPinned, model.expansionProgress > 0 {
-                approachStartTime = nil
-                if let window = notchWindow {
-                    window.ignoresMouseEvents = true
-                    window.alphaValue = 1.0
-                }
-                withAnimation(settings.notchOpenAnimation) {
-                    model.expansionProgress = 0
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-                    guard let self, !self.model.isExpanded, self.model.expansionProgress == 0 else { return }
-                    self.notchWindow?.alphaValue = 0.0
-                }
-            }
-            return
-        }
-        lastMousePoint = globalPoint
-
-        if suppressProximityUntilExit {
-            if isMouseWithinReopenZone(point: globalPoint, zones: zones) {
-                return
-            }
-            suppressProximityUntilExit = false
-        }
-
-        if model.isPinned {
-            return
-        }
-        updateMousePollingInterval(for: globalPoint, screenRect: screenRect, isTrackingZone: isTrackingZone, isHoveringEdge: zones.isHoveringEdge)
-
-        // Stay alive in hard-sleep mode so the app can wake proximity checks without an external monitor.
-        if !isTrackingZone && !model.isExpanded && model.expansionProgress == 0 && !model.isPinned {
-            return
-        }
-
-        if !model.isPinned && !model.isExpanded {
-            if !isTrackingZone {
-                return
-            }
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-        }
-        wake.updateTrackingGeometry(
-            notchEdgeRect: edgeNotchRect.offsetBy(dx: -originX, dy: -originY),
-            approachRect: approachRect.offsetBy(dx: -originX, dy: -originY)
-        )
-
-<<<<<<< HEAD
-        // If tracking geometry moves under a stationary cursor, AppKit may not
-        // emit mouseEntered. Synthesize an activation check so notch-edge hover
-        // reliably opens the island.
-        let cursor = NSEvent.mouseLocation
-        if edgeNotchRect.contains(cursor) {
-            setActivationZoneState(true)
-            evaluateMouseCoordinates(cursor, isFileDrag: false)
-        }
-    }
-
-    private func handleProximityWakeEntered() {
-        guard !suppressProximityUntilExit else { return }
-        // Only the notch-edge/notch itself should count as activation.
-        // Entering approach alone should progressively expand, not open.
-        let point = NSEvent.mouseLocation
-        if let screen = NSScreen.screens.first {
-            let zones = makeProximityZones(screenRect: screen.frame, point: point, isFileDrag: false)
-            setActivationZoneState(zones.isInsideNotch || zones.isHoveringEdge)
-        } else {
-            setActivationZoneState(false)
-        }
-        // Evaluate cursor when tracking areas are entered so approach progress
-        // updates immediately, but open only occurs at notch-edge/notch.
-        evaluateMouseCoordinates(point, isFileDrag: false)
-    }
-
-    private func handleProximityWakeExited() {
-        suppressProximityUntilExit = false
-        resetApproachProgressSampling()
-        setActivationZoneState(false)
-    }
-
-    private func handleProximityApproachMouseMoved(to point: NSPoint) {
-        guard !suppressProximityUntilExit, !model.isExpanded, !model.isPinned else { return }
-        evaluateMouseCoordinates(point, isFileDrag: false)
-    }
-
-    private func setActivationZoneState(_ isInside: Bool) {
-        guard isCursorInActivationZone != isInside else { return }
-        isCursorInActivationZone = isInside
-        applyCursorPresenceState()
-    }
-
-    private func applyCursorPresenceState() {
-        guard !model.isPinned else {
-            hoverCloseWorkItem?.cancel()
-            hoverCloseWorkItem = nil
-            return
-        }
-
-        if model.isExpanded {
-            hoverCloseWorkItem?.cancel()
-            hoverCloseWorkItem = nil
-            return
-        }
-
-        guard isCursorInActivationZone, !suppressProximityUntilExit else { return }
-        showPanel(expanded: true, pinned: false)
-    }
-
-    private func clearCursorPresenceState() {
-        isCursorInActivationZone = false
-    }
-
-    private func handleLegacyProximityWakeExitedFallback() {
-        approachWorkItem?.cancel()
-        approachWorkItem = nil
-        let globalPoint = NSEvent.mouseLocation
-        let isWithinExpandedPanel = notchWindow?.frame.contains(globalPoint) ?? false
-        if model.isExpanded {
-            if !isWithinExpandedPanel {
-                scheduleHoverCloseIfNeeded()
-            }
-        } else if !model.isPinned && model.expansionProgress > 0 {
-            withAnimation(settings.notchOpenAnimation) {
-                model.expansionProgress = 0
-            }
-            let checkWindow = notchWindow
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-                guard let self, !self.model.isExpanded, self.model.expansionProgress == 0 else { return }
-                checkWindow?.alphaValue = 0.0
-                checkWindow?.ignoresMouseEvents = true
-                checkWindow?.orderOut(nil)
-            }
-        }
-    }
-
-    private func handleProximityDraggingEntered() {
-        isDraggingOverProximity = true
-        suppressProximityUntilExit = false
-        evaluateMouseCoordinates(NSEvent.mouseLocation, isFileDrag: true)
-    }
-
-    private func handleProximityDraggingUpdated(to point: NSPoint) {
-        evaluateMouseCoordinates(point, isFileDrag: true)
-    }
-
-    private func handleProximityDraggingExited() {
-        isDraggingOverProximity = false
-        handleLegacyProximityWakeExitedFallback()
-    }
-
-    private struct ProximityZones {
-        let notchRect: CGRect
-        let notchEdgeRect: CGRect
-        let approachRect: CGRect
-        let isHoveringEdge: Bool
-        let isInsideNotch: Bool
-    }
-
-    private func makeProximityZones(screenRect: CGRect, point: NSPoint, isFileDrag: Bool) -> ProximityZones {
-        let edge = settings.clampedNotchEdgeThickness
-        let forceApproachForDrag = isFileDrag && settings.alwaysUseApproachWhenDraggingFile
-        let disableApproachForCurrentInput = settings.disableApproach && !forceApproachForDrag
-        let approachScale: CGFloat = forceApproachForDrag ? 2.0 : 1.0
-        let approachWidth = disableApproachForCurrentInput ? 0 : settings.clampedApproachWidth * approachScale
-        let approachHeight = disableApproachForCurrentInput ? 0 : settings.clampedApproachHeight * approachScale
-        let edgeNotchWidth = settings.effectiveNotchWidth
-        let edgeNotchHeight = settings.effectiveNotchHeight
-        let edgeNotchLeft = settings.hardwareNotchX
-
-        let notchRect = CGRect(
-            x: edgeNotchLeft,
-            // Use global screen-space Y (maxY), not local height, to keep
-            // inside-notch detection correct on all display origins.
-            y: screenRect.maxY - edgeNotchHeight,
-            width: edgeNotchWidth,
-            height: edgeNotchHeight
-        )
-        let notchEdgeRect = notchRect.insetBy(dx: -edge, dy: -edge)
-        let approachRect = CGRect(
-            x: notchEdgeRect.minX - approachWidth,
-            y: notchEdgeRect.minY - approachHeight,
-            width: notchEdgeRect.width + approachWidth * 2,
-            height: approachHeight
-        )
-        let isInsideNotch = notchRect.contains(point)
-        let isHoveringEdge = isPointInNotchEdge(point, notchRect: notchRect, edge: edge)
-
-        return ProximityZones(
-            notchRect: notchRect,
-            notchEdgeRect: notchEdgeRect,
-            approachRect: approachRect,
-            isHoveringEdge: isHoveringEdge,
-            isInsideNotch: isInsideNotch
-        )
-=======
-        evaluateMouseCoordinates(globalPoint, zones: zones)
-    }
-
-    private func isMouseWithinReopenZone(point: NSPoint, zones: ProximityZones) -> Bool {
-        if settings.disableApproach {
-            return zones.isHoveringEdge
-        }
-        return zones.approachRect.contains(point)
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-    }
-
-    private func isPointInNotchEdge(_ point: NSPoint, notchRect: CGRect, edge: CGFloat) -> Bool {
-        if notchRect.contains(point) {
-            return true
-        }
-        let thickness = max(0, edge)
-        guard thickness > 0 else { return false }
-        let hitThickness = max(6, thickness)
-        let outerRect = notchRect.insetBy(dx: -hitThickness, dy: -hitThickness)
-        return outerRect.contains(point)
-    }
-
-    private func scheduleHoverCloseIfNeeded() {
-<<<<<<< HEAD
-        hoverCloseWorkItem?.cancel()
-        hoverCloseWorkItem = nil
-        hidePanel()
-    }
-
-    private func startIslandOpenMousePolling() {
-        guard islandOpenMousePollTimer == nil else { return }
-        let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + .milliseconds(400), repeating: .milliseconds(400), leeway: .milliseconds(150))
-        timer.setEventHandler { [weak self] in
-            self?.handleIslandOpenMousePollTick()
-        }
-        islandOpenMousePollTimer = timer
-        timer.resume()
-    }
-
-    private func stopIslandOpenMousePolling() {
-        islandOpenMousePollTimer?.cancel()
-        islandOpenMousePollTimer = nil
-    }
-
-    private func handleIslandOpenMousePollTick() {
-        guard model.isExpanded, !model.isPinned, let window = islandWindow else {
-            stopIslandOpenMousePolling()
-=======
-        if hoverCloseWorkItem != nil {
-            return
-        }
-        let delay = settings.hoverCloseDelay
-        if delay <= 0 {
-            hidePanel()
-            return
-        }
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.hoverCloseWorkItem = nil
-            self.hidePanel()
-        }
-        hoverCloseWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
-    }
-    
-    private func evaluateMouseCoordinates(_ globalPoint: NSPoint, zones: ProximityZones) {
-        guard let screen = NSScreen.screens.first, let window = notchWindow else { return }
-        if (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded {
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-            return
-        }
-        let point = NSEvent.mouseLocation
-        let now = ProcessInfo.processInfo.systemUptime
-        // Give the panel a brief settling window so fast notch-entry doesn't
-        // get interpreted as an immediate leave before geometry catches up.
-        if now - lastPanelExpandedAt < 0.45 {
-            return
-        }
-<<<<<<< HEAD
-
-        if window.frame.contains(point) || isPointInsideNotchActivationZone(point) {
-            return
-        }
-        hidePanel()
-    }
-
-    private func isPointInsideNotchActivationZone(_ point: NSPoint) -> Bool {
-        guard let screen = NSScreen.screens.first else { return false }
-        let zones = makeProximityZones(screenRect: screen.frame, point: point, isFileDrag: false)
-        return zones.isInsideNotch || zones.isHoveringEdge
-    }
-
-    private func resetApproachProgressSampling() {
-        lastApproachProgressSampleTime = 0
-        lastApproachProgressEmitted = -1
-    }
-
-    private func applyApproachProgressIfNeeded(_ targetProgress: CGFloat) {
-        let clamped = min(1.0, max(0.0, targetProgress))
-        let now = ProcessInfo.processInfo.systemUptime
-
-        if lastApproachProgressEmitted < 0 {
-            lastApproachProgressEmitted = clamped
-            lastApproachProgressSampleTime = now
-            if abs(model.expansionProgress - clamped) > 0.005 {
-                model.expansionProgress = clamped
-            }
-            return
-        }
-
-        let delta = abs(clamped - lastApproachProgressEmitted)
-        let elapsed = now - lastApproachProgressSampleTime
-        let isLargeStep = delta >= 0.08
-        guard isLargeStep || (delta >= approachProgressDeltaThreshold && elapsed >= approachProgressUpdateInterval) else {
-            return
-        }
-
-        lastApproachProgressEmitted = clamped
-        lastApproachProgressSampleTime = now
-        if abs(model.expansionProgress - clamped) > 0.005 {
-            model.expansionProgress = clamped
-        }
-    }
-
-    private func evaluateMouseCoordinates(_ globalPoint: NSPoint, isFileDrag: Bool) {
-        guard let screen = NSScreen.screens.first else { return }
-        let screenRect = screen.frame
-        let zones = makeProximityZones(screenRect: screenRect, point: globalPoint, isFileDrag: isFileDrag)
-        let isInsideActiveZone = zones.isInsideNotch || zones.isHoveringEdge || zones.approachRect.contains(globalPoint)
-
-        if isInsideActiveZone {
-            hoverCloseWorkItem?.cancel()
-            hoverCloseWorkItem = nil
-=======
-        lastMouseEvaluationTime = now
-        
-        let mouseY = globalPoint.y
-
-        let notchEdgeRect = zones.notchEdgeRect
-        let isDirectHoverOverNotch = zones.isHoveringEdge
-        let approachRect = zones.approachRect
-        let isFileDrag = isDraggingFile()
-        let forceApproachForDrag = isFileDrag && settings.alwaysUseApproachWhenDraggingFile
-        let disableApproachForCurrentInput = settings.disableApproach && !forceApproachForDrag
-        let approachHeight = max(0, approachRect.height)
-        let isWithinExpandedPanel = window.frame.contains(globalPoint)
-
-        if disableApproachForCurrentInput {
-            if model.isPinned {
-                showPanel(expanded: true, pinned: true)
-                return
-            }
-            if model.isExpanded {
-                if isWithinExpandedPanel || isDirectHoverOverNotch {
-                    hoverCloseWorkItem?.cancel()
-                    hoverCloseWorkItem = nil
-                    return
-                }
-                scheduleHoverCloseIfNeeded()
-                return
-            }
-            if isDirectHoverOverNotch {
-                let isFileDrag = isDraggingFile()
-                let preferredPage = isFileDrag ? IslandPage.box.rawValue : nil
-                showPanel(expanded: true, pinned: false, preferredPage: preferredPage)
-            }
-            return
-        }
-
-        if !model.isPinned && !model.isExpanded {
-            if !(approachRect.contains(globalPoint) || zones.isHoveringEdge) {
-                approachStartTime = nil
-                hidePanel()
-                return
-            }
-            if !zones.isHoveringEdge {
-                if approachStartTime == nil {
-                    approachStartTime = now
-                }
-                let elapsed = now - (approachStartTime ?? now)
-                if elapsed < settings.approachDelay {
-                    return
-                }
-            } else {
-                approachStartTime = nil
-            }
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-        }
-
-        if model.isPinned {
-            showPanel(expanded: true, pinned: true)
-            return
-        }
-
-        if model.isExpanded {
-            let isWithinExpandedPanel = notchWindow?.frame.contains(globalPoint) ?? false
-            if isWithinExpandedPanel || zones.isInsideNotch || zones.isHoveringEdge {
-                hoverCloseWorkItem?.cancel()
-                hoverCloseWorkItem = nil
-<<<<<<< HEAD
-            } else {
-                scheduleHoverCloseIfNeeded()
-=======
-                return
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-            }
-            return
-        }
-<<<<<<< HEAD
-=======
-        
-        if approachRect.contains(globalPoint) || zones.isHoveringEdge {
-            let totalHeight = max(1, approachHeight)
-            let distance = max(0, notchEdgeRect.minY - mouseY)
-            let baseProgress = min(1.0, max(0.0, 1.0 - (distance / totalHeight)))
-            let targetProgress = zones.isHoveringEdge ? 1.0 : baseProgress
-            if abs(model.expansionProgress - targetProgress) > 0.01 {
-                model.expansionProgress = targetProgress
-            }
-            if window.alphaValue != 1.0 {
-                window.alphaValue = 1.0
-            }
-            let shouldIgnoreMouseEvents = !(isFileDrag && approachRect.contains(globalPoint))
-            if window.ignoresMouseEvents != shouldIgnoreMouseEvents {
-                window.ignoresMouseEvents = shouldIgnoreMouseEvents
-            }
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-
-        let isDirectHoverOverNotch = zones.isInsideNotch || zones.isHoveringEdge
-        let forceApproachForDrag = isFileDrag && settings.alwaysUseApproachWhenDraggingFile
-        let disableApproachForCurrentInput = settings.disableApproach && !forceApproachForDrag
-
-        if disableApproachForCurrentInput {
-            if isDirectHoverOverNotch {
-                let preferredPage = isFileDrag ? IslandPage.box.rawValue : nil
-                showPanel(expanded: true, pinned: false, preferredPage: preferredPage)
-            } else {
-                hidePanel()
-            }
-            return
-        }
-
-        if isInsideActiveZone {
-            let totalHeight = max(1.0, zones.approachRect.height)
-            let distance = max(0.0, zones.notchEdgeRect.minY - globalPoint.y)
-            let baseProgress = min(1.0, max(0.0, 1.0 - (distance / totalHeight)))
-            let targetProgress = zones.isHoveringEdge ? 1.0 : baseProgress
-
-            applyApproachProgressIfNeeded(targetProgress)
-            if notchWindow?.alphaValue != 1.0 {
-                notchWindow?.alphaValue = 1.0
-            }
-            if notchWindow?.isVisible == false {
-                notchWindow?.orderFrontRegardless()
-            }
-            let shouldIgnoreMouseEvents = !(isFileDrag && zones.approachRect.contains(globalPoint))
-            if notchWindow?.ignoresMouseEvents != shouldIgnoreMouseEvents {
-                notchWindow?.ignoresMouseEvents = shouldIgnoreMouseEvents
-            }
-
-            if isDirectHoverOverNotch {
-                approachWorkItem?.cancel()
-                approachWorkItem = nil
-                resetApproachProgressSampling()
-                let preferredPage = isFileDrag ? IslandPage.box.rawValue : nil
-                showPanel(expanded: true, pinned: false, preferredPage: preferredPage)
-            } else {
-                approachWorkItem?.cancel()
-                approachWorkItem = nil
-            }
-        } else {
-            approachWorkItem?.cancel()
-            approachWorkItem = nil
-            resetApproachProgressSampling()
-            hidePanel()
-        }
-    }
-
-    private func showPanel(expanded: Bool, pinned: Bool, preferredPage: Int? = nil) {
-        guard let window = islandWindow else { return }
-<<<<<<< HEAD
-
-        if expanded {
-            panelVisibilityEpoch &+= 1
-        }
-
-        let resolvedPage: Int?
-        if let preferredPage {
-            resolvedPage = preferredPage
-        } else if expanded {
-            if settings.reopenLastPage {
-                resolvedPage = settings.lastVisitedPage
-            } else if settings.defaultToBoxIfItems, !model.boxFiles.isEmpty {
-                resolvedPage = IslandPage.box.rawValue
-            } else {
-                resolvedPage = settings.defaultPage
-            }
-        } else {
-            resolvedPage = nil
-        }
-
-        let stateMatches = model.isExpanded == expanded && model.isPinned == pinned
-        let pageMatches = resolvedPage == nil || model.currentPage == resolvedPage
-        if stateMatches,
-           pageMatches,
-           abs(model.expansionProgress - 1.0) < 0.001,
-           abs(model.closeGestureProgress) < 0.001,
-           abs(model.carouselDragOffset) < 0.001 {
-            if window.alphaValue != 1.0 {
-                window.alphaValue = 1.0
-            }
-            if window.ignoresMouseEvents {
-                window.ignoresMouseEvents = false
-            }
-            if !window.isVisible {
-                window.orderFrontRegardless()
-            }
-            updateClipboardObservationMode(immediatePoll: true)
-            updateProximityWakeWindowFrame()
-            if expanded {
-                startIslandOpenMousePolling()
-            } else {
-                stopIslandOpenMousePolling()
-            }
-            return
-        }
-
-=======
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-        cancelIdleCompaction()
-        pendingHideWorkItem?.cancel()
-        pendingHideWorkItem = nil
-        hoverCloseWorkItem?.cancel()
-        hoverCloseWorkItem = nil
-        swipeCloseWorkItem?.cancel()
-        swipeCloseWorkItem = nil
-
-        let wasExpanded = model.isExpanded
-        let shouldAnimateOpen = expanded && (!wasExpanded || model.expansionProgress < 0.999 || model.closeGestureProgress > 0.001)
-        if model.isExpanded != expanded {
-            model.isExpanded = expanded
-        }
-        if model.isPinned != pinned {
-            model.isPinned = pinned
-        }
-
-        if shouldAnimateOpen {
-            withAnimation(settings.notchOpenAnimation) {
-                model.expansionProgress = 1.0
-                model.closeGestureProgress = 0
-                model.carouselDragOffset = 0
-            }
-        } else {
-            if abs(model.expansionProgress - 1.0) > 0.001 {
-                model.expansionProgress = 1.0
-            }
-            if abs(model.closeGestureProgress) > 0.001 {
-                model.closeGestureProgress = 0
-            }
-            if abs(model.carouselDragOffset) > 0.001 {
-                model.carouselDragOffset = 0
-            }
-        }
-        lastCloseProgressEmission = 0
-        lastCarouselOffsetEmission = 0
-        if let resolvedPage, model.currentPage != resolvedPage {
-            model.currentPage = resolvedPage
-        }
-        if window.alphaValue != 1.0 {
-            window.alphaValue = 1.0
-        }
-        if window.ignoresMouseEvents {
-            window.ignoresMouseEvents = false
-        }
-        if !window.isVisible {
-            window.orderFrontRegardless()
-        }
-        if expanded {
-            lastPanelExpandedAt = ProcessInfo.processInfo.systemUptime
-        }
-        isCursorInActivationZone = window.frame.contains(NSEvent.mouseLocation)
-        updateClipboardObservationMode(immediatePoll: true)
-        updateProximityWakeWindowFrame()
-        if expanded {
-            startIslandOpenMousePolling()
-        } else {
-            stopIslandOpenMousePolling()
-        }
-    }
-
-    private func hidePanel(preserveCloseProgress: Bool = false) {
-        guard let window = islandWindow else { return }
-        if (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded {
-            return
-        }
-        if model.isPinned { return }
-        pendingHideWorkItem?.cancel()
-        swipeCloseWorkItem?.cancel()
-        swipeCloseWorkItem = nil
-        hoverCloseWorkItem?.cancel()
-        hoverCloseWorkItem = nil
-        stopIslandOpenMousePolling()
-        // Match open exactly: use the same notch spring for collapse.
-        // Keep the window visible long enough for the spring to settle.
-        withAnimation(settings.notchOpenAnimation) {
-            model.isExpanded = false
-            model.expansionProgress = 0.0
-            if !preserveCloseProgress {
-                model.closeGestureProgress = 0
-            }
-            model.carouselDragOffset = 0
-        }
-        // Reactivate notch/approach tracking immediately on close start so
-        // quick re-entry can reopen without waiting for final orderOut.
-        updateProximityWakeWindowFrame()
-        lastCloseProgressEmission = 0
-        lastCarouselOffsetEmission = 0
-
-        panelVisibilityEpoch &+= 1
-        let hideEpoch = panelVisibilityEpoch
-
-        let hideWorkItem = DispatchWorkItem { [weak self] in
-            guard let self, !self.model.isPinned else { return }
-            guard self.panelVisibilityEpoch == hideEpoch else { return }
-            window.alphaValue = 0.0
-            window.ignoresMouseEvents = true
-<<<<<<< HEAD
-            window.orderOut(nil)
-            self.clearCursorPresenceState()
-            self.model.expansionProgress = 0
-            self.scheduleIdleCompactionIfNeeded()
-            self.updateClipboardObservationMode()
-            self.updateProximityWakeWindowFrame()
-        }
-        scheduleHideAfterCollapse(
-            window: window,
-            hideWorkItem: hideWorkItem,
-            startedAt: ProcessInfo.processInfo.systemUptime,
-            hideEpoch: hideEpoch
-        )
-    }
-
-    private func scheduleHideAfterCollapse(window: NSWindow, hideWorkItem: DispatchWorkItem, startedAt: TimeInterval, hideEpoch: UInt64) {
-        let pollWorkItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            guard self.panelVisibilityEpoch == hideEpoch else { return }
-            guard !self.model.isPinned else { return }
-            guard !self.model.isExpanded else { return }
-
-            let elapsed = ProcessInfo.processInfo.systemUptime - startedAt
-            // Frame updates are quantized to rounded points in
-            // `scheduleWindowFrameUpdate`, so compare against the same final value.
-            let targetNotchHeight = self.settings.effectiveNotchHeight.rounded()
-            let currentHeight = window.frame.height
-            let hasCollapsedToNotch = abs(currentHeight - targetNotchHeight) <= 0.01
-
-            // Require a small minimum visible duration so close remains
-            // perceptible even when frame updates arrive quickly.
-            if hasCollapsedToNotch && elapsed >= 0.10 {
-                hideWorkItem.perform()
-                return
-            }
-
-            if elapsed >= 1.2 {
-                // Safety net: force an exact final-notch frame before hiding.
-                self.updateNotchWindowFrame(heightOverride: targetNotchHeight)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
-                    guard self.panelVisibilityEpoch == hideEpoch else { return }
-                    hideWorkItem.perform()
-                }
-                return
-            }
-
-            self.scheduleHideAfterCollapse(window: window, hideWorkItem: hideWorkItem, startedAt: startedAt, hideEpoch: hideEpoch)
-        }
-
-        pendingHideWorkItem = pollWorkItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + (1.0 / 60.0), execute: pollWorkItem)
-    }
-
-    private func cancelIdleCompaction() {
-        idleCompactionWorkItem?.cancel()
-        idleCompactionWorkItem = nil
-    }
-
-    private func scheduleIdleCompactionIfNeeded() {
-        cancelIdleCompaction()
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            guard !self.model.isExpanded,
-                  !self.model.isPinned,
-                  self.model.observedFileToast == nil,
-                  !self.model.isToastDismissing,
-                  !(self.settings.showHoverPreviews && self.settings.hoverPreviewFocus != .all) else {
-                return
-            }
-            self.performIdleCompaction()
-        }
-        idleCompactionWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + idleCompactionDelay, execute: workItem)
-    }
-
-    private func performIdleCompaction() {
-        BoxIconCache.shared.removeAll()
-        if !model.isExpanded && !model.isPinned {
-            model.carouselDragOffset = 0
-            model.closeGestureProgress = 0
-=======
-            self.scheduleIdleCompactionIfNeeded()
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-        }
-    }
-
-    private func cancelIdleCompaction() {
-        idleCompactionWorkItem?.cancel()
-        idleCompactionWorkItem = nil
-    }
-
-    private func scheduleIdleCompactionIfNeeded() {
-        cancelIdleCompaction()
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            guard !self.model.isExpanded,
-                  !self.model.isPinned,
-                  self.model.observedFileToast == nil,
-                  !self.model.isToastDismissing,
-                  !(self.settings.showHoverPreviews && self.settings.hoverPreviewFocus != .all) else {
-                return
-            }
-            self.performIdleCompaction()
-        }
-        idleCompactionWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + idleCompactionDelay, execute: workItem)
-    }
-
-    private func performIdleCompaction() {
-        BoxIconCache.shared.removeAll()
-        if !model.isExpanded && !model.isPinned {
-            model.carouselDragOffset = 0
-            model.closeGestureProgress = 0
-            approachStartTime = nil
-        }
-    }
-
-    private func configureFolderMonitors(with folders: [String]) {
-        let desired = Set(folders)
-        let existing = Set(folderMonitors.keys)
-
-        let toRemove = existing.subtracting(desired)
-        let toAdd = desired.subtracting(existing)
-
-        for path in toRemove {
-            folderMonitors[path]?.stop()
-            folderMonitors.removeValue(forKey: path)
-            folderSnapshots.removeValue(forKey: path)
-        }
-
-        for path in toAdd {
-            let url = URL(fileURLWithPath: path)
-            folderSnapshots[path] = snapshotFiles(in: url)
-            let monitor = FolderMonitor(url: url) { [weak self] in
-                self?.handleFolderChange(for: url)
-            }
-            monitor.start()
-            folderMonitors[path] = monitor
-        }
-    }
-
-    private func snapshotFiles(in folder: URL) -> Set<String> {
-        let manager = FileManager.default
-        let files = (try? manager.contentsOfDirectory(
-            at: folder,
-            includingPropertiesForKeys: [.isDirectoryKey, .creationDateKey, .contentModificationDateKey],
-            options: [.skipsHiddenFiles]
-        )) ?? []
-
-        let filtered = files.filter { url in
-            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
-            return values?.isDirectory != true
-        }
-
-        return Set(filtered.map { $0.path })
-    }
-
-    private func handleFolderChange(for folder: URL) {
-        let path = folder.path
-        let previous = folderSnapshots[path] ?? []
-        let current = snapshotFiles(in: folder)
-        folderSnapshots[path] = current
-
-        let added = current.subtracting(previous)
-        guard !added.isEmpty else { return }
-
-        let newURLs = added.map { URL(fileURLWithPath: $0) }
-        let newest = newURLs.max { lhs, rhs in
-            let lhsValues = try? lhs.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
-            let rhsValues = try? rhs.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
-            let lhsDate = lhsValues?.creationDate ?? lhsValues?.contentModificationDate ?? .distantPast
-            let rhsDate = rhsValues?.creationDate ?? rhsValues?.contentModificationDate ?? .distantPast
-            return lhsDate < rhsDate
-        }
-
-        guard let fileURL = newest else { return }
-        DispatchQueue.main.async { [weak self] in
-            self?.showObservedFileToast(fileURL: fileURL, folderURL: folder)
-        }
-    }
-
-    private func showObservedFileToast(fileURL: URL, folderURL: URL) {
-        withAnimation(settings.notchOpenAnimation) {
-            model.observedFileToast = ObservedFileToast(fileURL: fileURL, folderURL: folderURL)
-        }
-        showToastPanel()
-    }
-
-    private func showToastPanel() {
-        guard let window = islandWindow else { return }
-        cancelIdleCompaction()
-        pendingHideWorkItem?.cancel()
-        pendingHideWorkItem = nil
-        model.isToastDismissing = false
-        model.isExpanded = false
-        model.isPinned = false
-        model.expansionProgress = 0.0
-        window.alphaValue = 1.0
-        window.ignoresMouseEvents = false
-        window.orderFrontRegardless()
-        withAnimation(settings.notchOpenAnimation) {
-            model.expansionProgress = 1.0
-        }
-        updateClipboardObservationMode(immediatePoll: true)
-    }
-
-    func dismissToastAndHideNotch() {
-        scheduleIdleCompactionIfNeeded()
-        pendingHideWorkItem?.cancel()
-        pendingHideWorkItem = nil
-        suppressProximityUntilExit = true
-        model.isToastDismissing = true
-        model.observedFileToast = nil
-        model.isExpanded = false
-        model.isPinned = false
-        model.expansionProgress = 0.0
-        model.closeGestureProgress = 0
-        updateNotchWindowFrame(heightOverride: panelHeight)
-        if let window = notchWindow {
-            window.alphaValue = 0.0
-            window.ignoresMouseEvents = true
-            window.orderOut(nil)
-        }
-        updateClipboardObservationMode(immediatePoll: true)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
-            self?.suppressProximityUntilExit = true
-            self?.model.isToastDismissing = false
-            self?.updateClipboardObservationMode()
-        }
-    }
-
-    private func updateWindowFrameForNewHeight(_ newHeight: CGFloat) {
-        guard let screen = NSScreen.screens.first, let window = notchWindow else { return }
-
-        // Don't interfere when settings previews are active, as they use a fixed large frame.
-        if settings.showHoverPreviews && settings.hoverPreviewFocus != .all {
-            return
-        }
-
-        guard newHeight.isFinite, newHeight > 1 else { return }
-
-        // Keep the window width fixed at the maximum possible panel width to avoid clipping content during animation.
-        let windowWidth = max(self.panelWidth, self.notchWidth)
-        let windowHeight = newHeight
-
-        // Correct window positioning: Center the window's midpoint on the hardware notch's midpoint
-        let notchX = settings.hardwareNotchX
-        let notchWidth = settings.effectiveNotchWidth
-        let windowX = notchX - (windowWidth - notchWidth) / 2
-        let windowY = screen.frame.maxY - windowHeight
-
-        let newFrame = NSRect(x: windowX, y: windowY, width: windowWidth, height: windowHeight)
-
-        let current = window.frame
-        if abs(current.origin.x - newFrame.origin.x) < 1.0,
-           abs(current.origin.y - newFrame.origin.y) < 1.0,
-           abs(current.size.width - newFrame.size.width) < 1.0,
-           abs(current.size.height - newFrame.size.height) < 1.0 {
-            return
-        }
-        window.setFrame(newFrame, display: false)
-    }
-
-    private func scheduleWindowFrameUpdate(for newHeight: CGFloat) {
-        guard newHeight.isFinite, newHeight > 1 else { return }
-        if !model.isExpanded,
-           !model.isPinned,
-           model.observedFileToast == nil,
-           let window = notchWindow,
-           window.alphaValue <= 0.001 {
-            pendingWindowHeightUpdate = nil
-            return
-        }
-        let quantizedHeight = newHeight.rounded()
-        if let pending = pendingWindowHeightUpdate, abs(pending - quantizedHeight) < 0.6 {
-            return
-        }
-        pendingWindowHeightUpdate = quantizedHeight
-        guard windowFrameUpdateWorkItem == nil else { return }
-
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.windowFrameUpdateWorkItem = nil
-            guard let targetHeight = self.pendingWindowHeightUpdate else { return }
-            self.pendingWindowHeightUpdate = nil
-            self.updateWindowFrameForNewHeight(targetHeight)
-        }
-        windowFrameUpdateWorkItem = workItem
-        let frameDelay: TimeInterval = model.isExpanded ? 0.05 : 0.07
-        DispatchQueue.main.asyncAfter(deadline: .now() + frameDelay, execute: workItem)
-    }
-
-    func applicationWillTerminate(_ notification: Notification) {
-        cancelIdleCompaction()
-<<<<<<< HEAD
-        stopIslandOpenMousePolling()
-        stopClipboardObservation()
-        settings.flushPendingWrites()
-        PersistenceWriteCoordinator.shared.flushNow()
-        windowFrameUpdateWorkItem?.cancel()
-        windowFrameUpdateWorkItem = nil
-        pendingWindowHeightUpdate = nil
-        if let clipboardActivationObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(clipboardActivationObserver)
-            self.clipboardActivationObserver = nil
-        }
-=======
-        stopMousePolling()
-        clipboardTimer?.cancel()
-        nowPlayingTimer?.invalidate()
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-        memoryPressureSource?.cancel()
-        memoryPressureSource = nil
-        for monitor in folderMonitors.values {
-            monitor.stop()
-        }
-    }
-}
-
-final class FolderMonitor {
-    private let url: URL
-    private let onChange: () -> Void
-    private var source: DispatchSourceFileSystemObject?
-    private var fileDescriptor: CInt = -1
-
-    init(url: URL, onChange: @escaping () -> Void) {
-        self.url = url
-        self.onChange = onChange
-    }
-
-    func start() {
-        guard source == nil else { return }
-        fileDescriptor = open(url.path, O_EVTONLY)
-        guard fileDescriptor >= 0 else { return }
-
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fileDescriptor,
-            eventMask: [.write, .rename, .delete, .attrib],
-            queue: DispatchQueue.global(qos: .utility)
-        )
-        source.setEventHandler(handler: onChange)
-        source.setCancelHandler { [weak self] in
-            guard let self else { return }
-            if self.fileDescriptor >= 0 {
-                close(self.fileDescriptor)
-            }
-            self.fileDescriptor = -1
-        }
-        source.resume()
-        self.source = source
-    }
-
-    func stop() {
-        source?.cancel()
-        source = nil
-    }
-}
-
-// MARK: - Trackpad Swipe Interceptor
-struct TrackpadSwipeReader: NSViewRepresentable {
-    var onSwipeLeft: () -> Void
-    var onSwipeRight: () -> Void
-    var onSwipeUp: () -> Void
-    var canTriggerVertical: () -> Bool
-    var isActive: Bool
-
-    class Coordinator: NSObject {
-        var onSwipeLeft: () -> Void
-        var onSwipeRight: () -> Void
-        var onSwipeUp: () -> Void
-        var canTriggerVertical: () -> Bool
-        var isActive: Bool
-        private var accumulatedDeltaX: CGFloat = 0
-        private var accumulatedDeltaY: CGFloat = 0
-        private var localMonitor: Any?
-        private var didTriggerPage = false
-        private var didTriggerClose = false
-        private var lastEventTimestamp: TimeInterval = 0
-        private let horizontalThreshold: CGFloat = 40
-        private let verticalThreshold: CGFloat = 70
-
-        init(
-            onSwipeLeft: @escaping () -> Void,
-            onSwipeRight: @escaping () -> Void,
-            onSwipeUp: @escaping () -> Void,
-            canTriggerVertical: @escaping () -> Bool,
-            isActive: Bool
-        ) {
-            self.onSwipeLeft = onSwipeLeft
-            self.onSwipeRight = onSwipeRight
-            self.onSwipeUp = onSwipeUp
-            self.canTriggerVertical = canTriggerVertical
-            self.isActive = isActive
-            super.init()
-        }
-
-        deinit {
-            if let localMonitor {
-                NSEvent.removeMonitor(localMonitor)
-            }
-        }
-
-        func startMonitoring() {
-            guard localMonitor == nil else { return }
-            localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel, .swipe]) { [weak self] event in
-                self?.handleEvent(event)
-                return event
-            }
-        }
-
-        func handleEvent(_ event: NSEvent) {
-            guard isActive else { return }
-            guard isPointerOverNotch() else { return }
-            let timestamp = event.timestamp
-            if timestamp == lastEventTimestamp { return }
-            lastEventTimestamp = timestamp
-
-            if event.type == .swipe {
-                let swipeX = event.deltaX
-                let swipeY = event.deltaY
-                if abs(swipeX) >= abs(swipeY) {
-                    if swipeX < 0 {
-                        onSwipeLeft()
-                    } else if swipeX > 0 {
-                        onSwipeRight()
-                    }
-                } else if swipeY > 0, canTriggerVertical() {
-                    onSwipeUp()
-                }
-                return
-            }
-
-            let rawDeltaX = event.scrollingDeltaX != 0 ? event.scrollingDeltaX : event.deltaX
-            let rawDeltaY = event.scrollingDeltaY != 0 ? event.scrollingDeltaY : event.deltaY
-            guard rawDeltaX != 0 || rawDeltaY != 0 else { return }
-
-            let isTrackpadLike = event.hasPreciseScrollingDeltas || event.phase != [] || event.momentumPhase != []
-            if !isTrackpadLike {
-                guard abs(rawDeltaX) > abs(rawDeltaY) else { return }
-            }
-
-            let fingerDeltaX = event.isDirectionInvertedFromDevice ? -rawDeltaX : rawDeltaX
-            let fingerDeltaY = event.isDirectionInvertedFromDevice ? -rawDeltaY : rawDeltaY
-
-            if event.phase == .began || event.phase == .mayBegin || event.momentumPhase == .began {
-                resetAccumulation()
-            }
-
-            if abs(fingerDeltaX) >= abs(fingerDeltaY) {
-                guard !didTriggerPage else { return }
-                accumulatedDeltaX += fingerDeltaX
-                if abs(accumulatedDeltaX) > horizontalThreshold {
-                    if accumulatedDeltaX < 0 {
-                        onSwipeLeft()
-                    } else {
-                        onSwipeRight()
-                    }
-                    didTriggerPage = true
-                }
-            } else {
-                guard isTrackpadLike, !didTriggerClose else { return }
-                accumulatedDeltaY += fingerDeltaY
-                if accumulatedDeltaY > verticalThreshold, canTriggerVertical() {
-                    onSwipeUp()
-                    didTriggerClose = true
-                }
-            }
-
-            if event.phase == .ended || event.phase == .cancelled || event.momentumPhase == .ended {
-                resetAccumulation()
-            }
-        }
-
-        private func resetAccumulation() {
-            accumulatedDeltaX = 0
-            accumulatedDeltaY = 0
-            didTriggerPage = false
-            didTriggerClose = false
-        }
-
-        private func isPointerOverNotch() -> Bool {
-            guard let delegate = NSApp.delegate as? AppDelegate else { return false }
-            guard let window = delegate.notchWindow else { return false }
-            return window.frame.contains(NSEvent.mouseLocation)
-        }
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(
-            onSwipeLeft: onSwipeLeft,
-            onSwipeRight: onSwipeRight,
-            onSwipeUp: onSwipeUp,
-            canTriggerVertical: canTriggerVertical,
-            isActive: isActive
-        )
-    }
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        context.coordinator.startMonitoring()
-        return view
-    }
-    func updateNSView(_ nsView: NSView, context: Context) {
-        context.coordinator.isActive = isActive
-        context.coordinator.onSwipeLeft = onSwipeLeft
-        context.coordinator.onSwipeRight = onSwipeRight
-        context.coordinator.onSwipeUp = onSwipeUp
-        context.coordinator.canTriggerVertical = canTriggerVertical
-    }
-}
-
-// Invisible panel anchored to the top-of-screen activation band. Its content
-// view installs an NSTrackingArea so AppKit notifies us only when the cursor
-// crosses the union of notch + approach rects, replacing always-on polling.
-final class ProximityWakeWindow: NSPanel {
-    var onMouseEntered: (() -> Void)?
-    var onMouseExited: (() -> Void)?
-    var onApproachMouseMoved: ((NSPoint) -> Void)?
-    var onDraggingEntered: (() -> Void)?
-    var onDraggingUpdated: ((NSPoint) -> Void)?
-    var onDraggingExited: (() -> Void)?
-
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
-
-    override init(contentRect: NSRect, styleMask style: NSWindow.StyleMask, backing backingStoreType: NSWindow.BackingStoreType, defer flag: Bool) {
-        super.init(contentRect: contentRect, styleMask: style, backing: backingStoreType, defer: flag)
-        let view = TrackingHostView(frame: NSRect(origin: .zero, size: contentRect.size))
-        view.onMouseEntered = { [weak self] in self?.onMouseEntered?() }
-        view.onMouseExited = { [weak self] in self?.onMouseExited?() }
-        view.onApproachMouseMoved = { [weak self] pt in self?.onApproachMouseMoved?(pt) }
-        view.onDraggingEntered = { [weak self] in self?.onDraggingEntered?() }
-        view.onDraggingUpdated = { [weak self] pt in self?.onDraggingUpdated?(pt) }
-        view.onDraggingExited = { [weak self] in self?.onDraggingExited?() }
-        contentView = view
-    }
-
-    func updateTrackingGeometry(notchEdgeRect: CGRect, approachRect: CGRect) {
-        (contentView as? TrackingHostView)?.updateTrackingGeometry(
-            notchEdgeRect: notchEdgeRect,
-            approachRect: approachRect
-        )
-    }
-
-    final class TrackingHostView: NSView {
-        private enum ZoneID: String {
-            case notchEdge
-            case approach
-        }
-
-        var onMouseEntered: (() -> Void)?
-        var onMouseExited: (() -> Void)?
-        var onApproachMouseMoved: ((NSPoint) -> Void)?
-        var onDraggingEntered: (() -> Void)?
-        var onDraggingUpdated: ((NSPoint) -> Void)?
-        var onDraggingExited: (() -> Void)?
-        private var notchEdgeTrackingArea: NSTrackingArea?
-        private var approachTrackingArea: NSTrackingArea?
-        private var notchEdgeRect: CGRect = .zero
-        private var approachRect: CGRect = .zero
-        private var activeZones = Set<ZoneID>()
-
-        override init(frame frameRect: NSRect) {
-            super.init(frame: frameRect)
-            registerForDraggedTypes([.fileURL, .URL])
-        }
-
-        required init?(coder: NSCoder) {
-            super.init(coder: coder)
-            registerForDraggedTypes([.fileURL, .URL])
-        }
-
-        override func updateTrackingAreas() {
-            super.updateTrackingAreas()
-            rebuildTrackingArea()
-        }
-
-        func updateTrackingGeometry(notchEdgeRect: CGRect, approachRect: CGRect) {
-            self.notchEdgeRect = notchEdgeRect
-            self.approachRect = approachRect
-            rebuildTrackingArea()
-        }
-
-        func rebuildTrackingArea() {
-            if let existing = notchEdgeTrackingArea {
-                removeTrackingArea(existing)
-                notchEdgeTrackingArea = nil
-            }
-            if let existing = approachTrackingArea {
-                removeTrackingArea(existing)
-                approachTrackingArea = nil
-            }
-            activeZones.removeAll()
-
-            if notchEdgeRect.width > 0, notchEdgeRect.height > 0 {
-                let area = NSTrackingArea(
-                    rect: notchEdgeRect,
-                    options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways],
-                    owner: self,
-                    userInfo: ["zone": ZoneID.notchEdge.rawValue]
-                )
-                addTrackingArea(area)
-                notchEdgeTrackingArea = area
-            }
-
-            if approachRect.width > 0, approachRect.height > 0 {
-                let area = NSTrackingArea(
-                    rect: approachRect,
-                    options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways],
-                    owner: self,
-                    userInfo: ["zone": ZoneID.approach.rawValue]
-                )
-                addTrackingArea(area)
-                approachTrackingArea = area
-            }
-        }
-
-        override func mouseEntered(with event: NSEvent) {
-            guard let zone = zoneID(from: event) else { return }
-            let inserted = activeZones.insert(zone).inserted
-            if inserted {
-                onMouseEntered?()
-            }
-        }
-
-        override func mouseExited(with event: NSEvent) {
-            guard let zone = zoneID(from: event) else { return }
-            activeZones.remove(zone)
-            if activeZones.isEmpty {
-                onMouseExited?()
-            }
-        }
-
-        override func mouseMoved(with event: NSEvent) {
-            let localPoint = convert(event.locationInWindow, from: nil)
-            if notchEdgeRect.contains(localPoint) {
-                let inserted = activeZones.insert(.notchEdge).inserted
-                if inserted {
-                    onMouseEntered?()
-                }
-                onApproachMouseMoved?(NSEvent.mouseLocation)
-                return
-            }
-            if approachRect.contains(localPoint) {
-                let inserted = activeZones.insert(.approach).inserted
-                if inserted {
-                    onMouseEntered?()
-                }
-                onApproachMouseMoved?(NSEvent.mouseLocation)
-                return
-            }
-        }
-
-        private func zoneID(from event: NSEvent) -> ZoneID? {
-            guard let raw = event.trackingArea?.userInfo?["zone"] as? String else { return nil }
-            return ZoneID(rawValue: raw)
-        }
-
-        override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-            onDraggingEntered?()
-            return .copy
-        }
-
-        override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-            onDraggingUpdated?(NSEvent.mouseLocation)
-            return .copy
-        }
-
-        override func draggingExited(_ sender: NSDraggingInfo?) {
-            onDraggingExited?()
-        }
-
-        override func hitTest(_ point: NSPoint) -> NSView? { nil } // never intercept clicks
-    }
-}
-
-struct IslandExitTracker {}
-
-final class IslandHostingView<Content: View>: NSHostingView<Content> {}
-
-final class IslandPanel: NSPanel {
-    var onSwipeLeft: (() -> Void)?
-    var onSwipeRight: (() -> Void)?
-    var onSwipeUp: (() -> Void)?
-    var isActiveProvider: (() -> Bool)?
-    var canTriggerVertical: (() -> Bool)?
-    var onCloseProgress: ((NSDirectionalRectEdge, CGFloat, Bool) -> Void)?
-    var onCloseProgressLegacy: ((CGFloat, Bool) -> Void)?
-    var onCarouselOffset: ((CGFloat, Bool) -> Void)?
-    var carouselSensitivityProvider: (() -> CGFloat)?
-    var closeSensitivityProvider: (() -> CGFloat)?
-
-    private var accumulatedDeltaX: CGFloat = 0
-    private var accumulatedDeltaY: CGFloat = 0
-    private let baseHorizontalThreshold: CGFloat = 80
-    private let baseVerticalThreshold: CGFloat = 110
-    private let axisLockThreshold: CGFloat = 4
-    private let maxCarouselGive: CGFloat = 36
-    private var snapBackWorkItem: DispatchWorkItem?
-    private var ignoreScrollUntil: TimeInterval = 0
-    private var didCommitThisGesture = false
-    private var lastCarouselCommitTime: TimeInterval = 0
-    private var lastCarouselOffsetEmitTime: TimeInterval = 0
-    private var lastCarouselOffsetEmitValue: CGFloat = 0
-    private var lastCloseProgressEmitTime: TimeInterval = 0
-    private var lastCloseProgressEmitValue: CGFloat = 0
-    private var verticalCloseArmed = false
-    private enum GestureAxis {
-        case horizontal
-        case vertical
-    }
-    private var gestureAxis: GestureAxis?
-
-    override var canBecomeKey: Bool { true }
-
-    override func sendEvent(_ event: NSEvent) {
-        if event.type == .scrollWheel || event.type == .swipe {
-            if handleGestureEvent(event) {
-                return
-            }
-        }
-        super.sendEvent(event)
-    }
-
-    private func handleGestureEvent(_ event: NSEvent) -> Bool {
-        guard isActiveProvider?() == true else { return false }
-        guard frame.contains(NSEvent.mouseLocation) else { return false }
-        if event.timestamp < ignoreScrollUntil {
-            return true
-        }
-
-        if event.phase == .began || event.phase == .mayBegin || event.momentumPhase == .began {
-            resetAccumulation(resetProgress: false)
-            gestureAxis = nil
-            snapBackWorkItem?.cancel()
-            didCommitThisGesture = false
-            lastCarouselOffsetEmitTime = 0
-            lastCarouselOffsetEmitValue = 0
-            lastCloseProgressEmitTime = 0
-            lastCloseProgressEmitValue = 0
-            verticalCloseArmed = false
-        }
-
-        if event.type == .swipe {
-            let swipeX = event.deltaX
-            let swipeY = event.deltaY
-            if abs(swipeX) >= abs(swipeY) {
-                if swipeX < 0 {
-                    onSwipeRight?()
-                } else if swipeX > 0 {
-                    onSwipeLeft?()
-                }
-                onCloseProgressLegacy?(0, true)
-                return true
-            }
-            if swipeY > 0, canTriggerVertical?() == true {
-                onSwipeUp?()
-                onCloseProgressLegacy?(0, true)
-                return true
-            }
-            onCloseProgressLegacy?(0, true)
-            return false
-        }
-
-        let rawDeltaX = event.scrollingDeltaX
-        let rawDeltaY = event.scrollingDeltaY
-        guard rawDeltaX != 0 || rawDeltaY != 0 else { return false }
-
-        let isTrackpadLike = event.hasPreciseScrollingDeltas || event.phase != [] || event.momentumPhase != []
-        let fingerDeltaX = event.isDirectionInvertedFromDevice ? -rawDeltaX : rawDeltaX
-        let fingerDeltaY = event.isDirectionInvertedFromDevice ? -rawDeltaY : rawDeltaY
-        let absX = abs(fingerDeltaX)
-        let absY = abs(fingerDeltaY)
-
-        let carouselSensitivity = max(0.2, carouselSensitivityProvider?() ?? 1.0)
-        let closeSensitivity = max(0.2, closeSensitivityProvider?() ?? 1.0)
-        let horizontalThreshold = baseHorizontalThreshold / carouselSensitivity
-        let verticalThreshold = baseVerticalThreshold / closeSensitivity
-
-        if gestureAxis == nil {
-            if max(absX, absY) < axisLockThreshold {
-                if event.phase == .ended || event.phase == .cancelled || event.momentumPhase == .ended {
-                    scheduleSnapBack(immediate: true)
-                }
-                return false
-            }
-            gestureAxis = absX >= absY ? .horizontal : .vertical
-        }
-
-        if gestureAxis == .horizontal {
-            if !isTrackpadLike && abs(rawDeltaX) <= abs(rawDeltaY) {
-                return false
-            }
-            if didCommitThisGesture {
-                return true
-            }
-            accumulatedDeltaX += fingerDeltaX
-            let rawOffset = (accumulatedDeltaX / max(1, horizontalThreshold)) * maxCarouselGive
-            let clampedOffset = clamp(-rawOffset, min: -maxCarouselGive, max: maxCarouselGive)
-            let minEmitDelta: CGFloat = isTrackpadLike ? 1.8 : 2.3
-            let minEmitInterval: TimeInterval = isTrackpadLike ? (1.0 / 48.0) : (1.0 / 30.0)
-            if abs(clampedOffset - lastCarouselOffsetEmitValue) >= minEmitDelta,
-               (event.timestamp - lastCarouselOffsetEmitTime) >= minEmitInterval {
-                onCarouselOffset?(clampedOffset, false)
-                lastCarouselOffsetEmitValue = clampedOffset
-                lastCarouselOffsetEmitTime = event.timestamp
-            }
-            if abs(accumulatedDeltaX) > horizontalThreshold {
-                if event.timestamp - lastCarouselCommitTime < 0.08 {
-                    return true
-                }
-                lastCarouselCommitTime = event.timestamp
-                didCommitThisGesture = true
-                if accumulatedDeltaX < 0 {
-                    onSwipeRight?()
-                } else {
-                    onSwipeLeft?()
-                }
-                onCarouselOffset?(0, true)
-                lastCarouselOffsetEmitValue = 0
-                lastCarouselOffsetEmitTime = event.timestamp
-                snapBackWorkItem?.cancel()
-                resetAccumulation(resetProgress: true)
-                gestureAxis = nil
-                ignoreScrollUntil = event.timestamp + 0.18
-                return true
-            }
-            if event.phase == .ended || event.phase == .cancelled || event.momentumPhase == .ended {
-                onCarouselOffset?(0, true)
-                lastCarouselOffsetEmitValue = 0
-                lastCarouselOffsetEmitTime = event.timestamp
-                resetAccumulation(resetProgress: true)
-                gestureAxis = nil
-                scheduleSnapBack(immediate: true)
-            }
-            return true
-        }
-
-        onCarouselOffset?(0, true)
-
-        if canTriggerVertical?() == true && fingerDeltaY > 0 {
-            if !verticalCloseArmed {
-                if event.phase == .began || event.phase == .mayBegin || event.momentumPhase == .began {
-                    verticalCloseArmed = true
-                } else {
-                    return false
-                }
-            }
-            accumulatedDeltaY = max(0, accumulatedDeltaY + fingerDeltaY)
-            let progress = max(0, min(1, accumulatedDeltaY / verticalThreshold))
-            let minEmitDelta: CGFloat = 0.03
-            let minEmitInterval: TimeInterval = 1.0 / 50.0
-            if progress >= 1
-                || (abs(progress - lastCloseProgressEmitValue) >= minEmitDelta
-                    && (event.timestamp - lastCloseProgressEmitTime) >= minEmitInterval) {
-                onCloseProgressLegacy?(progress, false)
-                lastCloseProgressEmitValue = progress
-                lastCloseProgressEmitTime = event.timestamp
-            }
-            if progress >= 1 {
-                onSwipeUp?()
-                accumulatedDeltaY = 0
-                gestureAxis = nil
-                verticalCloseArmed = false
-                lastCloseProgressEmitValue = 0
-                lastCloseProgressEmitTime = event.timestamp
-                ignoreScrollUntil = event.timestamp + 0.12
-                return true
-            }
-            if event.phase == .ended || event.phase == .cancelled || event.momentumPhase == .ended {
-                onCloseProgressLegacy?(0, true)
-                accumulatedDeltaY = 0
-                gestureAxis = nil
-                didCommitThisGesture = false
-                verticalCloseArmed = false
-                lastCloseProgressEmitValue = 0
-                lastCloseProgressEmitTime = event.timestamp
-                scheduleSnapBack(immediate: true)
-            }
-            return true
-        } else {
-            if accumulatedDeltaY > 0 {
-                onCloseProgressLegacy?(0, true)
-                accumulatedDeltaY = 0
-                lastCloseProgressEmitValue = 0
-                lastCloseProgressEmitTime = event.timestamp
-            }
-            if event.phase == .ended || event.phase == .cancelled || event.momentumPhase == .ended {
-                gestureAxis = nil
-                didCommitThisGesture = false
-                verticalCloseArmed = false
-            }
-            return false
-        }
-    }
-
-    private func resetAccumulation(resetProgress: Bool = true) {
-        accumulatedDeltaX = 0
-        accumulatedDeltaY = 0
-        lastCloseProgressEmitTime = 0
-        lastCloseProgressEmitValue = 0
-        if resetProgress {
-            onCloseProgressLegacy?(0, true)
-        }
-    }
-
-    private func scheduleSnapBack(immediate: Bool = false) {
-        snapBackWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.onCarouselOffset?(0, true)
-            self.onCloseProgressLegacy?(0, true)
-        }
-        snapBackWorkItem = workItem
-        if immediate {
-            DispatchQueue.main.async(execute: workItem)
-        } else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02, execute: workItem)
-        }
-    }
-}
-
-// MARK: - Master Container Structural Layout
-struct UnifiedNotchContainer: View {
-    @ObservedObject var model: NotchMenuModel
-    @ObservedObject var settings: AppSettings
-
-    @FocusState private var isJotEditorFocused: Bool
-
-    @State private var highlightedClipboardID: UUID?
-    @State private var clipboardTapFeedbackProgress: CGFloat = 0
-    @State private var isNotchFileDropTargeted = false
-    @State private var isBoxDropTargeted = false
-    @State private var selectedBoxFileIDs = Set<UUID>()
-<<<<<<< HEAD
-    @State private var boxPreviewImages: [URL: NSImage] = [:]
-    @State private var boxPreviewLoadingURLs = Set<URL>()
-    @State private var boxPreviewLRU: [URL] = []
-    @State private var visibleBoxPreviewURLs = Set<URL>()
-    @State private var pendingBoxPreviewRemovalWorkItems: [URL: DispatchWorkItem] = [:]
-    @State private var pendingSharedPreviewTrimWorkItem: DispatchWorkItem?
-=======
-    @State private var isHoveringNotch = false
-    @State private var clipboardScrollOffset: CGFloat = 0
-    @State private var clipboardContentHeight: CGFloat = 0
-    @State private var clipboardViewportHeight: CGFloat = 0
-    @State private var jotScrollOffset: CGFloat = 0
-    @State private var jotContentHeight: CGFloat = 0
-    @State private var jotViewportHeight: CGFloat = 0
-    @State private var boxScrollOffset: CGFloat = 0
-    @State private var boxContentHeight: CGFloat = 0
-    @State private var boxViewportHeight: CGFloat = 0
-    @State private var jotEditorScrollOffset: CGFloat = 0
-    @State private var jotEditorContentHeight: CGFloat = 0
-    @State private var jotEditorViewportHeight: CGFloat = 0
-    @State private var jotEditorAtBottom = false
-    @State private var boxPreviewImages: [URL: NSImage] = [:]
-    @State private var boxPreviewLoadingURLs = Set<URL>()
-    @State private var clipboardFilePreviews: [String: NSImage] = [:]
-    @State private var clipboardFilePreviewLoadingPaths = Set<String>()
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-    @State private var showShapeHandles = false
-    private let maxBoxPreviewCount = 64
-    private let retainedInvisibleBoxPreviewCount = 12
-    private let adjacentPageRenderActivationOffset: CGFloat = 14
-    private let pageTopContentInset: CGFloat = 8
-
-    // This preference key is used to report the animated height of the island back to the AppDelegate.
-    struct ShellHeightKey: PreferenceKey {
-        static var defaultValue: CGFloat = 0
-        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-            value = nextValue()
-        }
-    }
-<<<<<<< HEAD
-=======
-
-    private let scrollBottomTolerance: CGFloat = 24
-
-    private func isAtScrollBottom(scrollOffset: CGFloat, contentHeight: CGFloat, viewportHeight: CGFloat) -> Bool {
-        if contentHeight <= viewportHeight { return true }
-        return (scrollOffset + viewportHeight) >= (contentHeight - scrollBottomTolerance)
-    }
-
-    private var clipboardCanCloseFromSwipe: Bool {
-        model.clipboardItems.isEmpty || isAtScrollBottom(scrollOffset: clipboardScrollOffset, contentHeight: clipboardContentHeight, viewportHeight: clipboardViewportHeight)
-    }
-
-    private var boxCanCloseFromSwipe: Bool {
-        isAtScrollBottom(scrollOffset: boxScrollOffset, contentHeight: boxContentHeight, viewportHeight: boxViewportHeight)
-    }
-
-    private var jotCanCloseFromSwipe: Bool {
-        model.jotNotes.isEmpty || isAtScrollBottom(scrollOffset: jotScrollOffset, contentHeight: jotContentHeight, viewportHeight: jotViewportHeight)
-    }
-
-    private var jotEditorCanCloseFromSwipe: Bool {
-        jotEditorAtBottom
-    }
-
-    private var canCloseFromVerticalSwipe: Bool {
-        guard model.isExpanded, !model.isPinned else { return false }
-        switch model.currentPage {
-        case IslandPage.clipboard.rawValue:
-            return clipboardCanCloseFromSwipe
-        case IslandPage.nowPlaying.rawValue:
-            return model.activeJotID != nil ? jotEditorCanCloseFromSwipe : jotCanCloseFromSwipe
-        case IslandPage.box.rawValue:
-            return model.boxFiles.isEmpty || boxCanCloseFromSwipe
-        default:
-            return true
-        }
-    }
-
-    private func syncVerticalSwipeGate() {
-        let newValue = canCloseFromVerticalSwipe
-        guard model.canCloseFromVerticalSwipe != newValue else { return }
-        model.canCloseFromVerticalSwipe = newValue
-    }
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-
-    private func updateCloseProgress(_ progress: CGFloat, animate: Bool) {
-        let clamped = max(0, min(1, progress))
-        if clamped >= 1, model.isExpanded, !model.isPinned {
-            DispatchQueue.main.async {
-                closeNotchFromSwipe()
-            }
-        }
-        if animate {
-            if clamped == 0 {
-                withAnimation(.easeOut(duration: 0.05)) {
-                    model.closeGestureProgress = clamped
-                }
-            } else {
-                withAnimation(settings.swipeAnimation) {
-                    model.closeGestureProgress = clamped
-                }
-            }
-        } else {
-            model.closeGestureProgress = clamped
-        }
-    }
-
-<<<<<<< HEAD
-=======
-    private func updateClipboardScrollGate(scrollOffset: CGFloat, contentHeight: CGFloat, viewportHeight: CGFloat) {
-        let didChange = abs(clipboardScrollOffset - scrollOffset) > 0.5
-            || abs(clipboardContentHeight - contentHeight) > 0.5
-            || abs(clipboardViewportHeight - viewportHeight) > 0.5
-        guard didChange else { return }
-        DispatchQueue.main.async {
-            clipboardScrollOffset = scrollOffset
-            clipboardContentHeight = contentHeight
-            clipboardViewportHeight = viewportHeight
-            syncVerticalSwipeGate()
-        }
-    }
-
-    private func updateJotScrollGate(scrollOffset: CGFloat, contentHeight: CGFloat, viewportHeight: CGFloat) {
-        let didChange = abs(jotScrollOffset - scrollOffset) > 0.5
-            || abs(jotContentHeight - contentHeight) > 0.5
-            || abs(jotViewportHeight - viewportHeight) > 0.5
-        guard didChange else { return }
-        DispatchQueue.main.async {
-            jotScrollOffset = scrollOffset
-            jotContentHeight = contentHeight
-            jotViewportHeight = viewportHeight
-            syncVerticalSwipeGate()
-        }
-    }
-
-    private func updateBoxScrollGate(scrollOffset: CGFloat, contentHeight: CGFloat, viewportHeight: CGFloat) {
-        let didChange = abs(boxScrollOffset - scrollOffset) > 0.5
-            || abs(boxContentHeight - contentHeight) > 0.5
-            || abs(boxViewportHeight - viewportHeight) > 0.5
-        guard didChange else { return }
-        DispatchQueue.main.async {
-            boxScrollOffset = scrollOffset
-            boxContentHeight = contentHeight
-            boxViewportHeight = viewportHeight
-            syncVerticalSwipeGate()
-        }
-    }
-
-    private func updateJotEditorScrollGate(scrollOffset: CGFloat, contentHeight: CGFloat, viewportHeight: CGFloat) {
-        let nextAtBottom = isAtScrollBottom(scrollOffset: scrollOffset, contentHeight: contentHeight, viewportHeight: viewportHeight)
-        let didChange = abs(jotEditorScrollOffset - scrollOffset) > 0.5
-            || abs(jotEditorContentHeight - contentHeight) > 0.5
-            || abs(jotEditorViewportHeight - viewportHeight) > 0.5
-            || jotEditorAtBottom != nextAtBottom
-        guard didChange else { return }
-        DispatchQueue.main.async {
-            jotEditorScrollOffset = scrollOffset
-            jotEditorContentHeight = contentHeight
-            jotEditorViewportHeight = viewportHeight
-            jotEditorAtBottom = nextAtBottom
-            syncVerticalSwipeGate()
-        }
-    }
-
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-    private func closeNotchFromSwipe() {
-        if let delegate = NSApp.delegate as? AppDelegate {
-            delegate.closeNotchFromSwipe()
-        }
-    }
-
-    private func previewBadge(_ text: String, accent: Color) -> some View {
-        Text(text)
-            .font(.caption)
-            .foregroundColor(.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Capsule().fill(accent.opacity(0.35)))
-            .overlay(Capsule().stroke(accent.opacity(0.7), lineWidth: 1))
-    }
-
-    private func previewTitleSample(page: IslandPage, width: CGFloat) -> some View {
-        let size = settings.titleSize(for: page)
-        let color = Color(settings.titleColor(for: page))
-        let alignment = settings.titleAlignment(for: page).alignment
-        return Text("Title")
-            .font(.system(size: size, weight: .semibold))
-            .foregroundColor(color)
-            .frame(width: width, alignment: alignment)
-    }
-
-    private var boxMenuBarControls: some View {
-        let isBoxPage = (IslandPage(rawValue: model.currentPage) ?? .clipboard) == .box
-        let showControls = model.isExpanded && isBoxPage && !model.boxFiles.isEmpty
-        return GeometryReader { geo in
-            let edgeNotchWidth = settings.effectiveNotchWidth
-            let notchRight = (geo.size.width + edgeNotchWidth) / 2
-            let controlWidth: CGFloat = 180
-            let xOffset = notchRight + 10
-
-            HStack(spacing: 10) {
-                Button {
-                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
-                        if selectedBoxFileIDs.count == model.boxFiles.count {
-                            selectedBoxFileIDs.removeAll()
-                        } else {
-                            selectedBoxFileIDs = Set(model.boxFiles.map { $0.id })
-                        }
-                    }
-                } label: {
-                    Text(selectedBoxFileIDs.count == model.boxFiles.count ? "Deselect" : "Select All")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.85))
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    withAnimation {
-                        if selectedBoxFileIDs.isEmpty {
-                            model.boxFiles.removeAll()
-                            selectedBoxFileIDs.removeAll()
-                        } else {
-                            model.boxFiles.removeAll { selectedBoxFileIDs.contains($0.id) }
-                            selectedBoxFileIDs.removeAll()
-                        }
-                    }
-                } label: {
-                    Text(selectedBoxFileIDs.isEmpty ? "Clear" : "Clear Selected")
-                        .font(.caption)
-                        .foregroundColor(.red.opacity(0.9))
-                }
-                .buttonStyle(.plain)
-            }
-            .frame(width: controlWidth, alignment: .leading)
-            .offset(x: xOffset, y: 6)
-            .opacity(showControls ? 1.0 : 0.0)
-            .zIndex(5)
-        }
-    }
-
-    var body: some View {
-        let panelWidth = scaledPanelWidth(for: settings)
-        let panelHeight = scaledPanelHeight(for: settings)
-
-        let notchWidth = settings.effectiveNotchWidth
-        let notchHeight = settings.effectiveNotchHeight
-        let rawProgress = model.expansionProgress
-        let progress = rawProgress.isFinite ? max(0, min(1, rawProgress)) : 0
-        let easedProgress = progress * progress * (3 - 2 * progress)
-        let rawShellWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress)
-        let rawShellHeight = notchHeight + ((panelHeight - notchHeight) * easedProgress)
-        let shellWidth = safeDimension(rawShellWidth, fallback: panelWidth)
-        let shellHeight = safeDimension(rawShellHeight, fallback: panelHeight)
-        let islandWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress * 0.4)
-        let targetIslandWidth = notchWidth + ((panelWidth - notchWidth) * 0.4)
-        let islandHeight = notchHeight
-        let pagerRowHeight: CGFloat = settings.showPagers ? 14 : 0
-        let pagerBottomInset: CGFloat = settings.showPagers ? 8 : 0
-        let pagerReservedHeight = pagerRowHeight + pagerBottomInset
-        let contentAreaHeight = max(1, shellHeight - islandHeight - pagerReservedHeight)
-        let cornerRadius = safeDimension(max(4, settings.cornerRadius * (0.6 + 0.4 * easedProgress)), fallback: 8)
-        let contentProgress = easedProgress.isFinite ? max(0, min(1, (easedProgress - 0.18) / 0.82)) : 0
-        let showToastOnly = (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded && !model.isPinned
-        let containerHeight = safeDimension(showToastOnly ? max(panelHeight, toastPanelHeight) : panelHeight, fallback: panelHeight)
-        let toastWidth = toastPanelWidth
-        let containerWidth = max(panelWidth, notchWidth)
-        let closeProgress = max(0, min(1, model.closeGestureProgress))
-        let closeEase = closeProgress * closeProgress * (3 - 2 * closeProgress)
-        let closeOffset = -44 * closeEase
-        let closeScale = 1 - (0.14 * closeEase)
-        let shouldRenderExpandedContent = model.isExpanded || model.isPinned
-<<<<<<< HEAD
-
-=======
-        
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-        ZStack(alignment: .top) {
-            // Overlay previews so they don't impact the measured height of the island body
-            if settings.showHoverPreviews {
-                settingsPreviewOverlay
-                    .zIndex(100)
-            }
-
-            if let toast = model.observedFileToast {
-                ObservedFileToastView(
-                    toast: toast,
-                    progress: easedProgress,
-                    onClose: {
-                        withAnimation(settings.notchOpenAnimation) {
-                            model.expansionProgress = 0.0
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                            if let delegate = NSApp.delegate as? AppDelegate {
-                                delegate.dismissToastAndHideNotch()
-                            } else {
-                                model.observedFileToast = nil
-                            }
-                        }
-                    },
-                    baseWidth: toastWidth,
-                    baseHeight: notchHeight,
-                    expandedHeight: toastPanelHeight,
-                    backgroundColor: Color(settings.backgroundColor),
-                    cornerRadius: settings.cornerRadius
-                )
-                .offset(y: baseNotchHeight - 2)
-                .background(GeometryReader { proxy in
-                    Color.clear.preference(key: ShellHeightKey.self, value: proxy.size.height + (baseNotchHeight - 2))
-                })
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .zIndex(2)
-            }
-
-            if !showToastOnly {
-                VStack(spacing: 0) {
-                    VStack(spacing: 0) {
-                        // UNIFIED FIX: Pad internal layouts to offset default top window inset masking values
-                        ZStack {
-                            Capsule()
-                                .fill(Color(nsColor: settings.backgroundColor.withAlphaComponent(1.0)))
-                                .frame(width: islandWidth, height: islandHeight)
-
-                            if showShapeHandles {
-                                shapeIndicatorStrip(axis: .horizontal, length: islandWidth * 0.18)
-                                    .offset(y: (islandHeight / 2) - 3)
-                                shapeIndicatorStrip(axis: .vertical, length: islandHeight * 0.45)
-                                    .offset(x: -(islandWidth / 2) + 3)
-                                shapeIndicatorStrip(axis: .vertical, length: islandHeight * 0.45)
-                                    .offset(x: (islandWidth / 2) - 3)
-                            }
-
-                            if showShapeHandles {
-                                NotchResizeHandle(
-                                    edge: .left,
-                                    currentWidth: settings.clampedNotchWidth,
-                                    currentHeight: settings.clampedNotchHeight,
-                                    onResize: { newWidth, newHeight in
-                                        settings.notchWidth = newWidth
-                                        settings.notchHeight = newHeight
-                                    }
-                                )
-                                .frame(width: 16, height: islandHeight)
-                                .offset(x: -(islandWidth / 2) + 8)
-                                .opacity(0.001)
-
-                                NotchResizeHandle(
-                                    edge: .right,
-                                    currentWidth: settings.clampedNotchWidth,
-                                    currentHeight: settings.clampedNotchHeight,
-                                    onResize: { newWidth, newHeight in
-                                        settings.notchWidth = newWidth
-                                        settings.notchHeight = newHeight
-                                    }
-                                )
-                                .frame(width: 16, height: islandHeight)
-                                .offset(x: (islandWidth / 2) - 8)
-                                .opacity(0.001)
-
-                                NotchResizeHandle(
-                                    edge: .bottom,
-                                    currentWidth: settings.clampedNotchWidth,
-                                    currentHeight: settings.clampedNotchHeight,
-                                    onResize: { newWidth, newHeight in
-                                        settings.notchWidth = newWidth
-                                        settings.notchHeight = newHeight
-                                    }
-                                )
-                                .frame(width: islandWidth, height: 14)
-                                .offset(y: (islandHeight / 2) - 7)
-                                .opacity(0.001)
-                            }
-
-                            if shouldRenderExpandedContent && contentProgress > 0.01 {
-<<<<<<< HEAD
-                                globalTitleOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
-=======
-                                globalTitleOverlay(islandWidth: islandWidth, islandHeight: islandHeight)
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-                                    .opacity(contentProgress)
-                                globalControlsOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
-                                    .opacity(contentProgress)
-                            }
-                        }
-
-                        .compositingGroup()
-                        .frame(width: islandWidth, height: islandHeight)
-                        .padding(.top, 0) // PULLED FLUSH
-
-                        if shouldRenderExpandedContent && contentProgress > 0.01 {
-<<<<<<< HEAD
-                            HStack(spacing: 0) {
-                                ForEach(0..<3) { index in
-                                    Group {
-                                        if shouldRenderCarouselPage(index) {
-                                            switch index {
-                                            case 0: clipboardPage
-                                            case 1: sidebarPage
-                                            case 2: boxPage
-                                            default: EmptyView()
-                                            }
-=======
-                            GeometryReader { geo in
-                                let pageWidth = safeDimension(geo.size.width, fallback: 1)
-                                HStack(spacing: 0) {
-                                    Group {
-                                        if shouldRenderPage(IslandPage.clipboard.rawValue) {
-                                            clipboardPage
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-                                        } else {
-                                            Color.clear
-                                        }
-                                    }
-<<<<<<< HEAD
-                                    .frame(width: panelWidth)
-=======
-                                    .frame(width: pageWidth)
-                                    Group {
-                                        if shouldRenderPage(IslandPage.nowPlaying.rawValue) {
-                                            sidebarPage
-                                        } else {
-                                            Color.clear
-                                        }
-                                    }
-                                    .frame(width: pageWidth)
-                                    Group {
-                                        if shouldRenderPage(IslandPage.box.rawValue) {
-                                            boxPage
-                                        } else {
-                                            Color.clear
-                                        }
-                                    }
-                                    .frame(width: pageWidth)
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-                                }
-                            }
-                            .frame(width: panelWidth, height: contentAreaHeight, alignment: .leading)
-                            .offset(x: -CGFloat(model.currentPage) * panelWidth + model.carouselDragOffset)
-                            .frame(width: shellWidth, height: contentAreaHeight)
-                            .opacity(contentProgress)
-                            .offset(y: (1.0 - contentProgress) * 12)
-                            .clipped()
-                        } else {
-                            Color.clear.frame(height: 1)
-                        }
-
-                        if settings.showPagers {
-                            HStack(spacing: 8) {
-                                ForEach(0..<3) { index in
-                                    Button {
-                                        setPageFromCarousel(index)
-                                    } label: {
-                                        Capsule(style: .continuous)
-                                            .fill(model.currentPage == index ? Color.white : Color.white.opacity(0.28))
-                                            .frame(width: model.currentPage == index ? 24 : 14, height: 4)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: pagerRowHeight)
-                            .opacity(contentProgress)
-                            .padding(.bottom, pagerBottomInset)
-                        }
-                    }
-                    .frame(width: shellWidth, height: shellHeight, alignment: .top)
-                    .background(Color(settings.backgroundColor))
-                    .clipShape(BottomRoundedRectangle(cornerRadius: cornerRadius))
-                    // Static shadow: fixed radius/offset gated on a Bool instead of
-                    // multiplying by contentProgress. An animated radius forces an
-                    // offscreen gaussian blur of the entire island on every frame of
-                    // the open/close spring; a constant radius is blurred once.
-                    .shadow(
-                        color: Color.black.opacity(shouldRenderExpandedContent ? 0.22 : 0),
-                        radius: shouldRenderExpandedContent ? 18 : 0,
-                        x: 0,
-                        y: shouldRenderExpandedContent ? 10 : 0
-                    )
-                    .animation(settings.notchOpenAnimation, value: model.expansionProgress)
-                    .background(GeometryReader { proxy in
-                        Color.clear.preference(key: ShellHeightKey.self, value: proxy.size.height)
-                    })
-                } // End if !showToastOnly
-            } // End ZStack
-        } // End ZStack
-        .frame(width: containerWidth, height: containerHeight, alignment: .top)
-        .overlay(alignment: .topLeading) {
-            boxMenuBarControls
-                .zIndex(50)
-        }
-        .scaleEffect(closeScale, anchor: .top)
-        .offset(y: closeOffset)
-        // Keep swipe paging, but don't preempt taps on pager buttons.
-        .simultaneousGesture(horizontalPagingGesture)
-        .contextMenu {
-            Button {
-                showShapeHandles.toggle()
-            } label: {
-                Label("Shape", systemImage: showShapeHandles ? "checkmark" : "square")
-            }
-            SettingsLink {
-                Text("Settings")
-            }
-        }
-        .onDrop(of: [.fileURL], isTargeted: $isNotchFileDropTargeted, perform: handleNotchFileDrop)
-        .onChange(of: isNotchFileDropTargeted) { _, targeted in
-            if targeted {
-                if let delegate = NSApp.delegate as? AppDelegate {
-                    delegate.openBoxPage()
-                }
-            }
-        }
-        .onReceive(model.$currentPage) { newValue in
-            if let delegate = NSApp.delegate as? AppDelegate {
-                delegate.updateObservationState(for: newValue)
-            }
-            unloadInactivePageState(activePage: newValue)
-        }
-        .onReceive(model.$isExpanded) { expanded in
-            if !expanded {
-                unloadCollapsedPageState()
-            }
-        }
-<<<<<<< HEAD
-        .onReceive(model.$boxFiles) { files in
-            pruneBoxPreviewState(keeping: files.map(\.url))
-=======
-        .onReceive(model.$isExpanded) { expanded in
-            if !expanded {
-                selectedBoxFileIDs.removeAll()
-                highlightedClipboardID = nil
-            }
-            syncVerticalSwipeGate()
-        }
-        .onReceive(model.$isPinned) { _ in
-            syncVerticalSwipeGate()
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-        }
-        .onReceive(model.$clipboardItems) { items in
-            pruneClipboardPreviewState(keeping: items)
-        }
-        .onReceive(model.$boxFiles) { files in
-            pruneBoxPreviewState(keeping: files.map(\.url))
-        }
-    }
-
-    @ViewBuilder
-    private var settingsPreviewOverlay: some View {
-        GeometryReader { geo in
-            let expandedWidth = settings.clampedNotchWidth
-            let expandedHeight = settings.clampedNotchHeight
-            let edgeNotchWidth = settings.effectiveNotchWidth
-            let edgeNotchHeight = settings.effectiveNotchHeight
-            let edge = settings.clampedNotchEdgeThickness
-            let approachWidth = settings.clampedApproachWidth
-            let approachHeight = settings.clampedApproachHeight
-            let focus = settings.hoverPreviewFocus
-            let accent = Color(settings.accentColor)
-            let expandedX = (geo.size.width - expandedWidth) / 2
-            let edgeNotchX = (geo.size.width - edgeNotchWidth) / 2
-            let expandedRect = CGRect(x: expandedX, y: 0, width: expandedWidth, height: expandedHeight)
-            let edgeNotchRect = CGRect(x: edgeNotchX, y: 0, width: edgeNotchWidth, height: edgeNotchHeight)
-            let edgeInset = max(0, edge)
-            let outerRect = edgeNotchRect.insetBy(dx: -edgeInset, dy: -edgeInset)
-            let approachRect = CGRect(
-                x: edgeNotchRect.minX - edgeInset - approachWidth,
-                y: edgeNotchRect.maxY + edgeInset,
-                width: edgeNotchRect.width + (edgeInset * 2) + approachWidth * 2,
-                height: approachHeight
-            )
-            let clipboardLimitText = settings.clampedRememberClips == 0 ? "Unlimited" : "\(settings.clampedRememberClips)"
-            let previewY = edgeNotchRect.maxY + 28
-            let innerRadius = settings.cornerRadius * 0.6
-
-            ZStack(alignment: .topLeading) {
-                Group {
-                    switch focus {
-                    case .all:
-                        if approachHeight > 0 || approachWidth > 0 {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(Color.white.opacity(0.75), style: StrokeStyle(lineWidth: 2, dash: [6, 6]))
-                                .frame(width: approachRect.width, height: approachRect.height)
-                                .position(x: approachRect.midX, y: approachRect.midY)
-                        }
-                        if edgeInset > 0 {
-                            BottomRoundedRectangle(cornerRadius: innerRadius + edgeInset)
-                                .fill(accent.opacity(0.45))
-                                .frame(width: outerRect.width, height: outerRect.height)
-                                .position(x: outerRect.midX, y: outerRect.midY)
-                        }
-                        BottomRoundedRectangle(cornerRadius: innerRadius)
-                            .fill(Color(settings.backgroundColor))
-                            .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
-                            .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
-                        BottomRoundedRectangle(cornerRadius: innerRadius)
-                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                            .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
-                            .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
-                    case .islandSize:
-                        BottomRoundedRectangle(cornerRadius: settings.cornerRadius)
-                            .fill(Color(settings.backgroundColor))
-                            .frame(width: expandedRect.width, height: expandedRect.height)
-                            .position(x: expandedRect.midX, y: expandedRect.midY)
-                        BottomRoundedRectangle(cornerRadius: settings.cornerRadius)
-                            .stroke(Color.white.opacity(0.25), lineWidth: 1)
-                            .frame(width: expandedRect.width, height: expandedRect.height)
-                            .position(x: expandedRect.midX, y: expandedRect.midY)
-                    case .notchEdge:
-                        if edgeInset > 0 {
-                            BottomRoundedRectangle(cornerRadius: innerRadius + edgeInset)
-                                .fill(accent.opacity(0.55))
-                                .frame(width: outerRect.width, height: outerRect.height)
-                                .position(x: outerRect.midX, y: outerRect.midY)
-                        }
-                        BottomRoundedRectangle(cornerRadius: innerRadius)
-                            .fill(Color(settings.backgroundColor))
-                            .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
-                            .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
-                        BottomRoundedRectangle(cornerRadius: innerRadius)
-                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                            .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
-                            .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
-                    case .approach:
-                        if approachHeight > 0 || approachWidth > 0 {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(Color.white.opacity(0.75), style: StrokeStyle(lineWidth: 2, dash: [6, 6]))
-                                .frame(width: approachRect.width, height: approachRect.height)
-                                .position(x: approachRect.midX, y: approachRect.midY)
-                        }
-                    case .clipboardLimit:
-                        previewBadge("Clip limit \(clipboardLimitText)", accent: accent)
-                            .position(x: edgeNotchRect.midX, y: previewY)
-                    case .titleSize:
-                        previewTitleSample(page: settings.hoverPreviewTitlePage, width: edgeNotchRect.width)
-                            .position(x: edgeNotchRect.midX, y: previewY)
-                    case .cornerRadius:
-                        RoundedRectangle(cornerRadius: settings.cornerRadius, style: .continuous)
-                            .stroke(Color.white.opacity(0.7), lineWidth: 2)
-                            .frame(width: 140, height: 52)
-                            .position(x: edgeNotchRect.midX, y: previewY)
-                    case .sensitivityCarousel:
-                        previewBadge("Carousel sensitivity \(String(format: "%.2f", settings.carouselSensitivity))", accent: accent)
-                            .position(x: edgeNotchRect.midX, y: previewY)
-                    default:
-                        EmptyView()
-                    }
-                }
-            }
-        }
-        .allowsHitTesting(false)
-        .opacity(0.8)
-        .padding(.top, 4)
-        .drawingGroup()
-    }
-
-    private var horizontalPagingGesture: some Gesture {
-        DragGesture(minimumDistance: 14, coordinateSpace: .local)
-            .onEnded { value in
-                guard abs(value.translation.width) > abs(value.translation.height), abs(value.translation.width) > 40 else { return }
-                let nextPage = value.translation.width < 0
-                    ? min(IslandPage.box.rawValue, model.currentPage + 1)
-                    : max(IslandPage.clipboard.rawValue, model.currentPage - 1)
-                setPageFromCarousel(nextPage)
-            }
-    }
-
-<<<<<<< HEAD
-    private func setPageFromCarousel(_ page: Int) {
-        let nextPage = clamp(page, min: IslandPage.clipboard.rawValue, max: IslandPage.box.rawValue)
-        model.carouselDragOffset = 0
-        withAnimation(settings.carouselAnimation) {
-            model.currentPage = nextPage
-        }
-    }
-
-    private func shouldRenderCarouselPage(_ index: Int) -> Bool {
-        if index == model.currentPage {
-            return true
-        }
-
-        let offset = model.carouselDragOffset
-        if abs(offset) <= adjacentPageRenderActivationOffset {
-            return false
-        }
-
-        if offset < 0 {
-            let next = min(IslandPage.box.rawValue, model.currentPage + 1)
-            return index == next
-        }
-
-        let previous = max(IslandPage.clipboard.rawValue, model.currentPage - 1)
-        return index == previous
-    }
-
-    private func touchBoxPreviewURL(_ url: URL) {
-        if let existingIndex = boxPreviewLRU.firstIndex(of: url) {
-            boxPreviewLRU.remove(at: existingIndex)
-        }
-        boxPreviewLRU.append(url)
-        while boxPreviewLRU.count > maxBoxPreviewCount {
-            let removed = boxPreviewLRU.removeFirst()
-            boxPreviewImages.removeValue(forKey: removed)
-        }
-    }
-
-    private func sharedPreviewKeepPaths() -> Set<String> {
-        let warmBoxPaths = Set(boxPreviewLRU.suffix(retainedInvisibleBoxPreviewCount).map(\.path))
-        let visibleBoxPaths = Set(visibleBoxPreviewURLs.map(\.path))
-        return visibleBoxPaths
-            .union(warmBoxPaths)
-    }
-
-    private func scheduleSharedPreviewTrim() {
-        pendingSharedPreviewTrimWorkItem?.cancel()
-        let keepPaths = sharedPreviewKeepPaths()
-        let workItem = DispatchWorkItem {
-            BoxIconCache.shared.schedulePreviewTrim(keepingPaths: keepPaths, debounce: 0.08)
-        }
-        pendingSharedPreviewTrimWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: workItem)
-    }
-
-    private func clearBoxPreviewState() {
-        for workItem in pendingBoxPreviewRemovalWorkItems.values {
-            workItem.cancel()
-        }
-        pendingBoxPreviewRemovalWorkItems.removeAll()
-        visibleBoxPreviewURLs.removeAll()
-        boxPreviewLoadingURLs.removeAll()
-        boxPreviewImages.removeAll()
-        boxPreviewLRU.removeAll()
-    }
-
-    private func updateBoxPreviewVisibility(for url: URL, isVisible: Bool, targetSize: CGFloat) {
-        if isVisible {
-            if let pending = pendingBoxPreviewRemovalWorkItems.removeValue(forKey: url) {
-                pending.cancel()
-            }
-            visibleBoxPreviewURLs.insert(url)
-            if boxPreviewImages[url] == nil {
-                requestBoxPreviewIfNeeded(for: url, targetSize: targetSize)
-            } else {
-                touchBoxPreviewURL(url)
-            }
-            scheduleSharedPreviewTrim()
-            return
-        }
-
-        guard pendingBoxPreviewRemovalWorkItems[url] == nil else { return }
-        let workItem = DispatchWorkItem {
-            pendingBoxPreviewRemovalWorkItems.removeValue(forKey: url)
-            visibleBoxPreviewURLs.remove(url)
-            boxPreviewLoadingURLs.remove(url)
-            scheduleSharedPreviewTrim()
-        }
-        pendingBoxPreviewRemovalWorkItems[url] = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: workItem)
-    }
-
-    private func unloadInactivePageState(activePage: Int) {
-        // Clipboard-only transient UI should reset when the clipboard page is inactive.
-        if activePage != IslandPage.clipboard.rawValue {
-            highlightedClipboardID = nil
-            clipboardTapFeedbackProgress = 0
-        }
-
-        // Cancel box preview work only when the Box page is inactive.
-        // We deliberately do NOT trim the shared NSCache here — it has its own
-        // count/cost limits and a memory-pressure handler.
-        if activePage != IslandPage.box.rawValue {
-            BoxIconCache.shared.cancelQueuedPreviewLoads()
-            for workItem in pendingBoxPreviewRemovalWorkItems.values {
-                workItem.cancel()
-            }
-            pendingBoxPreviewRemovalWorkItems.removeAll()
-            visibleBoxPreviewURLs.removeAll()
-            boxPreviewLoadingURLs.removeAll()
-            selectedBoxFileIDs.removeAll()
-        }
-
-        if activePage != IslandPage.jot.rawValue {
-            isJotEditorFocused = false
-        }
-    }
-
-    private func unloadCollapsedPageState() {
-        // Cancel transient in-flight work but keep the preview dictionaries
-        // and the shared NSCache populated so the next open is cheap. Eviction
-        // is delegated to NSCache limits and `purgeCachesForMemoryPressure`.
-        unloadInactivePageState(activePage: -1)
-        pendingSharedPreviewTrimWorkItem?.cancel()
-        pendingSharedPreviewTrimWorkItem = nil
-        BoxIconCache.shared.cancelQueuedPreviewLoads()
-        for workItem in pendingBoxPreviewRemovalWorkItems.values {
-            workItem.cancel()
-        }
-        pendingBoxPreviewRemovalWorkItems.removeAll()
-        visibleBoxPreviewURLs.removeAll()
-        boxPreviewLoadingURLs.removeAll()
-=======
-    private func shouldRenderPage(_ index: Int) -> Bool {
-        if abs(model.carouselDragOffset) > 1 {
-            if model.carouselDragOffset < 0 {
-                return index == model.currentPage || index == min(IslandPage.box.rawValue, model.currentPage + 1)
-            }
-            if model.carouselDragOffset > 0 {
-                return index == model.currentPage || index == max(IslandPage.clipboard.rawValue, model.currentPage - 1)
-            }
-        }
-        return index == model.currentPage
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-    }
-
-    private func emptyDismissableScrollView<Content: View>(
-        onMetricsChange: @escaping (CGFloat, CGFloat, CGFloat) -> Void,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        DismissableScrollView(
-            closeSensitivity: settings.clampedCloseSensitivity,
-            onOverscrollProgress: { progress, animate in
-                updateCloseProgress(progress, animate: animate)
-            },
-            onBottomOverscroll: { closeNotchFromSwipe() },
-            onMetricsChange: { offset, contentHeight, viewportHeight in
-                onMetricsChange(offset, contentHeight, viewportHeight)
-            }
-        ) {
-            content()
-        }
-    }
-
+extension UnifiedNotchContainer {
     // MARK: - Clipboard Page
-    private var clipboardPage: some View {
+    var clipboardPage: some View {
         clipboardPageWithWidth(scaledPanelWidth(for: settings), height: scaledPanelHeight(for: settings) - settings.effectiveNotchHeight)
     }
 
@@ -6650,7 +6118,6 @@ struct UnifiedNotchContainer: View {
             .padding(.horizontal, 8)
         }
     }
-<<<<<<< HEAD
 
     /// Flat, allocation-light tile. Multi-item clipboard entries render a
     /// single SF Symbol plus a count instead of per-file thumbnails, so a
@@ -6780,32 +6247,6 @@ struct UnifiedNotchContainer: View {
             BoxIconCache.shared.requestDisplayImage(for: url, targetSize: targetSize) { image in
                 isLoadingPreview = false
                 loadedPreview = image
-=======
-    
-    private func clipboardCell(_ item: ClipboardEntry) -> some View {
-        let isHighlighted = highlightedClipboardID == item.id
-        let accentColor = Color(settings.accentColor)
-        return Button {
-            copyClipboard(item)
-        } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                clipboardCellContent(item)
-            }
-            .padding(8)
-            .frame(maxWidth: .infinity, minHeight: 60, alignment: .topLeading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .overlay(alignment: .center) {
-            if item.isTextOnly {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(accentColor.opacity(0.85), lineWidth: 1.2)
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-            }
-        }
-        .overlay(alignment: .center) {
-            if isHighlighted {
-                ClipboardTapFeedbackGlyph(color: .green, progress: clipboardTapFeedbackProgress)
             }
         }
     }
@@ -7043,29 +6484,10 @@ struct UnifiedNotchContainer: View {
         }
     }
 
-    private func pruneClipboardPreviewState(keeping items: [ClipboardEntry]) {
+    func pruneClipboardPreviewState(keeping items: [ClipboardEntry]) {
         let keepPaths = Set(items.flatMap { $0.filePaths })
         clipboardFilePreviews = clipboardFilePreviews.filter { keepPaths.contains($0.key) }
         clipboardFilePreviewLoadingPaths = Set(clipboardFilePreviewLoadingPaths.filter { keepPaths.contains($0) })
-    }
-
-    fileprivate struct ClipboardTapFeedbackGlyph: View {
-        let color: Color
-        let progress: CGFloat
-
-        var body: some View {
-            let p = max(0, min(1, progress))
-            Image(systemName: "clipboard")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(color.opacity(0.98))
-                .mask(alignment: .leading) {
-                    Rectangle()
-                        .frame(width: max(1, 24 * p))
-                }
-                .opacity(0.6 + 0.4 * p)
-                .frame(width: 36, height: 36)
-                .scaleEffect(0.8 + 0.2 * p)
-        }
     }
 
     private func copyClipboard(_ item: ClipboardEntry) {
@@ -7099,7 +6521,7 @@ struct UnifiedNotchContainer: View {
         }
     }
 
-    private func clearClipboardHistory() {
+    func clearClipboardHistory() {
         if let delegate = NSApp.delegate as? AppDelegate {
             delegate.clearClipboardHistory()
         } else {
@@ -7112,13 +6534,14 @@ struct UnifiedNotchContainer: View {
         clipboardTapFeedbackProgress = 0
     }
 
-    // MARK: - Jot Page
-    private var sidebarPage: some View {
-        jotPage
-    }
+}
 
-    private func sidebarPageWithWidth(_ width: CGFloat, height: CGFloat) -> some View {
-        jotPageWithWidth(width, height: height)
+// MARK: - Reintegrated Jot
+
+extension UnifiedNotchContainer {
+    // MARK: - Jot Page
+    var sidebarPage: some View {
+        jotPage
     }
 
     @ViewBuilder
@@ -7170,7 +6593,7 @@ struct UnifiedNotchContainer: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func createJot() {
+    func createJot() {
         let note = JotNote()
         var notes = model.jotNotes
         notes.insert(note, at: 0)
@@ -7179,7 +6602,7 @@ struct UnifiedNotchContainer: View {
         isJotEditorFocused = true
     }
 
-    private func closeActiveJot() {
+    func closeActiveJot() {
         model.activeJotID = nil
         isJotEditorFocused = false
     }
@@ -7199,12 +6622,6 @@ struct UnifiedNotchContainer: View {
         )
     }
 
-    private func jotNoteTitle(_ note: JotNote) -> String {
-        let trimmed = note.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "Untitled" }
-        return trimmed.components(separatedBy: .newlines).first ?? "Untitled"
-    }
-
     private func jotNotePreview(_ note: JotNote) -> String {
         let trimmed = note.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "Tap to start writing" }
@@ -7213,20 +6630,11 @@ struct UnifiedNotchContainer: View {
 
     private func jotCard(_ note: JotNote, cellWidth: CGFloat) -> some View {
         let accentColor = Color(settings.accentColor)
-<<<<<<< HEAD
         return JotNoteCardView(
             note: note,
             accentColor: accentColor,
             previewText: jotNotePreview(note),
             textSize: settings.jotTextSize,
-=======
-        let cardHeight = estimatedJotCardHeight(for: note, cellWidth: cellWidth)
-        return JotNoteCardView(
-            note: note,
-            cardHeight: cardHeight,
-            accentColor: accentColor,
-            previewText: jotNotePreview(note),
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
             isEmpty: note.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
             onOpen: {
                 model.activeJotID = note.id
@@ -7242,24 +6650,15 @@ struct UnifiedNotchContainer: View {
         )
     }
 
-<<<<<<< HEAD
     private struct JotNoteCardView: View, Equatable {
         let note: JotNote
         let accentColor: Color
         let previewText: String
         let textSize: CGFloat
-=======
-    private struct JotNoteCardView: View {
-        let note: JotNote
-        let cardHeight: CGFloat
-        let accentColor: Color
-        let previewText: String
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
         let isEmpty: Bool
         let onOpen: () -> Void
         let onDelete: () -> Void
 
-<<<<<<< HEAD
         static func == (lhs: JotNoteCardView, rhs: JotNoteCardView) -> Bool {
             lhs.note.id == rhs.note.id &&
             lhs.note.updatedAt == rhs.note.updatedAt &&
@@ -7267,16 +6666,12 @@ struct UnifiedNotchContainer: View {
             lhs.textSize == rhs.textSize &&
             lhs.isEmpty == rhs.isEmpty
         }
-=======
-        @State private var isHovering = false
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
 
         var body: some View {
             ZStack(alignment: .topTrailing) {
                 Button(action: onOpen) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(previewText)
-<<<<<<< HEAD
                             .font(.system(size: max(11, textSize)))
                             .fontWeight(isEmpty ? .regular : .semibold)
                             .foregroundColor(.white)
@@ -7287,16 +6682,6 @@ struct UnifiedNotchContainer: View {
                     .padding(10)
                     .frame(maxWidth: .infinity, minHeight: 72, alignment: .topLeading)
                     .contentShape(Rectangle())
-=======
-                            .font(.subheadline)
-                            .fontWeight(isEmpty ? .regular : .semibold)
-                            .foregroundColor(.white)
-                            .lineLimit(2)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(10)
-                    .frame(maxWidth: .infinity, minHeight: cardHeight, alignment: .topLeading)
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
                     .background(Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -7305,7 +6690,6 @@ struct UnifiedNotchContainer: View {
                 }
                 .buttonStyle(.plain)
 
-<<<<<<< HEAD
                 Button(action: onDelete) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.white.opacity(0.7))
@@ -7314,21 +6698,6 @@ struct UnifiedNotchContainer: View {
                 }
                 .buttonStyle(.plain)
                 .padding(6)
-=======
-                if isHovering {
-                    Button(action: onDelete) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.white)
-                            .background(Circle().fill(Color.black.opacity(0.5)))
-                            .font(.caption)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(6)
-                }
-            }
-            .onHover { hovering in
-                isHovering = hovering
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
             }
         }
     }
@@ -7478,7 +6847,6 @@ struct UnifiedNotchContainer: View {
                 scrollView.documentView?.postsFrameChangedNotifications = true
             }
 
-            // Fix compiler error: Remove explicit deinit workspace tracking constraints from standard object lifecycles
             deinit {
                 NotificationCenter.default.removeObserver(self)
             }
@@ -7512,7 +6880,7 @@ struct UnifiedNotchContainer: View {
         }
     }
 
-    private final class OverscrollDismissScrollView: NSScrollView {
+    final class OverscrollDismissScrollView: NSScrollView {
         var onBottomOverscroll: (() -> Void)?
         var onOverscrollProgress: ((CGFloat, Bool) -> Void)?
         var onMetricsChange: ((CGFloat, CGFloat, CGFloat) -> Void)?
@@ -7637,7 +7005,7 @@ struct UnifiedNotchContainer: View {
         }
     }
 
-    private struct DismissableScrollView<Content: View> : NSViewRepresentable {
+    struct DismissableScrollView<Content: View> : NSViewRepresentable {
         let closeSensitivity: CGFloat
         let onOverscrollProgress: (CGFloat, Bool) -> Void
         let onBottomOverscroll: () -> Void
@@ -7696,12 +7064,8 @@ struct UnifiedNotchContainer: View {
         private func scheduleHostingViewFrameUpdate(_ hostingView: NSHostingView<Content>, in scrollView: NSScrollView) {
             DispatchQueue.main.async {
                 let hostingWidth = safeDimension(scrollView.contentSize.width, fallback: 1)
-<<<<<<< HEAD
                 let intrinsicHeight = hostingView.intrinsicContentSize.height
                 let hostingHeight = safeDimension(intrinsicHeight, fallback: max(1, scrollView.contentSize.height))
-=======
-                let hostingHeight = safeDimension(hostingView.fittingSize.height, fallback: 1)
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
                 let currentSize = hostingView.frame.size
                 if abs(currentSize.width - hostingWidth) < 0.5,
                    abs(currentSize.height - hostingHeight) < 0.5 {
@@ -7712,9 +7076,14 @@ struct UnifiedNotchContainer: View {
         }
     }
 
+}
+
+// MARK: - Reintegrated Box
+import UniformTypeIdentifiers
+
+extension UnifiedNotchContainer {
     // MARK: - Box Page
-    private var boxPage: some View {
-<<<<<<< HEAD
+    var boxPage: some View {
         boxPageWithWidth(scaledPanelWidth(for: settings), height: scaledPanelHeight(for: settings) - settings.effectiveNotchHeight)
     }
 
@@ -7727,74 +7096,6 @@ struct UnifiedNotchContainer: View {
                     Image(systemName: "shippingbox.fill")
                         .font(.system(size: min(safeW, safeH) * 0.22, weight: .semibold))
                         .foregroundColor(.brown.opacity(0.55))
-=======
-        GeometryReader { geo in
-            let w = safeDimension(geo.size.width, fallback: 1)
-            let h = safeDimension(geo.size.height, fallback: 1)
-            let safeW = max(1, w)
-            let safeH = max(1, h)
-            VStack(spacing: 10) {
-                Group {
-                    if model.boxFiles.isEmpty {
-                        Image(systemName: "shippingbox.fill")
-                            .font(.system(size: min(safeW, safeH) * 0.22, weight: .semibold))
-                            .foregroundColor(.brown.opacity(0.55))
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                    } else {
-                        let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 5)
-                        let maxSize = max(1, min((safeW - 16) / 5, safeH * 0.38))
-                        ScrollView(.vertical, showsIndicators: true) {
-                            LazyVGrid(columns: columns, spacing: 2) {
-                                ForEach(model.boxFiles) { file in
-                                    boxItemView(file: file, maxSize: maxSize)
-                                }
-                            }
-                            .frame(width: w, alignment: .center)
-                            .background(
-                                GeometryReader { proxy in
-                                    Color.clear
-                                        .preference(key: BoxContentHeightKey.self, value: proxy.size.height)
-                                }
-                            )
-                            .overlay(alignment: .top) {
-                                GeometryReader { proxy in
-                                    Color.clear
-                                        .preference(
-                                            key: BoxScrollOffsetKey.self,
-                                            value: max(0, -proxy.frame(in: .named("BoxScrollView")).minY)
-                                        )
-                                }
-                            }
-                        }
-                        .coordinateSpace(name: "BoxScrollView")
-                        .background(
-                            GeometryReader { proxy in
-                                Color.clear
-                                    .preference(key: BoxViewportHeightKey.self, value: proxy.size.height)
-                            }
-                        )
-                        .onPreferenceChange(BoxScrollOffsetKey.self) { offset in
-                            updateBoxScrollGate(
-                                scrollOffset: offset,
-                                contentHeight: boxContentHeight,
-                                viewportHeight: boxViewportHeight
-                            )
-                        }
-                        .onPreferenceChange(BoxContentHeightKey.self) { contentHeight in
-                            updateBoxScrollGate(
-                                scrollOffset: boxScrollOffset,
-                                contentHeight: contentHeight,
-                                viewportHeight: boxViewportHeight
-                            )
-                        }
-                        .onPreferenceChange(BoxViewportHeightKey.self) { viewportHeight in
-                            updateBoxScrollGate(
-                                scrollOffset: boxScrollOffset,
-                                contentHeight: boxContentHeight,
-                                viewportHeight: viewportHeight
-                            )
-                        }
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 } else {
                     let columnCount = max(1, settings.boxColumns)
@@ -7818,7 +7119,6 @@ struct UnifiedNotchContainer: View {
     }
 
     private func boxItemView(file: BoxFile, maxSize: CGFloat) -> some View {
-<<<<<<< HEAD
         return SafeCachedBoxItemView(
             file: file,
             maxSize: maxSize,
@@ -7827,41 +7127,6 @@ struct UnifiedNotchContainer: View {
             showBoxFileNames: settings.showBoxFileNames,
             fileNameSize: settings.boxFileNameSize,
             onRemove: {
-=======
-        let size = max(1, maxSize)
-        let preview = boxPreviewImages[file.url]
-        let previewSize = preview.map { fittedBoxPreviewSize(for: $0, maxDimension: size) } ?? CGSize(width: size, height: size)
-        let isSelected = selectedBoxFileIDs.contains(file.id)
-        return ZStack(alignment: .topLeading) {
-            VStack(spacing: 6) {
-                Group {
-                    if let preview {
-                        BoxIconView(nsImage: preview)
-                    } else {
-                        BoxPreviewPlaceholder(isLoading: boxPreviewLoadingURLs.contains(file.url))
-                    }
-                }
-                    .frame(width: previewSize.width, height: previewSize.height)
-                if settings.showBoxFileNames {
-                    VStack(spacing: 4) {
-                        Text(file.url.lastPathComponent)
-                            .font(.caption2)
-                            .foregroundColor(.white)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.center)
-
-                        if isSelected {
-                            Capsule()
-                                .fill(Color(settings.accentColor))
-                                .frame(width: max(12, previewSize.width * 0.7), height: 2)
-                        }
-                    }
-                    .frame(width: previewSize.width + 6)
-                }
-            }
-
-            HoverRemoveButton {
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
                 DispatchQueue.main.async {
                     withAnimation {
                         model.boxFiles.removeAll { $0.id == file.id }
@@ -7892,7 +7157,7 @@ struct UnifiedNotchContainer: View {
         )
     }
 
-    private func fittedBoxPreviewSize(for image: NSImage, maxDimension: CGFloat) -> CGSize {
+    func fittedBoxPreviewSize(for image: NSImage, maxDimension: CGFloat) -> CGSize {
         let maxDim = max(1, maxDimension)
         let rawWidth = max(1, image.size.width)
         let rawHeight = max(1, image.size.height)
@@ -7900,7 +7165,7 @@ struct UnifiedNotchContainer: View {
         return CGSize(width: rawWidth * scale, height: rawHeight * scale)
     }
 
-    private func requestBoxPreviewIfNeeded(for url: URL, targetSize: CGFloat) {
+    func requestBoxPreviewIfNeeded(for url: URL, targetSize: CGFloat) {
         guard model.isExpanded, model.currentPage == IslandPage.box.rawValue else { return }
         guard visibleBoxPreviewURLs.contains(url) else { return }
         guard BoxIconCache.shared.shouldAttemptPreview(for: url) else { return }
@@ -7927,7 +7192,7 @@ struct UnifiedNotchContainer: View {
         return ceil(clamped / 24) * 24
     }
 
-    private func pruneBoxPreviewState(keeping urls: [URL]) {
+    func pruneBoxPreviewState(keeping urls: [URL]) {
         let keep = Set(urls)
         visibleBoxPreviewURLs = visibleBoxPreviewURLs.intersection(keep)
         boxPreviewImages = boxPreviewImages.filter { keep.contains($0.key) }
@@ -7936,7 +7201,7 @@ struct UnifiedNotchContainer: View {
         scheduleSharedPreviewTrim()
     }
 
-    fileprivate struct BoxPreviewPlaceholder: View {
+    struct BoxPreviewPlaceholder: View {
         let isLoading: Bool
         let symbol: String
 
@@ -7959,79 +7224,9 @@ struct UnifiedNotchContainer: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
-<<<<<<< HEAD
-=======
-        .onAppear {
-            requestBoxPreviewIfNeeded(for: file.url, targetSize: size)
-        }
-        .frame(
-            width: previewSize.width + 8,
-            height: settings.showBoxFileNames ? previewSize.height + 36 : previewSize.height,
-            alignment: .center
-        )
     }
 
-    private func fittedBoxPreviewSize(for image: NSImage, maxDimension: CGFloat) -> CGSize {
-        let maxDim = max(1, maxDimension)
-        let rawWidth = max(1, image.size.width)
-        let rawHeight = max(1, image.size.height)
-        let scale = maxDim / max(rawWidth, rawHeight)
-        return CGSize(width: rawWidth * scale, height: rawHeight * scale)
-    }
-
-    private func requestBoxPreviewIfNeeded(for url: URL, targetSize: CGFloat) {
-        guard BoxIconCache.shared.shouldAttemptPreview(for: url) else { return }
-        guard boxPreviewImages[url] == nil else { return }
-        guard !boxPreviewLoadingURLs.contains(url) else { return }
-
-        let requestSize = quantizedPreviewTargetSize(targetSize)
-        boxPreviewLoadingURLs.insert(url)
-
-        DispatchQueue.global(qos: .utility).async {
-            let image = BoxIconCache.shared.displayImage(for: url, targetSize: requestSize)
-            DispatchQueue.main.async {
-                boxPreviewLoadingURLs.remove(url)
-                guard model.boxFiles.contains(where: { $0.url == url }) else { return }
-                boxPreviewImages[url] = image
-            }
-        }
-    }
-
-    private func quantizedPreviewTargetSize(_ targetSize: CGFloat) -> CGFloat {
-        let clamped = max(72, min(320, targetSize))
-        return ceil(clamped / 24) * 24
-    }
-
-    private func pruneBoxPreviewState(keeping urls: [URL]) {
-        let keep = Set(urls)
-        boxPreviewImages = boxPreviewImages.filter { keep.contains($0.key) }
-        boxPreviewLoadingURLs = Set(boxPreviewLoadingURLs.filter { keep.contains($0) })
-    }
-
-    private struct BoxPreviewPlaceholder: View {
-        let isLoading: Bool
-
-        var body: some View {
-            ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.white.opacity(0.08))
-                Image(systemName: "photo")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.white.opacity(0.45))
-                if isLoading {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(.white.opacity(0.7))
-                        .scaleEffect(0.75)
-                        .offset(y: 12)
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        }
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-    }
-
-    private struct ObservedFileToastView: View {
+    struct ObservedFileToastView: View {
         let toast: ObservedFileToast
         let progress: CGFloat
         let onClose: () -> Void
@@ -8138,98 +7333,6 @@ struct UnifiedNotchContainer: View {
         }
     }
 
-    private struct NotchResizeHandle: NSViewRepresentable {
-        enum Edge {
-            case left
-            case right
-            case bottom
-        }
-
-        let edge: Edge
-        let currentWidth: CGFloat
-        let currentHeight: CGFloat
-        let onResize: (CGFloat, CGFloat) -> Void
-
-        func makeNSView(context: Context) -> ResizeHandleView {
-            let view = ResizeHandleView()
-            view.edge = edge
-            view.currentWidth = currentWidth
-            view.currentHeight = currentHeight
-            view.onResize = onResize
-            return view
-        }
-
-        func updateNSView(_ nsView: ResizeHandleView, context: Context) {
-            nsView.edge = edge
-            nsView.currentWidth = currentWidth
-            nsView.currentHeight = currentHeight
-            nsView.onResize = onResize
-        }
-
-        final class ResizeHandleView: NSView {
-            var edge: Edge = .right
-            var currentWidth: CGFloat = 0
-            var currentHeight: CGFloat = 0
-            var onResize: ((CGFloat, CGFloat) -> Void)?
-            private var startPoint: NSPoint = .zero
-            private var startWidth: CGFloat = 0
-            private var startHeight: CGFloat = 0
-            private var isResizing = false
-
-            override func hitTest(_ point: NSPoint) -> NSView? {
-                return self
-            }
-
-            override func mouseDown(with event: NSEvent) {
-                startPoint = event.locationInWindow
-                startWidth = currentWidth
-                startHeight = currentHeight
-                isResizing = true
-            }
-
-            override func mouseDragged(with event: NSEvent) {
-                guard isResizing else { return }
-                let currentPoint = event.locationInWindow
-                let deltaX = currentPoint.x - startPoint.x
-                let deltaY = currentPoint.y - startPoint.y
-                let widthDelta: CGFloat
-                let heightDelta: CGFloat
-                switch edge {
-                case .left:
-                    widthDelta = -deltaX * 2
-                    heightDelta = 0
-                case .right:
-                    widthDelta = deltaX * 2
-                    heightDelta = 0
-                case .bottom:
-                    widthDelta = 0
-                    heightDelta = -deltaY * 2
-                }
-                let newWidth = max(1, startWidth + widthDelta)
-                let newHeight = max(1, startHeight + heightDelta)
-                onResize?(newWidth, newHeight)
-            }
-
-            override func mouseUp(with event: NSEvent) {
-                isResizing = false
-            }
-        }
-    }
-
-    private enum ShapeIndicatorAxis {
-        case horizontal
-        case vertical
-    }
-
-    private func shapeIndicatorStrip(axis: ShapeIndicatorAxis, length: CGFloat) -> some View {
-        let thickness: CGFloat = 3
-        let size = max(6, length)
-        return Capsule(style: .continuous)
-            .fill(Color.white.opacity(0.55))
-            .frame(width: axis == .horizontal ? size : thickness, height: axis == .horizontal ? thickness : size)
-            .shadow(color: Color.black.opacity(0.25), radius: 1, x: 0, y: 0)
-    }
-
     private struct ToastDragSurface: NSViewRepresentable {
         let url: URL
         let onClick: () -> Void
@@ -8295,17 +7398,7 @@ struct UnifiedNotchContainer: View {
         }
     }
 
-    private struct BoxIconView: View {
-        let nsImage: NSImage
-        var body: some View {
-            Image(nsImage: nsImage)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        }
-    }
-
-    fileprivate struct HoverRemoveButton: View {
+    struct HoverRemoveButton: View {
         var action: () -> Void
         var body: some View {
             Button {
@@ -8321,7 +7414,7 @@ struct UnifiedNotchContainer: View {
         }
     }
 
-    fileprivate struct BoxSelectableDragSurface: NSViewRepresentable {
+    struct BoxSelectableDragSurface: NSViewRepresentable {
         let file: BoxFile
         let isSelected: Bool
         let urlsForDrag: () -> [URL]
@@ -8420,283 +7513,6 @@ struct UnifiedNotchContainer: View {
         }
     }
 
-    private var emptyBoxState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "shippingbox.fill")
-                .font(.title2)
-                .foregroundColor(.orange)
-            Text("Drop files here to keep them in Box")
-                .font(.caption)
-                .foregroundColor(.white.opacity(0.75))
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, minHeight: 120)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.orange.opacity(isBoxDropTargeted ? 0.9 : 0.35), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
-                .background(Color.white.opacity(0.08))
-        )
-    }
-
-    private func boxFileRow(_ file: BoxFile) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: "doc.fill")
-                .foregroundColor(.orange)
-                .frame(width: 26)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(file.url.lastPathComponent)
-                    .font(.subheadline)
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                Text(file.url.path)
-                    .font(.caption2)
-                    .foregroundColor(.white.opacity(0.45))
-                    .lineLimit(1)
-            }
-
-            Spacer()
-        }
-        .padding(10)
-        .background(Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .onDrag {
-            NSItemProvider(object: file.url as NSURL)
-        }
-    }
-
-    // MARK: - Drop Handling
-    private func handleNotchFileDrop(providers: [NSItemProvider]) -> Bool {
-        handleFileDrop(providers: providers, openBoxPage: true)
-    }
-
-    private func handleBoxDrop(providers: [NSItemProvider]) -> Bool {
-        handleFileDrop(providers: providers, openBoxPage: false)
-    }
-
-    private func handleFileDrop(providers: [NSItemProvider], openBoxPage: Bool) -> Bool {
-        let acceptedProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
-        guard !acceptedProviders.isEmpty else { return false }
-
-        let loadGroup = DispatchGroup()
-        let resultLock = NSLock()
-        var droppedURLs: [URL] = []
-
-        for provider in acceptedProviders {
-            loadGroup.enter()
-            _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                defer { loadGroup.leave() }
-                guard let fileUrl = url else { return }
-                resultLock.lock()
-                droppedURLs.append(fileUrl)
-                resultLock.unlock()
-            }
-        }
-
-        loadGroup.notify(queue: .main) {
-            let existing = Set(model.boxFiles.map(\.url))
-            var seen = Set<URL>()
-            var urlsToInsert: [URL] = []
-
-            for url in droppedURLs where !existing.contains(url) {
-                if seen.insert(url).inserted {
-                    urlsToInsert.append(url)
-                }
-            }
-
-            if !urlsToInsert.isEmpty {
-                model.boxFiles.insert(contentsOf: urlsToInsert.reversed().map(BoxFile.init(url:)), at: 0)
-                BoxIconCache.shared.prewarmDisplayImages(for: Array(urlsToInsert.prefix(24)), targetSize: 220)
-            }
-
-            if openBoxPage {
-                model.currentPage = 2
-                model.isExpanded = true
-                model.expansionProgress = 1.0
-            }
-        }
-
-        return true
-    }
-
-    // MARK: - Shared UI
-    @ViewBuilder
-    private func headerControls<Content: View>(@ViewBuilder trailing: () -> Content) -> some View {
-        HStack {
-            Spacer()
-            trailing()
-        }
-        .frame(maxWidth: .infinity, alignment: .top)
-    }
-
-    private func globalControlsOverlay(islandWidth: CGFloat, islandHeight: CGFloat) -> some View {
-        let page = IslandPage(rawValue: model.currentPage) ?? .clipboard
-        let edgeNotchWidth = settings.effectiveNotchWidth
-
-        return Color.clear
-            .overlay(alignment: .topLeading) {
-                GeometryReader { geo in
-                    let notchRight = (geo.size.width + edgeNotchWidth) / 2
-                    HStack {
-                        switch page {
-                        case .clipboard:
-                            if !model.clipboardItems.isEmpty {
-                                Button {
-<<<<<<< HEAD
-                                    clearClipboardHistory()
-=======
-                                    model.clipboardItems.removeAll()
-                                    persistClipboardHistory(model.clipboardItems)
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-                                } label: {
-                                    Image(systemName: "trash")
-                                        .foregroundColor(.white.opacity(0.7))
-                                }
-                                .buttonStyle(.plain)
-                            }
-<<<<<<< HEAD
-                        case .jot:
-=======
-                        case .nowPlaying:
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
-                            Button {
-                                if model.activeJotID == nil {
-                                    createJot()
-                                } else {
-                                    closeActiveJot()
-                                }
-                            } label: {
-                                Image(systemName: model.activeJotID == nil ? "plus" : "chevron.left")
-                                    .foregroundColor(.white)
-                            }
-                            .buttonStyle(.plain)
-                        case .box:
-                            EmptyView()
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .offset(x: notchRight + 12, y: 2)
-                }
-            }
-            .frame(width: islandWidth, height: islandHeight)
-    }
-
-    private func globalTitleOverlay(islandWidth: CGFloat, islandHeight: CGFloat) -> some View {
-        let page = IslandPage(rawValue: model.currentPage) ?? .clipboard
-        let edgeNotchWidth = settings.effectiveNotchWidth
-        let title: String
-        let symbol: String
-        switch page {
-        case .clipboard:
-            title = "Clip"
-            symbol = "doc.on.clipboard"
-        case .jot:
-            title = "Jot"
-            symbol = "note.text"
-        case .box:
-            title = "Box"
-            symbol = "shippingbox.fill"
-        }
-
-        return Color.clear
-            .overlay(alignment: .topLeading) {
-                GeometryReader { geo in
-                    let notchLeft = (geo.size.width - edgeNotchWidth) / 2
-                    if symbol != "empty" {
-                        header(title: title, symbol: symbol, page: page)
-                            .frame(maxWidth: max(0, notchLeft - 12), alignment: .trailing)
-                            .offset(y: 2)
-                    }
-                }
-            }
-            .frame(width: islandWidth, height: islandHeight)
-    }
-
-    private func header(title: String, symbol: String, page: IslandPage) -> some View {
-        let displaySymbol = settings.titleSymbol(for: page, fallback: symbol)
-        return Label(title, systemImage: displaySymbol)
-            .font(.system(size: settings.titleSize(for: page), weight: .bold))
-            .foregroundColor(Color(settings.titleColor(for: page)))
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .minimumScaleFactor(0.8)
-            .allowsTightening(true)
-<<<<<<< HEAD
-    }
-}
-
-extension NSView {
-    func findScrollView() -> NSScrollView? {
-        if let scrollView = self as? NSScrollView {
-            return scrollView
-        }
-        for subview in subviews {
-            if let found = subview.findScrollView() {
-                return found
-            }
-        }
-        return nil
-    }
-}
-
-
-struct SafeCachedSingleVisual: View {
-    let preview: NSImage?
-    let targetSize: CGFloat
-    let symbol: String
-
-    var body: some View {
-        Group {
-            if let image = preview {
-                let fitted = fittedBoxPreviewSize(for: image, maxDimension: targetSize)
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: fitted.width, height: fitted.height)
-                    .frame(maxWidth: .infinity, alignment: .center)
-            } else {
-                Image(systemName: symbol)
-                    .font(.system(size: 30, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.82))
-                    .frame(maxWidth: .infinity, minHeight: 46, alignment: .center)
-            }
-        }
-    }
-
-    private func fittedBoxPreviewSize(for image: NSImage, maxDimension: CGFloat) -> CGSize {
-        let maxDim = max(1, maxDimension)
-        let rawWidth = max(1, image.size.width)
-        let rawHeight = max(1, image.size.height)
-        let scale = maxDim / max(rawWidth, rawHeight)
-        return CGSize(width: rawWidth * scale, height: rawHeight * scale)
-    }
-}
-
-struct SafeCachedMultiVisualCell: View {
-    let preview: NSImage?
-    let size: CGFloat
-    let symbol: String
-
-    var body: some View {
-        Group {
-            if let image = preview {
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: size, height: size)
-                    .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.white.opacity(0.12))
-                        .frame(width: size, height: size)
-                    Image(systemName: symbol)
-                        .font(.system(size: size * 0.40, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.8))
-                }
-            }
-        }
-    }
 }
 
 struct SafeCachedBoxItemView: View {
@@ -8839,7 +7655,5 @@ struct SafeCachedBoxItemView: View {
             return isDir.boolValue
         }
         return false
-=======
->>>>>>> e29fb9a4c89c1a29394849db5f7840e1d8a26561
     }
 }
