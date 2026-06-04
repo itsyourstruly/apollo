@@ -35,9 +35,11 @@ jobs:
             -scheme "apollo" \
             -configuration Release \
             -derivedDataPath "./build" \
+            -clonedSourcePackagesDirPath "./build/SourcePackages" \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=YES \
             CODE_SIGNING_ALLOWED=YES
+
       - name: Package Application into Stylized DMG
         run: |
           mkdir ./dmg_staging
@@ -46,13 +48,13 @@ jobs:
           mkdir ./dist
           
           create-dmg \
-            --volname "Apollo installer" \
+            --volname "Apollo Installer" \
             --window-pos 200 120 \
             --window-size 600 400 \
             --icon-size 100 \
-            --icon "YourApp.app" 150 185 \
+            --icon "Apollo.app" 150 185 \
             --app-drop-link 450 185 \
-            ./dist/YourApp-${{ github.ref_name }}.dmg \
+            ./dist/Apollo-${{ github.ref_name }}.dmg \
             ./dmg_staging/
             
           rm -rf ./dmg_staging
@@ -71,7 +73,7 @@ jobs:
       - name: Create Official GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ./dist/YourApp-${{ github.ref_name }}.dmg
+          files: ./dist/Apollo-${{ github.ref_name }}.dmg
           name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
