@@ -23,6 +23,12 @@ jobs:
       - name: Install Packaging Utilities
         run: brew install create-dmg
 
+      - name: Resolve Swift Package Dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -scheme "apollo" \
+            -derivedDataPath "./build"
+
       - name: Build Free Production App Bundle
         run: |
           xcodebuild build \
@@ -32,7 +38,6 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=YES \
             CODE_SIGNING_ALLOWED=YES
-
       - name: Package Application into Stylized DMG
         run: |
           mkdir ./dmg_staging
