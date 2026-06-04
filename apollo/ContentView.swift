@@ -15,6 +15,7 @@ enum IslandPage: Int, CaseIterable {
     case clipboard = 0
     case jot = 1
     case box = 2
+    case chrono = 3
 }
 
 enum TitleAlignmentOption: Int, CaseIterable {
@@ -417,6 +418,14 @@ final class NotchMenuModel: ObservableObject {
     @Published var carouselDragOffset: CGFloat = 0
     @Published var isToastDismissing = false
     @Published var chunkedClipboardRows: [[ClipboardEntry]] = []
+    
+    @Published var isStopwatchRunning = false
+    @Published var stopwatchStartTime: TimeInterval? = nil
+    @Published var stopwatchAccumulatedTime: TimeInterval = 0
+    @Published var isTimerRunning = false
+    @Published var timerDuration: TimeInterval = 0
+    @Published var timerEndTime: TimeInterval? = nil
+    @Published var timerRemainingAtPause: TimeInterval = 0
 }
 
 private enum AppStorageKey {
@@ -1181,7 +1190,7 @@ final class AppSettings: ObservableObject {
 
     @Published var defaultPage: Int {
         didSet {
-            let clampedValue = clamp(defaultPage, min: IslandPage.clipboard.rawValue, max: IslandPage.box.rawValue)
+            let clampedValue = clamp(defaultPage, min: IslandPage.clipboard.rawValue, max: IslandPage.chrono.rawValue)
             if clampedValue != defaultPage {
                 defaultPage = clampedValue
             }
@@ -1280,7 +1289,7 @@ final class AppSettings: ObservableObject {
 
 @Published var lastVisitedPage: Int {
         didSet {
-            let clampedValue = clamp(lastVisitedPage, min: IslandPage.clipboard.rawValue, max: IslandPage.box.rawValue)
+            let clampedValue = clamp(lastVisitedPage, min: IslandPage.clipboard.rawValue, max: IslandPage.chrono.rawValue)
             if clampedValue != lastVisitedPage {
                 lastVisitedPage = clampedValue
             }
@@ -1579,6 +1588,8 @@ func titleAlignment(for page: IslandPage) -> TitleAlignmentOption {
             return TitleAlignmentOption(rawValue: jotTitleAlignment ?? titleAlignment) ?? titleAlignmentOption
         case .box:
             return TitleAlignmentOption(rawValue: boxTitleAlignment ?? titleAlignment) ?? titleAlignmentOption
+        case .chrono:
+            return titleAlignmentOption
         }
     }
 
@@ -1590,6 +1601,8 @@ func titleAlignment(for page: IslandPage) -> TitleAlignmentOption {
             return clamp(jotTitleSize ?? titleSize, min: titleSizeRange.lowerBound, max: titleSizeRange.upperBound)
         case .box:
             return clamp(boxTitleSize ?? titleSize, min: titleSizeRange.lowerBound, max: titleSizeRange.upperBound)
+        case .chrono:
+            return clamp(titleSize, min: titleSizeRange.lowerBound, max: titleSizeRange.upperBound)
         }
     }
 
@@ -1629,6 +1642,8 @@ func titleAlignment(for page: IslandPage) -> TitleAlignmentOption {
                 return titleColor
             }
             return mainColor
+        case .chrono:
+            return mainColor
         }
     }
 
@@ -1647,6 +1662,8 @@ func titleAlignment(for page: IslandPage) -> TitleAlignmentOption {
             if let override = boxTitleIconName, !override.isEmpty {
                 return override
             }
+        case .chrono:
+            break
         }
         return mainSymbol
     }
@@ -1724,7 +1741,7 @@ func titleAlignment(for page: IslandPage) -> TitleAlignmentOption {
         if defaults.object(forKey: AppStorageKey.defaultPage) == nil {
             defaultPage = IslandPage.clipboard.rawValue
         } else {
-            defaultPage = clamp(defaults.integer(forKey: AppStorageKey.defaultPage), min: IslandPage.clipboard.rawValue, max: IslandPage.box.rawValue)
+            defaultPage = clamp(defaults.integer(forKey: AppStorageKey.defaultPage), min: IslandPage.clipboard.rawValue, max: IslandPage.chrono.rawValue)
         }
         if defaults.object(forKey: AppStorageKey.rememberClips) == nil {
             rememberClips = 40
@@ -1832,7 +1849,7 @@ func titleAlignment(for page: IslandPage) -> TitleAlignmentOption {
         if defaults.object(forKey: AppStorageKey.lastVisitedPage) == nil {
             lastVisitedPage = IslandPage.clipboard.rawValue
         } else {
-            lastVisitedPage = clamp(defaults.integer(forKey: AppStorageKey.lastVisitedPage), min: IslandPage.clipboard.rawValue, max: IslandPage.box.rawValue)
+            lastVisitedPage = clamp(defaults.integer(forKey: AppStorageKey.lastVisitedPage), min: IslandPage.clipboard.rawValue, max: IslandPage.chrono.rawValue)
         }
 
         if let storedSensitivity = defaults.object(forKey: AppStorageKey.proximitySensitivity) as? Double {
@@ -2614,7 +2631,7 @@ private func makeStatusMenu() -> NSMenu {
     private func updateNotchWindowFrame(widthOverride: CGFloat? = nil, heightOverride: CGFloat? = nil) {
         guard let screen = NSScreen.screens.first, let window = notchWindow else { return }
         let screenRect = screen.frame
-        let defaultWidth = max(panelWidth, notchWidth)
+        let defaultWidth = max(panelWidth, notchWidth + 240)
         let windowWidth = widthOverride ?? defaultWidth
         let windowHeight = heightOverride ?? window.frame.height
 
@@ -2668,7 +2685,7 @@ private func makeStatusMenu() -> NSMenu {
     private func setupNotchWindow() {
         guard let screen = NSScreen.screens.first else { return }
         let screenRect = screen.frame
-        let windowWidth = max(panelWidth, notchWidth)
+        let windowWidth = max(panelWidth, notchWidth + 240)
         let windowHeight = settings.effectiveNotchHeight
 
         let notchX = settings.hardwareNotchX
@@ -2765,7 +2782,7 @@ private func makeStatusMenu() -> NSMenu {
     private func advancePage(direction: Int) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            let next = clamp(self.model.currentPage + direction, min: IslandPage.clipboard.rawValue, max: IslandPage.box.rawValue)
+            let next = clamp(self.model.currentPage + direction, min: IslandPage.clipboard.rawValue, max: IslandPage.chrono.rawValue)
             self.model.carouselDragOffset = 0
             withAnimation(self.settings.carouselAnimation) {
                 self.model.currentPage = next
@@ -3160,9 +3177,15 @@ private func makeStatusMenu() -> NSMenu {
             let checkWindow = notchWindow
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
                 guard let self, !self.model.isExpanded, self.model.expansionProgress == 0 else { return }
-                checkWindow?.alphaValue = 0.0
-                checkWindow?.ignoresMouseEvents = true
-                checkWindow?.orderOut(nil)
+                let hasActiveChrono = self.model.isStopwatchRunning || self.model.isTimerRunning
+                if !hasActiveChrono {
+                    checkWindow?.alphaValue = 0.0
+                    checkWindow?.ignoresMouseEvents = true
+                    checkWindow?.orderOut(nil)
+                } else {
+                    checkWindow?.alphaValue = 1.0
+                    checkWindow?.ignoresMouseEvents = true
+                }
             }
         }
     }
@@ -3559,9 +3582,15 @@ private func makeStatusMenu() -> NSMenu {
         let hideWorkItem = DispatchWorkItem { [weak self] in
             guard let self, !self.model.isPinned else { return }
             guard self.panelVisibilityEpoch == hideEpoch else { return }
-            window.alphaValue = 0.0
-            window.ignoresMouseEvents = true
-            window.orderOut(nil)
+            let hasActiveChrono = self.model.isStopwatchRunning || self.model.isTimerRunning
+            if !hasActiveChrono {
+                window.alphaValue = 0.0
+                window.ignoresMouseEvents = true
+                window.orderOut(nil)
+            } else {
+                window.alphaValue = 1.0
+                window.ignoresMouseEvents = true
+            }
             self.clearCursorPresenceState()
             self.model.expansionProgress = 0
             self.scheduleIdleCompactionIfNeeded()
@@ -3746,9 +3775,15 @@ private func makeStatusMenu() -> NSMenu {
         model.closeGestureProgress = 0
         updateNotchWindowFrame(heightOverride: panelHeight)
         if let window = notchWindow {
-            window.alphaValue = 0.0
-            window.ignoresMouseEvents = true
-            window.orderOut(nil)
+            let hasActiveChrono = model.isStopwatchRunning || model.isTimerRunning
+            if !hasActiveChrono {
+                window.alphaValue = 0.0
+                window.ignoresMouseEvents = true
+                window.orderOut(nil)
+            } else {
+                window.alphaValue = 1.0
+                window.ignoresMouseEvents = true
+            }
         }
         updateClipboardObservationMode(immediatePoll: true)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
@@ -3769,7 +3804,7 @@ private func makeStatusMenu() -> NSMenu {
         guard newHeight.isFinite, newHeight > 1 else { return }
 
         // Keep the window width fixed at the maximum possible panel width to avoid clipping content during animation.
-        let windowWidth = max(self.panelWidth, self.notchWidth)
+        let windowWidth = max(self.panelWidth, self.notchWidth + 240)
         let windowHeight = newHeight
 
         // Correct window positioning: Center the window's midpoint on the hardware notch's midpoint
@@ -4443,6 +4478,49 @@ final class IslandPanel: NSPanel {
     }
 }
 
+// MARK: - Box Share Feature
+struct BoxShareButton: View {
+    let files: [BoxFile]
+    let accentColor: NSColor
+    @State private var isTargeted = false
+
+    var body: some View {
+        Button {
+            share(urls: files.map(\.url))
+        } label: {
+            Image(systemName: "square.and.arrow.up")
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(.white, Color(accentColor).gradient)
+                .font(.system(size: 16, weight: .semibold))
+        }
+        .buttonStyle(.plain)
+        .padding(4)
+        .background(isTargeted ? Color.white.opacity(0.2) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+        .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
+            handleShareDrop(providers: providers)
+            return true
+        }
+    }
+
+    private func share(urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        let picker = NSSharingServicePicker(items: urls)
+        if let window = NSApp.keyWindow, let view = window.contentView {
+            let rect = NSRect(x: view.bounds.width - 50, y: view.bounds.height - 20, width: 1, height: 1)
+            picker.show(relativeTo: rect, of: view, preferredEdge: .minY)
+        }
+    }
+
+    private func handleShareDrop(providers: [NSItemProvider]) {
+        var droppedURLs: [URL] = []
+        for provider in providers where provider.canLoadObject(ofClass: URL.self) {
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                if let fileUrl = url { DispatchQueue.main.async { droppedURLs.append(fileUrl); share(urls: droppedURLs) } }
+            }
+        }
+    }
+}
+
 // MARK: - Master Container Structural Layout
 struct UnifiedNotchContainer: View {
     @ObservedObject var model: NotchMenuModel
@@ -4463,6 +4541,7 @@ struct UnifiedNotchContainer: View {
     @State var pendingSharedPreviewTrimWorkItem: DispatchWorkItem?
     @State var clipboardFilePreviews: [String: NSImage] = [:]
     @State var clipboardFilePreviewLoadingPaths = Set<String>()
+    @State var showBoxShareIcon = false
     let maxBoxPreviewCount = 64
     let retainedInvisibleBoxPreviewCount = 12
     let adjacentPageRenderActivationOffset: CGFloat = 14
@@ -4534,6 +4613,10 @@ struct UnifiedNotchContainer: View {
             let xOffset = notchRight + 10
 
             HStack(spacing: 10) {
+                if showControls && showBoxShareIcon {
+                    BoxShareButton(files: model.boxFiles, accentColor: settings.accentColor)
+                        .transition(.scale.combined(with: .opacity))
+                }
                 Button {
                     withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
                         if selectedBoxFileIDs.count == model.boxFiles.count {
@@ -4570,6 +4653,17 @@ struct UnifiedNotchContainer: View {
             .offset(x: xOffset, y: 6)
             .opacity(showControls ? 1.0 : 0.0)
             .zIndex(5)
+            .onChange(of: showControls) { _, show in
+                if show {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                            showBoxShareIcon = true
+                        }
+                    }
+                } else {
+                    showBoxShareIcon = false
+                }
+            }
         }
     }
 
@@ -4582,12 +4676,23 @@ struct UnifiedNotchContainer: View {
         let rawProgress = model.expansionProgress
         let progress = rawProgress.isFinite ? max(0, min(1, rawProgress)) : 0
         let easedProgress = progress * progress * (3 - 2 * progress)
-        let rawShellWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress)
+        
+        let showStopwatch = model.isStopwatchRunning
+        let showTimer = model.isTimerRunning
+        let targetLeftExt: CGFloat = showTimer ? 100 : 0
+        let targetRightExt: CGFloat = showStopwatch ? 100 : 0
+        let activeLeftExt = targetLeftExt * (1 - easedProgress)
+        let activeRightExt = targetRightExt * (1 - easedProgress)
+
+        let baseRawShellWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress)
+        let rawShellWidth = max(baseRawShellWidth, notchWidth + activeLeftExt + activeRightExt)
         let rawShellHeight = notchHeight + ((panelHeight - notchHeight) * easedProgress)
         let shellWidth = safeDimension(rawShellWidth, fallback: panelWidth)
         let shellHeight = safeDimension(rawShellHeight, fallback: panelHeight)
-        let islandWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress * 0.4)
+        let baseIslandWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress * 0.4)
+        let islandWidth = baseIslandWidth + activeLeftExt + activeRightExt
         let targetIslandWidth = notchWidth + ((panelWidth - notchWidth) * 0.4)
+        let islandOffset = (activeRightExt - activeLeftExt) / 2
         let islandHeight = notchHeight
         let pagerRowHeight: CGFloat = settings.showPagers ? 14 : 0
         let pagerBottomInset: CGFloat = settings.showPagers ? 8 : 0
@@ -4598,7 +4703,7 @@ struct UnifiedNotchContainer: View {
         let showToastOnly = (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded && !model.isPinned
         let containerHeight = safeDimension(showToastOnly ? max(panelHeight, toastPanelHeight) : panelHeight, fallback: panelHeight)
         let toastWidth = toastPanelWidth
-        let containerWidth = max(panelWidth, notchWidth)
+        let containerWidth = max(panelWidth, notchWidth + 240)
         let closeProgress = max(0, min(1, model.closeGestureProgress))
         let closeEase = closeProgress * closeProgress * (3 - 2 * closeProgress)
         let closeOffset = -44 * closeEase
@@ -4657,6 +4762,10 @@ struct UnifiedNotchContainer: View {
                                 globalControlsOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
                                     .opacity(contentProgress)
                             }
+
+                            if !model.isExpanded && !model.isPinned {
+                                closedIslandChronoWidgets(islandWidth: islandWidth, islandHeight: islandHeight, leftExt: activeLeftExt, rightExt: activeRightExt)
+                            }
                         }
 
                         .compositingGroup()
@@ -4665,13 +4774,14 @@ struct UnifiedNotchContainer: View {
 
                         if shouldRenderExpandedContent && contentProgress > 0.01 {
                             HStack(spacing: 0) {
-                                ForEach(0..<3) { index in
+                                ForEach(0..<4) { index in
                                     Group {
                                         if shouldRenderCarouselPage(index) {
                                             switch index {
                                             case 0: clipboardPage
                                             case 1: sidebarPage
                                             case 2: boxPage
+                                            case 3: chronoPage
                                             default: EmptyView()
                                             }
                                         } else {
@@ -4693,7 +4803,7 @@ struct UnifiedNotchContainer: View {
 
                         if settings.showPagers {
                             HStack(spacing: 8) {
-                                ForEach(0..<3) { index in
+                                ForEach(0..<4) { index in
                                     Button {
                                         setPageFromCarousel(index)
                                     } label: {
@@ -4728,6 +4838,7 @@ struct UnifiedNotchContainer: View {
                         Color.clear.preference(key: ShellHeightKey.self, value: proxy.size.height)
                     })
                 } // End if !showToastOnly
+                .offset(x: islandOffset)
             } // End ZStack
         } // End ZStack
         .frame(width: containerWidth, height: containerHeight, alignment: .top)
@@ -4874,14 +4985,14 @@ struct UnifiedNotchContainer: View {
             .onEnded { value in
                 guard abs(value.translation.width) > abs(value.translation.height), abs(value.translation.width) > 40 else { return }
                 let nextPage = value.translation.width < 0
-                    ? min(IslandPage.box.rawValue, model.currentPage + 1)
+                    ? min(IslandPage.chrono.rawValue, model.currentPage + 1)
                     : max(IslandPage.clipboard.rawValue, model.currentPage - 1)
                 setPageFromCarousel(nextPage)
             }
     }
 
     private func setPageFromCarousel(_ page: Int) {
-        let nextPage = clamp(page, min: IslandPage.clipboard.rawValue, max: IslandPage.box.rawValue)
+        let nextPage = clamp(page, min: IslandPage.clipboard.rawValue, max: IslandPage.chrono.rawValue)
         model.carouselDragOffset = 0
         withAnimation(settings.carouselAnimation) {
             model.currentPage = nextPage
@@ -4899,7 +5010,7 @@ struct UnifiedNotchContainer: View {
         }
 
         if offset < 0 {
-            let next = min(IslandPage.box.rawValue, model.currentPage + 1)
+            let next = min(IslandPage.chrono.rawValue, model.currentPage + 1)
             return index == next
         }
 
@@ -5130,6 +5241,8 @@ struct UnifiedNotchContainer: View {
                             .buttonStyle(.plain)
                         case .box:
                             EmptyView()
+                        case .chrono:
+                            EmptyView()
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -5154,6 +5267,9 @@ struct UnifiedNotchContainer: View {
         case .box:
             title = "Box"
             symbol = "shippingbox.fill"
+        case .chrono:
+            title = "Chrono"
+            symbol = "timer"
         }
 
         return Color.clear
@@ -5305,6 +5421,7 @@ struct SettingsView: View {
                             case .clipboard: return "Clip"
                             case .jot: return "Jot"
                             case .box: return "Box"
+                            case .chrono: return "Chrono"
                             }
                         }()
                         Text(label)
@@ -5776,6 +5893,7 @@ struct SettingsView: View {
         case .clipboard: return "Clipboard"
         case .jot: return "Jot"
         case .box: return "Box"
+        case .chrono: return "Chrono"
         }
     }
 
@@ -5790,6 +5908,8 @@ struct SettingsView: View {
                     settings.jotTitleAlignment = newValue
                 case .box:
                     settings.boxTitleAlignment = newValue
+                case .chrono:
+                    break
                 }
             }
         )
@@ -5806,6 +5926,8 @@ struct SettingsView: View {
                     settings.jotTitleSize = newValue
                 case .box:
                     settings.boxTitleSize = newValue
+                case .chrono:
+                    break
                 }
             }
         )
@@ -5822,6 +5944,8 @@ struct SettingsView: View {
                     settings.jotTitleColor = NSColor(newValue)
                 case .box:
                     settings.boxTitleColor = NSColor(newValue)
+                case .chrono:
+                    break
                 }
             }
         )
@@ -5837,6 +5961,8 @@ struct SettingsView: View {
                     return settings.jotTitleUseAccent ?? false
                 case .box:
                     return settings.boxTitleUseAccent ?? false
+                case .chrono:
+                    return false
                 }
             },
             set: { newValue in
@@ -5847,6 +5973,8 @@ struct SettingsView: View {
                     settings.jotTitleUseAccent = newValue
                 case .box:
                     settings.boxTitleUseAccent = newValue
+                case .chrono:
+                    break
                 }
             }
         )
@@ -5862,6 +5990,8 @@ struct SettingsView: View {
                     return settings.jotTitleIconName ?? ""
                 case .box:
                     return settings.boxTitleIconName ?? ""
+                case .chrono:
+                    return ""
                 }
             },
             set: { newValue in
@@ -5874,6 +6004,8 @@ struct SettingsView: View {
                     settings.jotTitleIconName = value
                 case .box:
                     settings.boxTitleIconName = value
+                case .chrono:
+                    break
                 }
             }
         )
@@ -5899,6 +6031,8 @@ struct SettingsView: View {
             settings.boxTitleIconName = nil
             settings.boxTitleUseAccent = nil
             settings.boxTitleColor = nil
+        case .chrono:
+            break
         }
     }
 
@@ -5966,1694 +6100,277 @@ private struct SettingsWindowChromeConfigurator: NSViewRepresentable {
     }
 }
 
-
-// MARK: - Reintegrated Clip
-
-extension UnifiedNotchContainer {
-    // MARK: - Clipboard Page
-    var clipboardPage: some View {
-        clipboardPageWithWidth(scaledPanelWidth(for: settings), height: scaledPanelHeight(for: settings) - settings.effectiveNotchHeight)
-    }
-
-    private func clipboardPageWithWidth(_ width: CGFloat, height: CGFloat) -> some View {
-        ClipboardPageContent(
-            chunkedRows: model.chunkedClipboardRows,
-            width: width,
-            height: max(1, height - pageTopContentInset),
-            columnCount: settings.clipboardColumns,
-            plainTextSize: settings.clipTextSize,
-            fileLabelSize: settings.clipFileLabelSize,
-            accentColor: Color(nsColor: settings.accentColor),
-            highlightedID: highlightedClipboardID,
-            feedbackProgress: clipboardTapFeedbackProgress,
-            onTap: copyClipboard
-        )
-        .equatable()
-        .padding(.top, pageTopContentInset)
-    }
-
-    private struct ClipboardPageContent: View, Equatable {
-        let chunkedRows: [[ClipboardEntry]]
-        let width: CGFloat
-        let height: CGFloat
-        let columnCount: Int
-        let plainTextSize: CGFloat
-        let fileLabelSize: CGFloat
-        let accentColor: Color
-        let highlightedID: UUID?
-        let feedbackProgress: CGFloat
-        let onTap: (ClipboardEntry) -> Void
-
-        static func == (lhs: ClipboardPageContent, rhs: ClipboardPageContent) -> Bool {
-            abs(lhs.width - rhs.width) < 0.001 &&
-            abs(lhs.height - rhs.height) < 0.001 &&
-            lhs.columnCount == rhs.columnCount &&
-            abs(lhs.plainTextSize - rhs.plainTextSize) < 0.001 &&
-            abs(lhs.fileLabelSize - rhs.fileLabelSize) < 0.001 &&
-            lhs.accentColor == rhs.accentColor &&
-            lhs.highlightedID == rhs.highlightedID &&
-            abs(lhs.feedbackProgress - rhs.feedbackProgress) < 0.01 &&
-            lhs.chunkedRows == rhs.chunkedRows
-        }
-
-        var body: some View {
-            VStack(spacing: 0) {
-                if chunkedRows.isEmpty {
-                    Image(systemName: "doc.on.clipboard")
-                        .font(.system(size: 34, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.48))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                } else {
-                    let horizontalPadding: CGFloat = 8
-                    let spacing: CGFloat = 4
-                    let totalSpacing = spacing * CGFloat(columnCount - 1)
-                    let wd = max(1, width)
-                    let tileSize = max(1, (wd - horizontalPadding * 2 - totalSpacing) / CGFloat(columnCount))
-                    
-                    ScrollView(.vertical, showsIndicators: true) {
-                        LazyVStack(spacing: spacing) {
-                            ForEach(chunkedRows, id: \.first?.id) { row in
-                                ClipboardRowView(
-                                    items: row,
-                                    columnCount: columnCount,
-                                    tileSize: tileSize,
-                                    spacing: spacing,
-                                    plainTextSize: plainTextSize,
-                                    fileLabelSize: fileLabelSize,
-                                    accentColor: accentColor,
-                                    highlightedID: highlightedID,
-                                    feedbackProgress: feedbackProgress,
-                                    onTap: onTap
-                                )
-                                .equatable()
-                            }
-                        }
-                        .padding(.top, 8)
-                        .padding(.bottom, 4)
-                    }
-                    .frame(width: wd, alignment: .center)
-                }
-            }
-            .frame(width: width, height: height, alignment: .top)
-        }
-    }
-
-    private struct ClipboardRowView: View, Equatable {
-        let items: [ClipboardEntry]
-        let columnCount: Int
-        let tileSize: CGFloat
-        let spacing: CGFloat
-        let plainTextSize: CGFloat
-        let fileLabelSize: CGFloat
-        let accentColor: Color
-        let highlightedID: UUID?
-        let feedbackProgress: CGFloat
-        let onTap: (ClipboardEntry) -> Void
-
-        static func == (lhs: ClipboardRowView, rhs: ClipboardRowView) -> Bool {
-            guard lhs.items.count == rhs.items.count,
-                  lhs.columnCount == rhs.columnCount,
-                  abs(lhs.tileSize - rhs.tileSize) < 0.001,
-                                    abs(lhs.plainTextSize - rhs.plainTextSize) < 0.001,
-                                    abs(lhs.fileLabelSize - rhs.fileLabelSize) < 0.001,
-                  lhs.items.first?.id == rhs.items.first?.id,
-                  lhs.items.last?.id == rhs.items.last?.id else {
-                return false
-            }
-
-            let lhsHasHighlight = lhs.items.contains { $0.id == lhs.highlightedID }
-            let rhsHasHighlight = rhs.items.contains { $0.id == rhs.highlightedID }
-
-            if lhsHasHighlight != rhsHasHighlight { return false }
-            if lhsHasHighlight {
-                return lhs.highlightedID == rhs.highlightedID &&
-                       abs(lhs.feedbackProgress - rhs.feedbackProgress) < 0.01
-            }
-            return true
-        }
-
-        var body: some View {
-            HStack(spacing: spacing) {
-                ForEach(items) { item in
-                    ClipboardTile(
-                        item: item,
-                        size: tileSize,
-                        plainTextSize: plainTextSize,
-                        fileLabelSize: fileLabelSize,
-                        accentColor: accentColor,
-                        isHighlighted: highlightedID == item.id,
-                        tapFeedbackProgress: highlightedID == item.id ? feedbackProgress : 0,
-                        onTap: onTap
-                    )
-                    .equatable()
-                }
-                
-                if items.count < columnCount {
-                    ForEach(0..<(columnCount - items.count), id: \.self) { _ in
-                        Color.clear
-                            .frame(width: tileSize, height: tileSize)
-                    }
-                }
-            }
-            .padding(.horizontal, 8)
-        }
-    }
-
-    /// Flat, allocation-light tile. Multi-item clipboard entries render a
-    /// single SF Symbol plus a count instead of per-file thumbnails, so a
-    /// grouped copy costs the same as a single item.
-    private struct ClipboardTile: View, Equatable {
-        let item: ClipboardEntry
-        let size: CGFloat
-        let plainTextSize: CGFloat
-        let fileLabelSize: CGFloat
-        let accentColor: Color
-        let isHighlighted: Bool
-        let tapFeedbackProgress: CGFloat
-        let onTap: (ClipboardEntry) -> Void
-
-        @State private var loadedPreview: NSImage? = nil
-        @State private var isLoadingPreview = false
-
-        static func == (lhs: ClipboardTile, rhs: ClipboardTile) -> Bool {
-            lhs.item.id == rhs.item.id &&
-            lhs.size == rhs.size &&
-            lhs.plainTextSize == rhs.plainTextSize &&
-            lhs.fileLabelSize == rhs.fileLabelSize &&
-            lhs.isHighlighted == rhs.isHighlighted &&
-            lhs.tapFeedbackProgress == rhs.tapFeedbackProgress
-        }
-
-        var body: some View {
-            let isText = item.isTextOnly
-            ZStack {
-                if isText {
-                    Text(item.cachedDisplayTitle ?? (item.normalizedText.isEmpty ? "Text" : item.normalizedText))
-                        .font(.system(size: max(8, plainTextSize)))
-                        .foregroundColor(.white)
-                        .lineLimit(3)
-                        .multilineTextAlignment(.center)
-                        .padding(6)
-                        .frame(width: size, height: size, alignment: .center)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(accentColor.opacity(0.8), lineWidth: 1)
-                        )
-                } else {
-                    VStack(spacing: 4) {
-                        Group {
-                            if let preview = loadedPreview, shouldShowSingleFilePreview {
-                                Image(nsImage: preview)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: size * 0.72, height: size * 0.72)
-                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                            } else {
-                                Image(systemName: item.cachedGlyph ?? glyph)
-                                    .font(.system(size: size * 0.50, weight: .semibold))
-                                    .foregroundColor(.white.opacity(0.85))
-                            }
-                        }
-
-                        Text(item.cachedDisplayTitle ?? item.fileSummaryText())
-                            .font(.system(size: max(8, fileLabelSize), weight: .medium))
-                            .foregroundColor(.white.opacity(0.7))
-                            .lineLimit(2)
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(width: size, height: size, alignment: .center)
-                }
-
-                if isHighlighted {
-                    UnifiedNotchContainer.ClipboardTapFeedbackGlyph(
-                        color: .green,
-                        progress: tapFeedbackProgress
-                    )
-                }
-            }
-            .frame(width: size, height: size)
-            .contentShape(Rectangle())
-            .onTapGesture { onTap(item) }
-            .onAppear {
-                loadPreviewIfNeeded()
-            }
-            .onChange(of: item.id) { _, _ in
-                loadedPreview = nil
-                isLoadingPreview = false
-                loadPreviewIfNeeded()
-            }
-            .onDisappear {
-                loadedPreview = nil
-                isLoadingPreview = false
-            }
-        }
-
-        private var glyph: String {
-            if let cached = item.cachedGlyph { return cached }
-            if item.filePaths.count > 1 { return "doc.on.doc" }
-            if item.hasFiles { return item.fileSymbol(at: 0) }
-            return "doc.text"
-        }
-
-        private var previewURL: URL? {
-            guard shouldShowSingleFilePreview,
-                  let firstPath = item.filePaths.first else {
-                return nil
-            }
-            return URL(fileURLWithPath: firstPath)
-        }
-
-        private var shouldShowSingleFilePreview: Bool {
-            guard item.filePaths.count == 1,
-                  let firstPath = item.filePaths.first else {
-                return false
-            }
-            return !item.isDirectory(firstPath)
-        }
-
-        private func loadPreviewIfNeeded() {
-            guard shouldShowSingleFilePreview,
-                  let url = previewURL else { return }
-            let targetSize = max(64, size * 0.9)
-
-            if let cached = BoxIconCache.shared.cachedPreview(for: url, targetSize: targetSize) {
-                loadedPreview = cached
-                isLoadingPreview = false
-                return
-            }
-
-            guard !isLoadingPreview else { return }
-            isLoadingPreview = true
-            BoxIconCache.shared.requestDisplayImage(for: url, targetSize: targetSize) { image in
-                isLoadingPreview = false
-                loadedPreview = image
-            }
-        }
-    }
-
-    private struct ClipboardTapFeedbackGlyph: View {
-        let color: Color
-        let progress: CGFloat
-
-        var body: some View {
-            let p = max(0, min(1, progress))
-            ZStack {
-                Circle()
-                    .trim(from: 0, to: p)
-                    .stroke(color.opacity(0.95), style: StrokeStyle(lineWidth: 1.8, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-
-                Image(systemName: "clipboard")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(color.opacity(0.98))
-                    .mask(alignment: .leading) {
-                        Rectangle()
-                            .frame(width: max(1, 18 * p))
-                    }
-                    .opacity(0.6 + 0.4 * p)
-            }
-            .frame(width: 30, height: 30)
-            .scaleEffect(0.85 + 0.15 * p)
-        }
-    }
-
-    @ViewBuilder
-    private func clipboardCellContent(_ item: ClipboardEntry) -> some View {
-        if item.hasFiles {
-            let urls = item.fileURLs
-            if urls.count == 1, let fileURL = urls.first {
-                clipboardSingleFileContent(fileURL)
-            } else {
-                clipboardMultiFileContent(item)
-            }
-        } else {
-            Text(item.normalizedText)
-                .font(.caption)
-                .foregroundColor(.white)
-                .lineLimit(3)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func clipboardSingleFileContent(_ fileURL: URL) -> some View {
-        let preview = clipboardFilePreviews[fileURL.path]
-        let fileName = fileURL.lastPathComponent
-
-        return VStack(alignment: .leading, spacing: 8) {
-            clipboardSingleVisual(for: fileURL, preview: preview)
-            .onAppear {
-                requestClipboardFilePreviewIfNeeded(for: fileURL)
-            }
-
-            Text(fileName)
-                .font(.caption)
-                .foregroundColor(.white)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity, alignment: .center)
-        }
-    }
-
-    private func clipboardMultiFileContent(_ item: ClipboardEntry) -> some View {
-        let summary = clipboardMultiItemSummary(for: item.fileURLs)
-        let previewURLs = Array(item.fileURLs.prefix(4))
-        let folderNamesLine = clipboardJoinedFolderNames(for: item.fileURLs)
-        let showFolderNames = !folderNamesLine.isEmpty
-        let compactFolderStyle = summary == "Multiple folders"
-        return VStack(alignment: .leading, spacing: compactFolderStyle ? 4 : 8) {
-            clipboardMultiVisualGrid(urls: previewURLs)
-                .onAppear {
-                    for url in previewURLs {
-                        requestClipboardFilePreviewIfNeeded(for: url)
-                    }
-                }
-
-            Text(summary)
-                .font(.caption)
-                .foregroundColor(.white)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity, alignment: .center)
-
-            if showFolderNames {
-                Text(folderNamesLine)
-                    .font(compactFolderStyle ? .system(size: 10, weight: .regular) : .caption2)
-                    .foregroundColor(.white.opacity(0.7))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, alignment: .center)
-            }
-        }
-    }
-
-    private func clipboardJoinedFolderNames(for urls: [URL]) -> String {
-        let names = urls.filter(isDirectoryURL(_:)).map { url in
-            let name = url.lastPathComponent.trimmingCharacters(in: .whitespacesAndNewlines)
-            return name.isEmpty ? url.path : name
-        }
-        return names.joined(separator: ", ")
-    }
-
-    @ViewBuilder
-    private func clipboardSingleVisual(for url: URL, preview: NSImage?) -> some View {
-        if let preview {
-            let fitted = fittedBoxPreviewSize(for: preview, maxDimension: 84)
-            Image(nsImage: preview)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: fitted.width, height: fitted.height)
-                .frame(maxWidth: .infinity, alignment: .center)
-        } else {
-            Image(systemName: clipboardFileSymbol(for: url))
-                .font(.system(size: 30, weight: .semibold))
-                .foregroundColor(.white.opacity(0.82))
-                .frame(maxWidth: .infinity, minHeight: 46, alignment: .center)
-        }
-    }
-
-    private func clipboardMultiVisualGrid(urls: [URL]) -> some View {
-        let columns = [
-            GridItem(.flexible(minimum: 0, maximum: .infinity), spacing: 4),
-            GridItem(.flexible(minimum: 0, maximum: .infinity), spacing: 4)
-        ]
-        return LazyVGrid(columns: columns, spacing: 4) {
-            ForEach(0..<4, id: \.self) { index in
-                if index < urls.count {
-                    clipboardMultiVisualCell(url: urls[index])
-                } else {
-                    Color.clear
-                        .frame(height: 34)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    @ViewBuilder
-    private func clipboardMultiVisualCell(url: URL) -> some View {
-        if let preview = clipboardFilePreviews[url.path] {
-            Image(nsImage: preview)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(maxWidth: .infinity, minHeight: 34, maxHeight: 34)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-        } else {
-            Image(systemName: clipboardFileSymbol(for: url))
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.white.opacity(0.8))
-                .frame(maxWidth: .infinity, minHeight: 34, maxHeight: 34)
-        }
-    }
-
-    private func clipboardMultiItemSummary(for urls: [URL]) -> String {
-        var folderCount = 0
-        var fileCount = 0
-        for url in urls {
-            if isDirectoryURL(url) {
-                folderCount += 1
-            } else {
-                fileCount += 1
-            }
-        }
-
-        if folderCount > 0 && fileCount > 0 {
-            return "Multiple folders and files"
-        }
-        if folderCount > 1 {
-            return "Multiple folders"
-        }
-        if fileCount > 1 {
-            return "Multiple files"
-        }
-        if folderCount == 1 {
-            return "Folder"
-        }
-        if fileCount == 1 {
-            return "File"
-        }
-        return "Multiple items"
-    }
-
-    private func clipboardTypeDescription(for url: URL) -> String {
-        let values = try? url.resourceValues(forKeys: [.localizedTypeDescriptionKey])
-        if let desc = values?.localizedTypeDescription, !desc.isEmpty {
-            return desc
-        }
-        let ext = url.pathExtension
-        return ext.isEmpty ? "File" : ext.uppercased()
-    }
-
-    private func clipboardFileSymbol(for url: URL) -> String {
-        if isDirectoryURL(url) {
-            return "folder"
-        }
-        switch url.pathExtension.lowercased() {
-        case "png", "jpg", "jpeg", "heic", "heif", "gif", "tif", "tiff", "bmp", "webp", "avif":
-            return "photo"
-        case "mp4", "mov", "m4v", "avi", "mkv", "wmv", "webm", "mpeg", "mpg", "3gp", "ts", "m2ts":
-            return "video"
-        case "pdf":
-            return "doc.richtext"
-        case "zip", "rar", "7z", "tar", "gz":
-            return "archivebox"
-        default:
-            return "doc"
-        }
-    }
-
-    private func isDirectoryURL(_ url: URL) -> Bool {
-        let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
-        return values?.isDirectory == true
-    }
-
-    private func requestClipboardFilePreviewIfNeeded(for url: URL) {
-        guard BoxIconCache.shared.shouldAttemptPreview(for: url) else { return }
-        guard clipboardFilePreviews[url.path] == nil else { return }
-        guard !clipboardFilePreviewLoadingPaths.contains(url.path) else { return }
-
-        clipboardFilePreviewLoadingPaths.insert(url.path)
-        DispatchQueue.global(qos: .utility).async {
-            let preview = BoxIconCache.shared.displayImage(for: url, targetSize: 180)
-            DispatchQueue.main.async {
-                clipboardFilePreviewLoadingPaths.remove(url.path)
-                clipboardFilePreviews[url.path] = preview
-            }
-        }
-    }
-
-    func pruneClipboardPreviewState(keeping items: [ClipboardEntry]) {
-        let keepPaths = Set(items.flatMap { $0.filePaths })
-        clipboardFilePreviews = clipboardFilePreviews.filter { keepPaths.contains($0.key) }
-        clipboardFilePreviewLoadingPaths = Set(clipboardFilePreviewLoadingPaths.filter { keepPaths.contains($0) })
-    }
-
-    private func copyClipboard(_ item: ClipboardEntry) {
-        NSPasteboard.general.clearContents()
-        if item.hasText {
-            NSPasteboard.general.setString(item.normalizedText, forType: .string)
-        }
-        if item.hasFiles {
-            _ = NSPasteboard.general.writeObjects(item.fileURLs as [NSURL])
-        }
-        if settings.clipboardActionOption == .paste, let delegate = NSApp.delegate as? AppDelegate {
-            delegate.postPasteCommand()
-        }
-        highlightedClipboardID = item.id
-        clipboardTapFeedbackProgress = 0
-
-        withAnimation(.easeOut(duration: 0.16)) {
-            clipboardTapFeedbackProgress = 1
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.20) {
-            guard highlightedClipboardID == item.id else { return }
-            withAnimation(.easeInOut(duration: 0.18)) {
-                clipboardTapFeedbackProgress = 0
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.19) {
-                if highlightedClipboardID == item.id {
-                    highlightedClipboardID = nil
-                }
-            }
-        }
-    }
-
-    func clearClipboardHistory() {
-        if let delegate = NSApp.delegate as? AppDelegate {
-            delegate.clearClipboardHistory()
-        } else {
-            NSPasteboard.general.clearContents()
-            model.clipboardItems.removeAll()
-            model.chunkedClipboardRows.removeAll()
-            persistClipboardHistory(model.clipboardItems)
-        }
-        highlightedClipboardID = nil
-        clipboardTapFeedbackProgress = 0
-    }
-
-}
-
-// MARK: - Reintegrated Jot
+// MARK: - Chrono Page
 
 extension UnifiedNotchContainer {
-    // MARK: - Jot Page
-    var sidebarPage: some View {
-        jotPage
-    }
-
-    @ViewBuilder
-    private func jotPageContent(width: CGFloat, height: CGFloat) -> some View {
-        if let activeID = model.activeJotID {
-            jotEditor(activeID: activeID, width: width, height: height)
-        } else if model.jotNotes.isEmpty {
-            emptyDismissableScrollView(
-                onMetricsChange: { _, _, _ in }
-            ) {
-                Color.clear
-                    .frame(maxWidth: .infinity, minHeight: max(120, height * 0.6))
-            }
-        } else {
-            let columnCount = max(1, min(settings.jotColumns, model.jotNotes.count))
-            let columns = Array(repeating: GridItem(.flexible(minimum: 0, maximum: .infinity), spacing: 8), count: columnCount)
-            let cellWidth = max(1, (width - CGFloat(max(0, columnCount - 1)) * 8) / CGFloat(columnCount))
-            DismissableScrollView(
-                closeSensitivity: settings.clampedCloseSensitivity,
-                onOverscrollProgress: { progress, animate in
-                    updateCloseProgress(progress, animate: animate)
-                },
-                onBottomOverscroll: { closeNotchFromSwipe() },
-                onMetricsChange: { _, _, _ in }
-            ) {
-                LazyVGrid(columns: columns, spacing: 8) {
-                    ForEach(model.jotNotes) { note in
-                        jotCard(note, cellWidth: cellWidth)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.vertical, 2)
-            }
+    var chronoPage: some View {
+        HStack(spacing: 0) {
+            stopwatchView
+                .frame(maxWidth: .infinity)
+            
+            Divider()
+                .background(Color.white.opacity(0.2))
+                .padding(.vertical, 12)
+            
+            timerView
+                .frame(maxWidth: .infinity)
         }
-    }
-
-    private var jotPage: some View {
-        jotPageWithWidth(scaledPanelWidth(for: settings), height: scaledPanelHeight(for: settings) - settings.effectiveNotchHeight)
-    }
-
-    private func jotPageWithWidth(_ width: CGFloat, height: CGFloat) -> some View {
-        VStack(spacing: 8) {
-            jotPageContent(width: width, height: height)
-            Spacer(minLength: 0)
-        }
+        .padding(.horizontal, 16)
         .padding(.top, pageTopContentInset)
-        .padding(.horizontal, 8)
-        .frame(width: max(1, width), height: max(1, height - pageTopContentInset), alignment: .top)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(width: scaledPanelWidth(for: settings), height: max(1, scaledPanelHeight(for: settings) - settings.effectiveNotchHeight - pageTopContentInset), alignment: .top)
     }
 
-    func createJot() {
-        let note = JotNote()
-        var notes = model.jotNotes
-        notes.insert(note, at: 0)
-        model.jotNotes = notes
-        model.activeJotID = note.id
-        isJotEditorFocused = true
-    }
-
-    func closeActiveJot() {
-        model.activeJotID = nil
-        isJotEditorFocused = false
-    }
-
-    private func jotBinding(for noteID: UUID) -> Binding<String> {
-        Binding(
-            get: {
-                model.jotNotes.first(where: { $0.id == noteID })?.text ?? ""
-            },
-            set: { newValue in
-                guard let index = model.jotNotes.firstIndex(where: { $0.id == noteID }) else { return }
-                var notes = model.jotNotes
-                notes[index].text = newValue
-                notes[index].updatedAt = Date()
-                model.jotNotes = notes
-            }
-        )
-    }
-
-    private func jotNotePreview(_ note: JotNote) -> String {
-        let trimmed = note.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "Tap to start writing" }
-        return trimmed
-    }
-
-    private func jotCard(_ note: JotNote, cellWidth: CGFloat) -> some View {
-        let accentColor = Color(settings.accentColor)
-        return JotNoteCardView(
-            note: note,
-            accentColor: accentColor,
-            previewText: jotNotePreview(note),
-            textSize: settings.jotTextSize,
-            isEmpty: note.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-            onOpen: {
-                model.activeJotID = note.id
-            },
-            onDelete: {
-                withAnimation {
-                    model.jotNotes.removeAll { $0.id == note.id }
-                    if model.activeJotID == note.id {
-                        model.activeJotID = nil
-                    }
-                }
-            }
-        )
-    }
-
-    private struct JotNoteCardView: View, Equatable {
-        let note: JotNote
-        let accentColor: Color
-        let previewText: String
-        let textSize: CGFloat
-        let isEmpty: Bool
-        let onOpen: () -> Void
-        let onDelete: () -> Void
-
-        static func == (lhs: JotNoteCardView, rhs: JotNoteCardView) -> Bool {
-            lhs.note.id == rhs.note.id &&
-            lhs.note.updatedAt == rhs.note.updatedAt &&
-            lhs.accentColor == rhs.accentColor &&
-            lhs.textSize == rhs.textSize &&
-            lhs.isEmpty == rhs.isEmpty
-        }
-
-        var body: some View {
-            ZStack(alignment: .topTrailing) {
-                Button(action: onOpen) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(previewText)
-                            .font(.system(size: max(11, textSize)))
-                            .fontWeight(isEmpty ? .regular : .semibold)
-                            .foregroundColor(.white)
-                            .lineLimit(3)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(10)
-                    .frame(maxWidth: .infinity, minHeight: 72, alignment: .topLeading)
-                    .contentShape(Rectangle())
-                    .background(Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(accentColor.opacity(0.18), lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
-
-                Button(action: onDelete) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.white.opacity(0.7))
-                        .background(Circle().fill(Color.black.opacity(0.5)))
-                        .font(.caption)
-                }
-                .buttonStyle(.plain)
-                .padding(6)
-            }
-        }
-    }
-
-    private func jotEditor(activeID: UUID, width: CGFloat, height: CGFloat) -> some View {
-        JotTextEditorView(
-            text: jotBinding(for: activeID),
-            isFocused: $isJotEditorFocused,
-            textSize: settings.jotTextSize,
-            closeSensitivity: settings.clampedCloseSensitivity,
-            onOverscrollProgress: { progress, animate in
-                updateCloseProgress(progress, animate: animate)
-            },
-            onBottomOverscroll: { closeNotchFromSwipe() },
-            onScrollMetricsChange: { _, _, _ in }
-        )
-        .padding(8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .frame(
-            width: safeDimension(width - 16, fallback: 1),
-            height: max(120, safeDimension(height - 16, fallback: 120)),
-            alignment: .top
-        )
-        .onAppear {
-            isJotEditorFocused = true
-        }
-    }
-
-    private struct JotTextEditorView: NSViewRepresentable {
-        @Binding var text: String
-        var isFocused: FocusState<Bool>.Binding
-        let textSize: CGFloat
-        let closeSensitivity: CGFloat
-        let onOverscrollProgressLegacy: (CGFloat, Bool) -> Void
-        let onBottomOverscroll: () -> Void
-        let onScrollMetricsChange: (CGFloat, CGFloat, CGFloat) -> Void
-
-        init(text: Binding<String>, isFocused: FocusState<Bool>.Binding, textSize: CGFloat, closeSensitivity: CGFloat, onOverscrollProgress: @escaping (CGFloat, Bool) -> Void, onBottomOverscroll: @escaping () -> Void, onScrollMetricsChange: @escaping (CGFloat, CGFloat, CGFloat) -> Void) {
-            self._text = text
-            self.isFocused = isFocused
-            self.textSize = textSize
-            self.closeSensitivity = closeSensitivity
-            self.onOverscrollProgressLegacy = onOverscrollProgress
-            self.onBottomOverscroll = onBottomOverscroll
-            self.onScrollMetricsChange = onScrollMetricsChange
-        }
-
-        func makeCoordinator() -> Coordinator {
-            Coordinator(text: $text, isFocused: isFocused, onScrollMetricsChange: onScrollMetricsChange)
-        }
-
-        func makeNSView(context: Context) -> NSScrollView {
-            let scrollView = OverscrollDismissScrollView()
-            scrollView.drawsBackground = false
-            scrollView.borderType = .noBorder
-            scrollView.hasVerticalScroller = true
-            scrollView.hasHorizontalScroller = false
-            scrollView.autohidesScrollers = true
-            scrollView.verticalScrollElasticity = .allowed
-            scrollView.horizontalScrollElasticity = .none
-            scrollView.onOverscrollProgress = onOverscrollProgressLegacy
-            scrollView.onBottomOverscroll = onBottomOverscroll
-            scrollView.closeSensitivity = closeSensitivity
-
-            let textView = NSTextView()
-            textView.delegate = context.coordinator
-            textView.string = text
-            textView.drawsBackground = false
-            textView.backgroundColor = .clear
-            textView.isRichText = false
-            textView.importsGraphics = false
-            textView.allowsUndo = true
-            textView.isEditable = true
-            textView.isSelectable = true
-            textView.isVerticallyResizable = true
-            textView.isHorizontallyResizable = false
-            textView.textContainerInset = NSSize(width: 0, height: 6)
-            textView.textColor = .white
-            textView.insertionPointColor = .white
-            textView.font = .systemFont(ofSize: max(11, textSize))
-
-            if let textContainer = textView.textContainer {
-                textContainer.widthTracksTextView = true
-                textContainer.containerSize = NSSize(width: scrollView.contentSize.width, height: .greatestFiniteMagnitude)
-            }
-
-            scrollView.documentView = textView
-            context.coordinator.attach(textView: textView, scrollView: scrollView)
-            DispatchQueue.main.async {
-                context.coordinator.updateMetrics()
-            }
-            return scrollView
-        }
-
-        func updateNSView(_ scrollView: NSScrollView, context: Context) {
-            guard let textView = scrollView.documentView as? NSTextView else { return }
-            if let overscrollView = scrollView as? OverscrollDismissScrollView {
-                overscrollView.onOverscrollProgress = onOverscrollProgressLegacy
-                overscrollView.onBottomOverscroll = onBottomOverscroll
-                overscrollView.closeSensitivity = closeSensitivity
-            }
-
-            let resolvedSize = max(11, textSize)
-            if textView.font?.pointSize != resolvedSize {
-                textView.font = .systemFont(ofSize: resolvedSize)
-            }
-
-            if textView.string != text {
-                let selection = textView.selectedRange()
-                textView.string = text
-                textView.selectedRange = selection
-            }
-
-            if let textContainer = textView.textContainer {
-                textContainer.containerSize = NSSize(width: scrollView.contentSize.width, height: .greatestFiniteMagnitude)
-            }
-
-            if isFocused.wrappedValue, scrollView.window?.firstResponder !== textView {
-                scrollView.window?.makeFirstResponder(textView)
-            }
-
-            DispatchQueue.main.async {
-                context.coordinator.updateMetrics()
-            }
-        }
-
-        final class Coordinator: NSObject, NSTextViewDelegate {
-            @Binding var text: String
-            var isFocused: FocusState<Bool>.Binding
-            var onScrollMetricsChange: (CGFloat, CGFloat, CGFloat) -> Void
-            weak var textView: NSTextView?
-            weak var scrollView: NSScrollView?
-
-            init(text: Binding<String>, isFocused: FocusState<Bool>.Binding, onScrollMetricsChange: @escaping (CGFloat, CGFloat, CGFloat) -> Void) {
-                _text = text
-                self.isFocused = isFocused
-                self.onScrollMetricsChange = onScrollMetricsChange
-            }
-
-            func attach(textView: NSTextView, scrollView: NSScrollView) {
-                self.textView = textView
-                self.scrollView = scrollView
-                scrollView.contentView.postsBoundsChangedNotifications = true
-                NotificationCenter.default.addObserver(self, selector: #selector(boundsDidChange(_:)), name: NSView.boundsDidChangeNotification, object: scrollView.contentView)
-                NotificationCenter.default.addObserver(self, selector: #selector(frameDidChange(_:)), name: NSView.frameDidChangeNotification, object: textView)
-                scrollView.documentView?.postsFrameChangedNotifications = true
-            }
-
-            deinit {
-                NotificationCenter.default.removeObserver(self)
-            }
-
-            func textDidChange(_ notification: Notification) {
-                text = textView?.string ?? text
-                updateMetrics()
-            }
-
-            @objc private func boundsDidChange(_ notification: Notification) {
-                updateMetrics()
-            }
-
-            @objc private func frameDidChange(_ notification: Notification) {
-                updateMetrics()
-            }
-
-            func updateMetrics() {
-                guard let textView, let scrollView else { return }
-                let visibleHeight = scrollView.contentView.bounds.height
-                let visibleOriginY = scrollView.contentView.bounds.origin.y
-                let layoutHeight: CGFloat
-                if let layoutManager = textView.layoutManager, let textContainer = textView.textContainer {
-                    layoutHeight = layoutManager.usedRect(for: textContainer).height + (textView.textContainerInset.height * 2)
-                } else {
-                    layoutHeight = textView.bounds.height
-                }
-                let contentHeight = max(visibleHeight, ceil(layoutHeight))
-                onScrollMetricsChange(visibleOriginY, contentHeight, visibleHeight)
-            }
-        }
-    }
-
-    final class OverscrollDismissScrollView: NSScrollView {
-        var onBottomOverscroll: (() -> Void)?
-        var onOverscrollProgress: ((CGFloat, Bool) -> Void)?
-        var onMetricsChange: ((CGFloat, CGFloat, CGFloat) -> Void)?
-        var closeSensitivity: CGFloat = 1.0
-        private var accumulatedOverscroll: CGFloat = 0
-        private var didTriggerClose = false
-        private var lastOverscrollProgress: CGFloat = 0
-        private let baseTriggerThreshold: CGFloat = 110
-        private let bottomTolerance: CGFloat = 20
-        private var observationTokens: [NSObjectProtocol] = []
-        private var lastReportedScrollOffset: CGFloat = .nan
-        private var lastReportedContentHeight: CGFloat = .nan
-        private var lastReportedViewportHeight: CGFloat = .nan
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            configureMetricsObservationIfNeeded()
-        }
-
-        override func viewDidMoveToSuperview() {
-            super.viewDidMoveToSuperview()
-            configureMetricsObservationIfNeeded()
-        }
-
-        deinit {
-            observationTokens.forEach(NotificationCenter.default.removeObserver)
-        }
-
-        private func configureMetricsObservationIfNeeded() {
-            guard observationTokens.isEmpty else { return }
-            contentView.postsBoundsChangedNotifications = true
-            documentView?.postsFrameChangedNotifications = true
-
-            let center = NotificationCenter.default
-            observationTokens.append(center.addObserver(forName: NSView.boundsDidChangeNotification, object: contentView, queue: .main) { [weak self] _ in
-                self?.reportMetricsIfPossible()
-            })
-            if let documentView {
-                observationTokens.append(center.addObserver(forName: NSView.frameDidChangeNotification, object: documentView, queue: .main) { [weak self] _ in
-                    self?.reportMetricsIfPossible()
-                })
-            }
-
-            reportMetricsIfPossible()
-        }
-
-        func reportMetricsIfPossible() {
-            let viewportHeight = contentView.bounds.height
-            let scrollOffset = contentView.bounds.origin.y
-            let contentHeight = documentView?.frame.height ?? viewportHeight
-            if !lastReportedScrollOffset.isNaN,
-               abs(lastReportedScrollOffset - scrollOffset) < 0.5,
-               abs(lastReportedContentHeight - contentHeight) < 0.5,
-               abs(lastReportedViewportHeight - viewportHeight) < 0.5 {
-                return
-            }
-            lastReportedScrollOffset = scrollOffset
-            lastReportedContentHeight = contentHeight
-            lastReportedViewportHeight = viewportHeight
-            self.onMetricsChange?(scrollOffset, contentHeight, viewportHeight)
-        }
-
-        override func scrollWheel(with event: NSEvent) {
-            guard let documentView else {
-                super.scrollWheel(with: event)
-                return
-            }
-
-            if didTriggerClose {
-                if event.phase == .ended || event.phase == .cancelled || event.momentumPhase == .ended {
-                    didTriggerClose = false
-                    accumulatedOverscroll = 0
-                    lastOverscrollProgress = 0
-                    self.onOverscrollProgress?(0, true)
-                }
-                return
-            }
-
-            let fingerDeltaY = event.isDirectionInvertedFromDevice ? -event.scrollingDeltaY : event.scrollingDeltaY
-            let viewportHeight = contentView.bounds.height
-            let contentHeight = documentView.bounds.height
-            let atBottom = contentHeight <= viewportHeight + bottomTolerance || contentView.bounds.maxY >= contentHeight - bottomTolerance
-            let triggerThreshold = baseTriggerThreshold / max(0.2, closeSensitivity)
-
-            if fingerDeltaY > 0 && atBottom {
-                accumulatedOverscroll += fingerDeltaY
-                let progress = min(1, accumulatedOverscroll / max(1, triggerThreshold))
-                lastOverscrollProgress = progress
-                self.onOverscrollProgress?(progress, false)
-                if progress >= 1 {
-                    accumulatedOverscroll = 0
-                    didTriggerClose = true
-                    lastOverscrollProgress = 1
-                    self.onOverscrollProgress?(1, true)
-                    self.onBottomOverscroll?()
-                    return
-                }
-            } else {
-                if accumulatedOverscroll > 0 {
-                    accumulatedOverscroll = 0
-                    lastOverscrollProgress = 0
-                    self.onOverscrollProgress?(0, true)
-                } else if lastOverscrollProgress > 0 {
-                    lastOverscrollProgress = 0
-                    self.onOverscrollProgress?(0, true)
-                }
-            }
-
-            if event.phase == .ended || event.phase == .cancelled || event.momentumPhase == .began || event.momentumPhase == .ended {
-                if accumulatedOverscroll > 0 {
-                    accumulatedOverscroll = 0
-                    lastOverscrollProgress = 0
-                    self.onOverscrollProgress?(0, true)
-                } else if lastOverscrollProgress > 0 {
-                    lastOverscrollProgress = 0
-                    self.onOverscrollProgress?(0, true)
-                }
-            }
-
-            super.scrollWheel(with: event)
-            reportMetricsIfPossible()
-        }
-    }
-
-    struct DismissableScrollView<Content: View> : NSViewRepresentable {
-        let closeSensitivity: CGFloat
-        let onOverscrollProgress: (CGFloat, Bool) -> Void
-        let onBottomOverscroll: () -> Void
-        let onMetricsChange: (CGFloat, CGFloat, CGFloat) -> Void
-        let content: Content
-
-        init(
-            closeSensitivity: CGFloat,
-            onOverscrollProgress: @escaping (CGFloat, Bool) -> Void,
-            onBottomOverscroll: @escaping () -> Void,
-            onMetricsChange: @escaping (CGFloat, CGFloat, CGFloat) -> Void,
-            @ViewBuilder content: () -> Content
-        ) {
-            self.closeSensitivity = closeSensitivity
-            self.onOverscrollProgress = onOverscrollProgress
-            self.onBottomOverscroll = onBottomOverscroll
-            self.onMetricsChange = onMetricsChange
-            self.content = content()
-        }
-
-        func makeNSView(context: Context) -> OverscrollDismissScrollView {
-            let scrollView = OverscrollDismissScrollView()
-            scrollView.drawsBackground = false
-            scrollView.borderType = .noBorder
-            scrollView.hasVerticalScroller = true
-            scrollView.hasHorizontalScroller = false
-            scrollView.autohidesScrollers = true
-            scrollView.verticalScrollElasticity = .allowed
-            scrollView.horizontalScrollElasticity = .none
-            scrollView.usesPredominantAxisScrolling = true
-            scrollView.onBottomOverscroll = onBottomOverscroll
-            scrollView.onOverscrollProgress = onOverscrollProgress
-            scrollView.onMetricsChange = onMetricsChange
-            scrollView.closeSensitivity = closeSensitivity
-
-            let hostingView = NSHostingView(rootView: content)
-            hostingView.translatesAutoresizingMaskIntoConstraints = true
-            hostingView.autoresizingMask = [.width]
-            scrollView.documentView = hostingView
-            scheduleHostingViewFrameUpdate(hostingView, in: scrollView)
-
-            return scrollView
-        }
-
-        func updateNSView(_ nsView: OverscrollDismissScrollView, context: Context) {
-            nsView.closeSensitivity = closeSensitivity
-            nsView.onBottomOverscroll = onBottomOverscroll
-            nsView.onOverscrollProgress = onOverscrollProgress
-            nsView.onMetricsChange = onMetricsChange
-            if let hostingView = nsView.documentView as? NSHostingView<Content> {
-                hostingView.rootView = content
-                scheduleHostingViewFrameUpdate(hostingView, in: nsView)
-            }
-        }
-
-        private func scheduleHostingViewFrameUpdate(_ hostingView: NSHostingView<Content>, in scrollView: NSScrollView) {
-            DispatchQueue.main.async {
-                let hostingWidth = safeDimension(scrollView.contentSize.width, fallback: 1)
-                let intrinsicHeight = hostingView.intrinsicContentSize.height
-                let hostingHeight = safeDimension(intrinsicHeight, fallback: max(1, scrollView.contentSize.height))
-                let currentSize = hostingView.frame.size
-                if abs(currentSize.width - hostingWidth) < 0.5,
-                   abs(currentSize.height - hostingHeight) < 0.5 {
-                    return
-                }
-                hostingView.frame = NSRect(x: 0, y: 0, width: hostingWidth, height: hostingHeight)
-            }
-        }
-    }
-
-}
-
-// MARK: - Reintegrated Box
-import UniformTypeIdentifiers
-
-extension UnifiedNotchContainer {
-    // MARK: - Box Page
-    var boxPage: some View {
-        boxPageWithWidth(scaledPanelWidth(for: settings), height: scaledPanelHeight(for: settings) - settings.effectiveNotchHeight)
-    }
-
-    private func boxPageWithWidth(_ width: CGFloat, height: CGFloat) -> some View {
-        let safeW = max(1, width)
-        let safeH = max(1, height)
-        return VStack(spacing: 10) {
-            Group {
-                if model.boxFiles.isEmpty {
-                    Image(systemName: "shippingbox.fill")
-                        .font(.system(size: min(safeW, safeH) * 0.22, weight: .semibold))
-                        .foregroundColor(.brown.opacity(0.55))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                } else {
-                    let columnCount = max(1, settings.boxColumns)
-                    let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: columnCount)
-                    let maxSize = max(1, min((safeW - 16) / CGFloat(columnCount), safeH * 0.38))
-                    ScrollView(.vertical, showsIndicators: true) {
-                        LazyVGrid(columns: columns, spacing: 2) {
-                            ForEach(model.boxFiles) { file in
-                                boxItemView(file: file, maxSize: maxSize)
-                            }
-                        }
-                        .frame(width: width, alignment: .center)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                }
-            }
-        }
-        .padding(.top, pageTopContentInset)
-        .frame(width: width, height: max(1, height - pageTopContentInset), alignment: .top)
-        .onDrop(of: [.fileURL], isTargeted: $isBoxDropTargeted, perform: handleBoxDrop)
-    }
-
-    private func boxItemView(file: BoxFile, maxSize: CGFloat) -> some View {
-        return SafeCachedBoxItemView(
-            file: file,
-            maxSize: maxSize,
-            isSelected: selectedBoxFileIDs.contains(file.id),
-            accentColor: settings.accentColor,
-            showBoxFileNames: settings.showBoxFileNames,
-            fileNameSize: settings.boxFileNameSize,
-            onRemove: {
-                DispatchQueue.main.async {
-                    withAnimation {
-                        model.boxFiles.removeAll { $0.id == file.id }
-                        selectedBoxFileIDs.remove(file.id)
-                    }
-                }
-            },
-            urlsForDrag: {
-                let selectedURLs = model.boxFiles.compactMap { selectedBoxFileIDs.contains($0.id) ? $0.url : nil }
-                return selectedURLs.isEmpty ? [file.url] : selectedURLs
-            },
-            selectForDrag: {
-                if !selectedBoxFileIDs.contains(file.id) {
-                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
-                        _ = selectedBoxFileIDs.insert(file.id)
-                    }
-                }
-            },
-            toggleSelection: {
-                withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
-                    if selectedBoxFileIDs.contains(file.id) {
-                        selectedBoxFileIDs.remove(file.id)
-                    } else {
-                        selectedBoxFileIDs.insert(file.id)
-                    }
-                }
-            }
-        )
-    }
-
-    func fittedBoxPreviewSize(for image: NSImage, maxDimension: CGFloat) -> CGSize {
-        let maxDim = max(1, maxDimension)
-        let rawWidth = max(1, image.size.width)
-        let rawHeight = max(1, image.size.height)
-        let scale = maxDim / max(rawWidth, rawHeight)
-        return CGSize(width: rawWidth * scale, height: rawHeight * scale)
-    }
-
-    func requestBoxPreviewIfNeeded(for url: URL, targetSize: CGFloat) {
-        guard model.isExpanded, model.currentPage == IslandPage.box.rawValue else { return }
-        guard visibleBoxPreviewURLs.contains(url) else { return }
-        guard BoxIconCache.shared.shouldAttemptPreview(for: url) else { return }
-        if boxPreviewImages[url] != nil {
-            touchBoxPreviewURL(url)
-            return
-        }
-        guard !boxPreviewLoadingURLs.contains(url) else { return }
-
-        let requestSize = quantizedPreviewTargetSize(targetSize)
-        boxPreviewLoadingURLs.insert(url)
-
-        BoxIconCache.shared.requestDisplayImage(for: url, targetSize: requestSize) { image in
-            boxPreviewLoadingURLs.remove(url)
-            guard model.isExpanded, model.currentPage == IslandPage.box.rawValue else { return }
-            guard model.boxFiles.contains(where: { $0.url == url }) else { return }
-            boxPreviewImages[url] = image
-            touchBoxPreviewURL(url)
-        }
-    }
-
-    private func quantizedPreviewTargetSize(_ targetSize: CGFloat) -> CGFloat {
-        let clamped = max(64, min(192, targetSize))
-        return ceil(clamped / 24) * 24
-    }
-
-    func pruneBoxPreviewState(keeping urls: [URL]) {
-        let keep = Set(urls)
-        visibleBoxPreviewURLs = visibleBoxPreviewURLs.intersection(keep)
-        boxPreviewImages = boxPreviewImages.filter { keep.contains($0.key) }
-        boxPreviewLoadingURLs = Set(boxPreviewLoadingURLs.filter { keep.contains($0) })
-        boxPreviewLRU = boxPreviewLRU.filter { keep.contains($0) }
-        scheduleSharedPreviewTrim()
-    }
-
-    struct BoxPreviewPlaceholder: View {
-        let isLoading: Bool
-        let symbol: String
-
-        var body: some View {
-            GeometryReader { proxy in
-                let side = min(proxy.size.width, proxy.size.height)
-                ZStack {
-                    Image(systemName: symbol)
-                        .font(.system(size: max(18, side * 0.56), weight: .semibold))
-                        .foregroundColor(.white.opacity(0.72))
-                    if isLoading {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(.white.opacity(0.7))
-                            .scaleEffect(0.75)
-                            .offset(y: side * 0.28)
-                    }
-                }
-                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        }
-    }
-
-    struct ObservedFileToastView: View {
-        let toast: ObservedFileToast
-        let progress: CGFloat
-        let onClose: () -> Void
-        let baseWidth: CGFloat
-        let baseHeight: CGFloat
-        let expandedHeight: CGFloat
-        let backgroundColor: Color
-        let cornerRadius: CGFloat
-        @State private var isSelected = false
-        @State private var contentHeight: CGFloat = 0
-
-        private struct ContentHeightKey: PreferenceKey {
-            static var defaultValue: CGFloat = 0
-            static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-                value = max(value, nextValue())
-            }
-        }
-
-        private var locationName: String {
-            let name = toast.folderURL.lastPathComponent
-            return name.isEmpty ? "location" : name
-        }
-
-        var body: some View {
-            let clampedProgress = progress.isFinite ? max(0, min(1, progress)) : 0
-            let easedProgress = clampedProgress * clampedProgress * (3 - 2 * clampedProgress)
-            let measuredHeight = contentHeight > 0 ? contentHeight : expandedHeight
-            let targetHeight = min(max(baseHeight, measuredHeight), expandedHeight)
-            let contentScale = measuredHeight > expandedHeight ? expandedHeight / measuredHeight : 1
-            let panelHeight = baseHeight + (targetHeight - baseHeight) * easedProgress
-            let icon = NSImage(contentsOf: toast.fileURL) ?? NSWorkspace.shared.icon(forFile: toast.fileURL.path)
-            ZStack(alignment: .bottomTrailing) {
-                VStack(spacing: 10) {
-                    VStack(spacing: 8) {
-                        Image(nsImage: icon)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 72, height: 72)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                        Text(toast.fileURL.lastPathComponent)
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .lineLimit(4)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(8)
-                    .overlay(
-                        ToastDragSurface(
-                            url: toast.fileURL,
-                            onClick: {
-                                withAnimation(.easeOut(duration: 0.18)) {
-                                    isSelected.toggle()
-                                }
-                            },
-                            onDoubleClick: {
-                                NSWorkspace.shared.open(toast.fileURL)
-                                onClose()
-                            }
-                        )
-                    )
-
-                    HStack {
-                        Text("in \(locationName)")
-                            .font(.caption2)
-                            .foregroundColor(.white.opacity(0.85))
-                            .onTapGesture {
-                                NSWorkspace.shared.activateFileViewerSelecting([toast.fileURL])
-                                onClose()
-                            }
-                        Spacer()
-                    }
-                }
-                .padding(12)
-                .scaleEffect(contentScale, anchor: .top)
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear
-                            .preference(key: ContentHeightKey.self, value: proxy.size.height)
-                    }
-                )
-
-                Button {
-                    onClose()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.white.opacity(0.7))
-                }
-                .buttonStyle(.plain)
-                .padding(6)
-            }
-            .frame(width: baseWidth, height: panelHeight, alignment: .top)
-            .background(backgroundColor)
-            .clipShape(BottomRoundedRectangle(cornerRadius: cornerRadius))
-            .shadow(color: Color.black.opacity(0.3), radius: 12, x: 0, y: 6)
-            .onPreferenceChange(ContentHeightKey.self) { value in
-                if value.isFinite && contentHeight != value {
-                    contentHeight = value
-                }
-            }
-        }
-    }
-
-    private struct ToastDragSurface: NSViewRepresentable {
-        let url: URL
-        let onClick: () -> Void
-        let onDoubleClick: () -> Void
-
-        func makeNSView(context: Context) -> DragSurfaceView {
-            let view = DragSurfaceView()
-            view.url = url
-            view.onClick = onClick
-            view.onDoubleClick = onDoubleClick
-            return view
-        }
-
-        func updateNSView(_ nsView: DragSurfaceView, context: Context) {
-            nsView.url = url
-            nsView.onClick = onClick
-            nsView.onDoubleClick = onDoubleClick
-        }
-
-        final class DragSurfaceView: NSView, NSDraggingSource {
-            var url: URL?
-            var onClick: (() -> Void)?
-            var onDoubleClick: (() -> Void)?
-            private var mouseDownPoint: NSPoint = .zero
-            private var didStartDrag = false
-
-            override func mouseDown(with event: NSEvent) {
-                mouseDownPoint = convert(event.locationInWindow, from: nil)
-                didStartDrag = false
-            }
-
-            override func mouseDragged(with event: NSEvent) {
-                guard !didStartDrag, let url else { return }
-                let currentPoint = convert(event.locationInWindow, from: nil)
-                let deltaX = currentPoint.x - mouseDownPoint.x
-                let deltaY = currentPoint.y - mouseDownPoint.y
-                if hypot(deltaX, deltaY) > 3 {
-                    beginDrag(url: url, event: event)
-                    didStartDrag = true
-                }
-            }
-
-            override func mouseUp(with event: NSEvent) {
-                guard !didStartDrag else { return }
-                if event.clickCount > 1 {
-                    onDoubleClick?()
-                } else {
-                    onClick?()
-                }
-            }
-
-            private func beginDrag(url: URL, event: NSEvent) {
-                let draggingItem = NSDraggingItem(pasteboardWriter: url as NSURL)
-                let icon = NSWorkspace.shared.icon(forFile: url.path)
-                icon.size = NSSize(width: 48, height: 48)
-                draggingItem.setDraggingFrame(NSRect(x: 0, y: 0, width: 48, height: 48), contents: icon)
-                beginDraggingSession(with: [draggingItem], event: event, source: self)
-            }
-
-            func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-                [.copy, .move]
-            }
-        }
-    }
-
-    struct HoverRemoveButton: View {
-        var action: () -> Void
-        var body: some View {
-            Button {
-                action()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
+    private var stopwatchView: some View {
+        VStack(spacing: 12) {
+            TimelineView(.animation(minimumInterval: 0.03)) { context in
+                Text(formatStopwatch(stopwatchElapsed(for: context.date), includeMs: true))
+                    .font(.system(size: 28, weight: .semibold, design: .monospaced))
                     .foregroundColor(.white)
-                    .background(Circle().fill(Color.black.opacity(0.5)))
-                    .font(.caption)
+            }
+            
+            HStack(spacing: 24) {
+                Button(action: toggleStopwatch) {
+                    Image(systemName: model.isStopwatchRunning ? "pause.fill" : "play.fill")
+                        .font(.title2)
+                        .foregroundColor(model.isStopwatchRunning ? .yellow : .green)
+                }
+                .buttonStyle(.plain)
+                
+                if !model.isStopwatchRunning && model.stopwatchAccumulatedTime > 0 {
+                    Button(action: resetStopwatch) {
+                        Image(systemName: "trash.fill")
+                            .font(.title2)
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private var timerView: some View {
+        VStack(spacing: 12) {
+            if model.isTimerRunning || (model.timerDuration > 0 && model.timerRemainingAtPause > 0 && !model.isTimerRunning) {
+                TimelineView(.periodic(from: .now, by: 1.0)) { context in
+                    Text(formatTimer(timerRemaining(for: context.date)))
+                        .font(.system(size: 28, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.white)
+                }
+            } else {
+                TimerInputView(duration: $model.timerDuration)
+            }
+            
+            HStack(spacing: 24) {
+                Button(action: toggleTimer) {
+                    Image(systemName: model.isTimerRunning ? "pause.fill" : "play.fill")
+                        .font(.title2)
+                        .foregroundColor(model.isTimerRunning ? .yellow : .green)
+                }
+                .buttonStyle(.plain)
+                .disabled(model.timerDuration == 0 && model.timerRemainingAtPause == 0)
+                
+                if !model.isTimerRunning && (model.timerRemainingAtPause > 0 || model.timerDuration > 0) {
+                    Button(action: resetTimer) {
+                        Image(systemName: "trash.fill")
+                            .font(.title2)
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    // MARK: - Chrono Live Activity Widgets
+
+    @ViewBuilder
+    func closedIslandChronoWidgets(islandWidth: CGFloat, islandHeight: CGFloat, leftExt: CGFloat, rightExt: CGFloat) -> some View {
+        let showStopwatch = model.isStopwatchRunning
+        let showTimer = model.isTimerRunning
+
+        if showStopwatch || showTimer {
+            Color.clear
+                .overlay(alignment: .topLeading) {
+                    GeometryReader { geo in
+                        let hardwareCenter = geo.size.width / 2 - ((rightExt - leftExt) / 2)
+                        let hardwareLeft = hardwareCenter - (settings.effectiveNotchWidth / 2)
+                        let hardwareRight = hardwareCenter + (settings.effectiveNotchWidth / 2)
+                        
+                        if showTimer {
+                            chronoTimerWidget
+                                .frame(width: leftExt, height: islandHeight)
+                                .offset(x: hardwareLeft - leftExt, y: 0)
+                        }
+                        
+                        if showStopwatch {
+                            chronoStopwatchWidget
+                                .frame(width: rightExt, height: islandHeight)
+                                .offset(x: hardwareRight, y: 0)
+                        }
+                    }
+                }
+                .frame(width: islandWidth, height: islandHeight)
+        }
+    }
+    
+    private var chronoStopwatchWidget: some View {
+        TimelineView(.periodic(from: .now, by: 1.0)) { context in
+            Text(formatCompactChrono(stopwatchElapsed(for: context.date)))
+                .font(.system(.subheadline, design: .monospaced).weight(.semibold))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+
+    private var chronoTimerWidget: some View {
+        TimelineView(.periodic(from: .now, by: 1.0)) { context in
+            Text(formatCompactChrono(timerRemaining(for: context.date)))
+                .font(.system(.subheadline, design: .monospaced).weight(.semibold))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+
+    // MARK: - Logic Helpers
+
+    private func stopwatchElapsed(for date: Date) -> TimeInterval {
+        let activeTime = model.isStopwatchRunning ? date.timeIntervalSinceReferenceDate - (model.stopwatchStartTime ?? date.timeIntervalSinceReferenceDate) : 0
+        return model.stopwatchAccumulatedTime + activeTime
+    }
+
+    private func timerRemaining(for date: Date) -> TimeInterval {
+        let remaining = model.isTimerRunning ? max(0, (model.timerEndTime ?? date.timeIntervalSinceReferenceDate) - date.timeIntervalSinceReferenceDate) : model.timerRemainingAtPause
+        return remaining
+    }
+
+    private func formatStopwatch(_ time: TimeInterval, includeMs: Bool) -> String {
+        let totalMs = Int(time * 100)
+        let ms = totalMs % 100
+        let s = (totalMs / 100) % 60
+        let m = (totalMs / 6000) % 60
+        let h = totalMs / 360000
+        
+        if h > 0 {
+            return includeMs ? String(format: "%d:%02d:%02d.%02d", h, m, s, ms) : String(format: "%d:%02d:%02d", h, m, s)
+        } else {
+            return includeMs ? String(format: "%02d:%02d.%02d", m, s, ms) : String(format: "%02d:%02d", m, s)
+        }
+    }
+
+    private func formatTimer(_ time: TimeInterval, truncate: Bool = false) -> String {
+        let totalS = Int(time)
+        let s = totalS % 60
+        let m = (totalS / 60) % 60
+        let h = totalS / 3600
+        
+        if truncate && h == 0 {
+            return String(format: "%02d:%02d", m, s)
+        }
+        return String(format: "%02d:%02d:%02d", h, m, s)
+    }
+
+    private func formatCompactChrono(_ time: TimeInterval) -> String {
+        let totalS = Int(time)
+        let s = totalS % 60
+        let m = (totalS / 60) % 60
+        let h = totalS / 3600
+        
+        if h > 0 {
+            return String(format: "%d:%02d:%02d", h, m, s)
+        } else if m > 0 {
+            return String(format: "%d:%02d", m, s)
+        } else {
+            return String(format: "%d", s)
+        }
+    }
+
+    private func toggleStopwatch() {
+        if model.isStopwatchRunning {
+            model.stopwatchAccumulatedTime = stopwatchElapsed(for: Date())
+            model.isStopwatchRunning = false
+        } else {
+            model.stopwatchStartTime = Date().timeIntervalSinceReferenceDate
+            model.isStopwatchRunning = true
+        }
+    }
+
+    private func resetStopwatch() {
+        model.stopwatchAccumulatedTime = 0
+        model.stopwatchStartTime = nil
+        model.isStopwatchRunning = false
+    }
+
+    private func toggleTimer() {
+        if model.isTimerRunning {
+            model.timerRemainingAtPause = timerRemaining(for: Date())
+            model.isTimerRunning = false
+        } else {
+            if model.timerRemainingAtPause == 0 && model.timerDuration > 0 {
+                model.timerRemainingAtPause = model.timerDuration
+            }
+            model.timerEndTime = Date().timeIntervalSinceReferenceDate + model.timerRemainingAtPause
+            model.isTimerRunning = true
+        }
+    }
+
+    private func resetTimer() {
+        model.timerRemainingAtPause = 0
+        model.timerEndTime = nil
+        model.isTimerRunning = false
+    }
+}
+
+struct TimerInputView: View {
+    @Binding var duration: TimeInterval
+    
+    var hours: Int { Int(duration) / 3600 }
+    var minutes: Int { (Int(duration) % 3600) / 60 }
+    var seconds: Int { Int(duration) % 60 }
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            TimerColumn(value: hours, maxLimit: 99, label: "H") { new in update(h: new, m: minutes, s: seconds) }
+            Text(":").font(.title).foregroundColor(.white.opacity(0.5)).padding(.bottom, 6)
+            TimerColumn(value: minutes, maxLimit: 59, label: "M") { new in update(h: hours, m: new, s: seconds) }
+            Text(":").font(.title).foregroundColor(.white.opacity(0.5)).padding(.bottom, 6)
+            TimerColumn(value: seconds, maxLimit: 59, label: "S") { new in update(h: hours, m: minutes, s: new) }
+        }
+    }
+    
+    func update(h: Int, m: Int, s: Int) {
+        duration = TimeInterval(h * 3600 + m * 60 + s)
+    }
+}
+
+struct TimerColumn: View {
+    let value: Int
+    let maxLimit: Int
+    let label: String
+    let onChange: (Int) -> Void
+    
+    var body: some View {
+        VStack(spacing: 2) {
+            Button(action: { onChange(min(maxLimit, value + 1)) }) {
+                Image(systemName: "chevron.up")
+                    .foregroundColor(.white.opacity(0.7))
             }
             .buttonStyle(.plain)
-            .padding(4)
-        }
-    }
-
-    struct BoxSelectableDragSurface: NSViewRepresentable {
-        let file: BoxFile
-        let isSelected: Bool
-        let urlsForDrag: () -> [URL]
-        let selectForDrag: () -> Void
-        let toggleSelection: () -> Void
-        let removeHotSpotSize: CGFloat
-
-        func makeNSView(context: Context) -> DragView {
-            let view = DragView()
-            view.urlsForDrag = urlsForDrag
-            view.selectForDrag = selectForDrag
-            view.toggleSelection = toggleSelection
-            view.removeHotSpotSize = removeHotSpotSize
-            view.isSelected = isSelected
-            return view
-        }
-
-        func updateNSView(_ nsView: DragView, context: Context) {
-            nsView.urlsForDrag = urlsForDrag
-            nsView.selectForDrag = selectForDrag
-            nsView.toggleSelection = toggleSelection
-            nsView.removeHotSpotSize = removeHotSpotSize
-            nsView.isSelected = isSelected
-        }
-
-        final class DragView: NSView, NSDraggingSource {
-            var urlsForDrag: (() -> [URL])?
-            var selectForDrag: (() -> Void)?
-            var toggleSelection: (() -> Void)?
-            var removeHotSpotSize: CGFloat = 22
-            var isSelected: Bool = false
-            private var mouseDownPoint: NSPoint = .zero
-            private var mouseDownActive = false
-            private var didStartDrag = false
-            private var didSelectOnMouseDown = false
-
-            override func hitTest(_ point: NSPoint) -> NSView? {
-                let removeRect = NSRect(x: 0, y: bounds.height - removeHotSpotSize, width: removeHotSpotSize, height: removeHotSpotSize)
-                if removeRect.contains(point) {
-                    return nil
-                }
-                return self
+            
+            TextField("", text: Binding(
+                get: { String(format: "%02d", value) },
+                set: { if let v = Int($0) { onChange(min(maxLimit, v)) } }
+            ))
+            .textFieldStyle(.plain)
+            .font(.system(size: 26, weight: .semibold, design: .monospaced))
+            .foregroundColor(.white)
+            .multilineTextAlignment(.center)
+            .frame(width: 44)
+            
+            Button(action: { onChange(Swift.max(0, value - 1)) }) {
+                Image(systemName: "chevron.down")
+                    .foregroundColor(.white.opacity(0.7))
             }
-
-            override func mouseDown(with event: NSEvent) {
-                mouseDownPoint = convert(event.locationInWindow, from: nil)
-                mouseDownActive = true
-                didStartDrag = false
-                if !isSelected {
-                    selectForDrag?()
-                    didSelectOnMouseDown = true
-                } else {
-                    didSelectOnMouseDown = false
-                }
-            }
-
-            override func mouseDragged(with event: NSEvent) {
-                guard mouseDownActive, !didStartDrag else { return }
-                let currentPoint = convert(event.locationInWindow, from: nil)
-                let deltaX = currentPoint.x - mouseDownPoint.x
-                let deltaY = currentPoint.y - mouseDownPoint.y
-                if hypot(deltaX, deltaY) > 3 {
-                    beginDrag(with: event)
-                    didStartDrag = true
-                }
-            }
-
-            override func mouseUp(with event: NSEvent) {
-                defer {
-                    mouseDownActive = false
-                    didStartDrag = false
-                }
-
-                guard mouseDownActive, !didStartDrag else { return }
-                if didSelectOnMouseDown { return }
-                toggleSelection?()
-            }
-
-            private func beginDrag(with event: NSEvent) {
-                guard let urls = urlsForDrag?(), !urls.isEmpty else { return }
-
-                let draggingItems: [NSDraggingItem] = urls.map { url in
-                    let draggingItem = NSDraggingItem(pasteboardWriter: url as NSURL)
-                    let icon = NSWorkspace.shared.icon(forFile: url.path)
-                    icon.size = NSSize(width: 32, height: 32)
-                    draggingItem.setDraggingFrame(NSRect(x: 0, y: 0, width: 32, height: 32), contents: icon)
-                    return draggingItem
-                }
-
-                beginDraggingSession(with: draggingItems, event: event, source: self)
-            }
-
-            func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-                [.copy, .move]
-            }
+            .buttonStyle(.plain)
         }
-    }
-
-}
-
-struct SafeCachedBoxItemView: View {
-    let file: BoxFile
-    let maxSize: CGFloat
-    let isSelected: Bool
-    let accentColor: NSColor
-    let showBoxFileNames: Bool
-    let fileNameSize: CGFloat
-    let onRemove: () -> Void
-    let urlsForDrag: () -> [URL]
-    let selectForDrag: () -> Void
-    let toggleSelection: () -> Void
-
-    @State private var loadedImage: NSImage? = nil
-    @State private var isLoading = false
-
-    var body: some View {
-        let size = max(1, maxSize)
-        let previewSize = loadedImage.map { fittedSize(for: $0, maxDimension: size) } ?? CGSize(width: size, height: size)
-
-        ZStack(alignment: .topLeading) {
-            VStack(spacing: 6) {
-                Group {
-                    if let image = loadedImage {
-                        Image(nsImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    } else {
-                        UnifiedNotchContainer.BoxPreviewPlaceholder(isLoading: isLoading, symbol: placeholderSymbol)
-                    }
-                }
-                .frame(width: previewSize.width, height: previewSize.height)
-
-                if showBoxFileNames {
-                    VStack(spacing: 4) {
-                        Text(file.url.lastPathComponent)
-                            .font(.system(size: max(9, fileNameSize)))
-                            .foregroundColor(.white)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.center)
-
-                        if isSelected {
-                            Capsule()
-                                .fill(Color(accentColor))
-                                .frame(width: max(12, previewSize.width * 0.7), height: 2)
-                        }
-                    }
-                    .frame(width: previewSize.width + 6)
-                }
-            }
-
-            UnifiedNotchContainer.HoverRemoveButton {
-                onRemove()
-            }
-
-            UnifiedNotchContainer.BoxSelectableDragSurface(
-                file: file,
-                isSelected: isSelected,
-                urlsForDrag: urlsForDrag,
-                selectForDrag: selectForDrag,
-                toggleSelection: toggleSelection,
-                removeHotSpotSize: 22
-            )
-        }
-        .onAppear {
-            loadImage()
-        }
-        .onDisappear {
-            loadedImage = nil
-            isLoading = false
-        }
-        .onChange(of: file.url) { _, _ in
-            loadImage()
-        }
-        .frame(
-            width: previewSize.width + 8,
-            height: showBoxFileNames ? previewSize.height + 36 : previewSize.height,
-            alignment: .center
-        )
-    }
-
-    private func loadImage() {
-        let targetSize = max(1, maxSize)
-        if let cached = BoxIconCache.shared.cachedPreview(for: file.url, targetSize: targetSize) {
-            self.loadedImage = cached
-            self.isLoading = false
-            return
-        }
-        guard BoxIconCache.shared.shouldAttemptPreview(for: file.url) else {
-            self.isLoading = false
-            return
-        }
-        self.isLoading = true
-        BoxIconCache.shared.requestDisplayImage(for: file.url, targetSize: targetSize) { image in
-            self.loadedImage = image
-            self.isLoading = false
-        }
-    }
-
-    private func fittedSize(for image: NSImage, maxDimension: CGFloat) -> CGSize {
-        let maxDim = max(1, maxDimension)
-        let rawWidth = max(1, image.size.width)
-        let rawHeight = max(1, image.size.height)
-        let scale = maxDim / max(rawWidth, rawHeight)
-        return CGSize(width: rawWidth * scale, height: rawHeight * scale)
-    }
-
-    private var placeholderSymbol: String {
-        if isDirectory(file.url) {
-            return "folder.fill"
-        }
-
-        let ext = file.url.pathExtension.lowercased()
-        switch ext {
-        case "png", "jpg", "jpeg", "gif", "heic", "tif", "tiff", "bmp", "webp", "svg":
-            return "photo.fill"
-        case "pdf":
-            return "doc.richtext.fill"
-        case "zip", "rar", "7z", "tar", "gz", "bz2", "xz":
-            return "archivebox.fill"
-        case "mp3", "wav", "m4a", "aac", "flac", "ogg":
-            return "waveform"
-        case "mp4", "mov", "mkv", "avi", "webm":
-            return "film.fill"
-        case "swift", "js", "ts", "tsx", "jsx", "py", "java", "c", "cpp", "h", "hpp", "go", "rs", "rb", "php", "json", "yaml", "yml", "xml", "html", "css", "scss", "md", "txt":
-            return "chevron.left.forwardslash.chevron.right"
-        default:
-            return "doc.fill"
-        }
-    }
-
-    private func isDirectory(_ url: URL) -> Bool {
-        if let values = try? url.resourceValues(forKeys: [.isDirectoryKey]), let isDir = values.isDirectory {
-            return isDir
-        }
-        var isDir: ObjCBool = false
-        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) {
-            return isDir.boolValue
-        }
-        return false
     }
 }
