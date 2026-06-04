@@ -1,0 +1,69 @@
+name: Deploy Free macOS Update
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers automatically whenever you push a version tag like v1.0.0
+
+jobs:
+  build_and_release:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Select Latest Xcode Version
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Install Packaging Utilities
+        run: brew install create-dmg
+
+      - name: Build Free Production App Bundle
+        run: |
+          xcodebuild build \
+            -scheme "apollo" \
+            -configuration Release \
+            -derivedDataPath "./build" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGNING_ALLOWED=YES
+
+      - name: Package Application into Stylized DMG
+        run: |
+          # 1. Create a temporary staging folder and copy the compiled .app
+          mkdir ./dmg_staging
+          cp -R ./build/Build/Products/Release/apollo.app ./dmg_staging/
+          
+          # 2. Create the output deployment directory
+          mkdir ./dist
+          
+          # 3. Build the actual visual .dmg installer inside the deployment folder
+          create-dmg \
+            --volname "Apollo Installer" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "YourApp.app" 150 185 \
+            --app-drop-link 450 185 \
+            ./dist/YourApp-${{ github.ref_name }}.dmg \
+            ./dmg_staging/
+            
+          # 4. Clean up the temporary staging directory
+          rm -rf ./dmg_staging
+
+      - name: Download and Run Sparkle Appcast Generator
+        env:
+          PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          # 1. Grab Sparkle tools to generate the version control tracking file
+          curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.6.4/Sparkle-2.6.4.tar.xz -o Sparkle-Tools.tar.xz
+          tar -xf Sparkle-Tools.tar.xz
+          
+          # 2. Feed the private key secret to Sparkle and update the appcast.xml file
+          export SUPrivateEDKey="$PRIVATE_KEY"
+          ./bin/generate_appcast ./dist/
+          
+      - name: Deploy Updated Files to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: dist # Pushes your appcast.xml and production .dmg file to your gh-pages hosting branch
