@@ -4349,11 +4349,12 @@ struct BoxShareButton: View {
             Image(systemName: "square.and.arrow.up")
                 .symbolRenderingMode(.palette)
                 .foregroundStyle(.white, Color(accentColor).gradient)
-                .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
+                    .padding(10)
+                    .background(isTargeted ? Color.white.opacity(0.3) : Color.black.opacity(0.4), in: Circle())
+                    .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
         }
         .buttonStyle(.plain)
-        .padding(4)
-        .background(isTargeted ? Color.white.opacity(0.2) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
         .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
             handleShareDrop(providers: providers)
             return true
@@ -4412,7 +4413,6 @@ struct UnifiedNotchContainer: View {
     @State var isNotchFileDropTargeted = false
     @State var isBoxDropTargeted = false
     @State var selectedBoxFileIDs = Set<UUID>()
-    @State var showBoxShareIcon = false
     let pageTopContentInset: CGFloat = 8
 
     // This preference key is used to report the animated height of the island back to the AppDelegate.
@@ -4481,10 +4481,6 @@ struct UnifiedNotchContainer: View {
             let xOffset = notchRight + 10
 
             HStack(spacing: 10) {
-                if showControls && showBoxShareIcon {
-                    BoxShareButton(files: model.boxFiles, accentColor: settings.accentColor)
-                        .transition(.scale.combined(with: .opacity))
-                }
                 Button {
                     withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
                         if selectedBoxFileIDs.count == model.boxFiles.count {
@@ -4521,17 +4517,6 @@ struct UnifiedNotchContainer: View {
             .offset(x: xOffset, y: 6)
             .opacity(showControls ? 1.0 : 0.0)
             .zIndex(5)
-            .onChange(of: showControls) { _, show in
-                if show {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                            showBoxShareIcon = true
-                        }
-                    }
-                } else {
-                    showBoxShareIcon = false
-                }
-            }
         }
     }
 
@@ -5018,7 +5003,8 @@ struct UnifiedNotchContainer: View {
                     let notchLeft = (geo.size.width - edgeNotchWidth) / 2
                     if symbol != "empty" {
                         header(title: title, symbol: symbol, page: page)
-                            .frame(maxWidth: max(0, notchLeft - 12), alignment: .trailing)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .frame(width: max(0, notchLeft - 12), alignment: .trailing)
                             .offset(y: 2)
                     }
                 }
