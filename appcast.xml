@@ -1,0 +1,14 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Apollo</title>
+        <item>
+            <title>0.0.1</title>
+            <pubDate>Fri, 05 Jun 2026 05:56:41 +0000</pubDate>
+            <sparkle:version>1</sparkle:version>
+            <sparkle:shortVersionString>0.0.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.5</sparkle:minimumSystemVersion>
+            <enclosure url="Apollo-v0.0.5.dmg" length="1498172" type="application/octet-stream"/>
+        </item>
+    </channel>
+</rss>
