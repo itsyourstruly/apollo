@@ -68,15 +68,16 @@ jobs:
             
           rm -rf ./dmg_staging
 
-      - name: Download and Run Sparkle Appcast Generator
+- name: Download and Run Sparkle Appcast Generator
         env:
           PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
           curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.6.4/Sparkle-2.6.4.tar.xz -o Sparkle-Tools.tar.xz
           tar -xf Sparkle-Tools.tar.xz
           
+          # Force Sparkle to bypass the Keychain system and read your repo secret text string directly
           export SUPrivateEDKey="$PRIVATE_KEY"
-          ./bin/generate_appcast ./dist/
+          ./bin/generate_appcast --disable-keychain ./dist/
 
       # Create a formal GitHub Release and attach the built .dmg
       - name: Create Official GitHub Release
