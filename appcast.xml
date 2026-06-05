@@ -4,11 +4,11 @@
         <title>Apollo</title>
         <item>
             <title>0.0.1</title>
-            <pubDate>Fri, 05 Jun 2026 06:03:57 +0000</pubDate>
+            <pubDate>Fri, 05 Jun 2026 06:11:04 +0000</pubDate>
             <sparkle:version>1</sparkle:version>
             <sparkle:shortVersionString>0.0.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.5</sparkle:minimumSystemVersion>
-            <enclosure url="Apollo-v0.0.6.dmg" length="1498271" type="application/octet-stream"/>
+            <enclosure url="Apollo-v0.0.7.dmg" length="1497763" type="application/octet-stream"/>
         </item>
     </channel>
 </rss>
