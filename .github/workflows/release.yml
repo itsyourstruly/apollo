@@ -5,7 +5,7 @@ on:
     tags:
       - 'v*'
 
-# CRITICAL FIX 1: Explicitly grant write access to the runner's GITHUB_TOKEN
+# Explicitly grant write access to the runner's GITHUB_TOKEN
 permissions:
   contents: write
   pages: write
@@ -40,6 +40,15 @@ jobs:
             CODE_SIGNING_REQUIRED=YES \
             CODE_SIGNING_ALLOWED=YES
 
+      # DEEP RESIGNING PATCH: Strips Sparkle's team signature and syncs it with yours to prevent dynamic linker crashes
+      - name: Force Deep Ad-Hoc Resigning on Embedded Binaries
+        run: |
+          echo "Resigning embedded Sparkle frameworks deeply..."
+          codesign --force --deep --sign - ./build/Build/Products/Release/Apollo.app/Contents/Frameworks/Sparkle.framework
+          
+          echo "Resigning main application binary..."
+          codesign --force --deep --sign - ./build/Build/Products/Release/Apollo.app
+
       - name: Package Application into Stylized DMG
         run: |
           mkdir ./dmg_staging
@@ -69,7 +78,7 @@ jobs:
           export SUPrivateEDKey="$PRIVATE_KEY"
           ./bin/generate_appcast ./dist/
 
-      # CRITICAL FIX 2: Create a formal GitHub Release and attach the built .dmg
+      # Create a formal GitHub Release and attach the built .dmg
       - name: Create Official GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -85,4 +94,4 @@ jobs:
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: dist
-          branch: gh-pages # Pushes the appcast tracking assets onto a gh-pages branch
+          branch: gh-pages # Pushes the appcast tracking assets onto your gh-pages branch
