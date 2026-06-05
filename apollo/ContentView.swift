@@ -4998,7 +4998,7 @@ struct UnifiedNotchContainer: View {
             title = "Clip"
             symbol = "doc.on.clipboard"
         case .jot:
-            title = "J"
+            title = "Jot"
             symbol = "note.text"
         case .box:
             title = "Box"
