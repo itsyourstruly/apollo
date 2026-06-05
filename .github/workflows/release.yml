@@ -5,7 +5,7 @@ on:
     tags:
       - 'v*'
 
-# Explicitly grant write access to the runner's GITHUB_TOKEN
+# Explicitly grant strict cryptographic read/write access tokens to the runner
 permissions:
   contents: write
   pages: write
@@ -42,20 +42,18 @@ jobs:
 
       - name: Package Application into Stylized DMG
         run: |
-          # 1. Prepare staging environment
-          mkdir ./dmg_staging
+          # 1. Setup clean isolated staging tree environments
+          mkdir -p ./dist ./dmg_staging
           cp -R ./build/Build/Products/Release/Apollo.app ./dmg_staging/
           
-          # 2. Deeply sign everything directly inside the staging directory
+          # 2. Deeply sign internal app layers using local ad-hoc criteria
           echo "Resigning embedded Sparkle framework inside staging..."
           codesign --force --deep --sign - ./dmg_staging/Apollo.app/Contents/Frameworks/Sparkle.framework
           
-          echo "Resigning main binary inside staging..."
+          echo "Resigning main binary bundle container..."
           codesign --force --deep --sign - ./dmg_staging/Apollo.app
           
-          # 3. Create destination and package the pristine signed bundle
-          mkdir ./dist
-          
+          # 3. Create public dmg target distribution asset
           create-dmg \
             --volname "Apollo Installer" \
             --window-pos 200 120 \
@@ -72,11 +70,12 @@ jobs:
         env:
           PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
+          # Download and unpack official pre-compiled native macOS utility binaries
           curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.9.2/Sparkle-2.9.2.tar.xz -o Sparkle-Tools.tar.xz
           tar -xf Sparkle-Tools.tar.xz
           
-          # FIXED: Pipe the key secret into standard input using Sparkle's official stdin syntax option
-          echo "$PRIVATE_KEY" | ./bin/generate_appcast --ed-key-file - ./dist/
+          # PROTOCOL FIX: Feed the raw token via stdin, pointing directly to the flat container folder without a trailing slash
+          echo "$PRIVATE_KEY" | ./bin/generate_appcast --ed-key-file - ./dist
 
       # Create a formal GitHub Release and attach the built .dmg
       - name: Create Official GitHub Release
@@ -89,9 +88,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Deploy the appcast mapping files to GitHub Pages
+      # Deploy the flat appcast xml asset mappings directly to the branch root
       - name: Deploy Updated Files to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: dist
+          folder: ./dist
           branch: gh-pages
+          clean: true
