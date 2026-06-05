@@ -75,9 +75,9 @@ jobs:
           curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.6.4/Sparkle-2.6.4.tar.xz -o Sparkle-Tools.tar.xz
           tar -xf Sparkle-Tools.tar.xz
           
-          # Force Sparkle to bypass the Keychain system and read your repo secret text string directly
+          # Providing the environment variable is enough; Sparkle uses it and skips Keychain automatically
           export SUPrivateEDKey="$PRIVATE_KEY"
-          ./bin/generate_appcast ./dist/ --no-keychain
+          ./bin/generate_appcast ./dist/
 
       # Create a formal GitHub Release and attach the built .dmg
       - name: Create Official GitHub Release
