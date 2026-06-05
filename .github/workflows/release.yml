@@ -70,13 +70,13 @@ jobs:
 
       - name: Download and Run Sparkle Appcast Generator
         env:
-          SUPrivateEDKey: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
-          # VERSION MATCHING FIX: Download the 2.9.2 binaries to match your project package targets
           curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.9.2/Sparkle-2.9.2.tar.xz -o Sparkle-Tools.tar.xz
           tar -xf Sparkle-Tools.tar.xz
           
-          ./bin/generate_appcast ./dist/
+          # FIXED: Pass the key securely directly into the program argument array using --edkey
+          ./bin/generate_appcast ./dist/ --edkey "$PRIVATE_KEY"
 
       # Create a formal GitHub Release and attach the built .dmg
       - name: Create Official GitHub Release
