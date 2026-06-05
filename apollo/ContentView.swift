@@ -397,12 +397,23 @@ struct ApolloApp: App {
     private let updaterController: SPUStandardUpdaterController
 
     init() {
-        updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        // Audit the absolute string sequence that the runtime engine is extracting
+            if let feedURL = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String {
+                print("➡️ CRITICAL DICTIONARY LOG: \(feedURL)")
+            } else {
+                print("❌ CRITICAL DICTIONARY LOG: SUFeedURL key is completely missing!")
+            }
+            
+            self.updaterController = SPUStandardUpdaterController(
+                startingUpdater: true,
+                updaterDelegate: nil,
+                userDriverDelegate: nil
+            )
     }
 
     var body: some Scene {
         Settings {
-            SettingsView()
+            SettingsView(updater: updaterController.updater)
         }
         .commands {
             CommandGroup(after: .appInfo) {
@@ -5055,6 +5066,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
     case general = "General"
     case appearance = "Appearance"
     case advanced = "Advanced"
+    case updates = "Updates"
 
     var id: String { rawValue }
 
@@ -5063,6 +5075,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         case .general: return "slider.horizontal.3"
         case .appearance: return "paintbrush"
         case .advanced: return "gearshape"
+        case .updates: return "arrow.triangle.2.circlepath"
         }
     }
 }
@@ -5077,6 +5090,8 @@ private extension View {
 
 struct SettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
+    let updater: SPUUpdater
+
     @State private var selection: SettingsSection? = .general
     @State private var selectedTitlePage: IslandPage = .clipboard
     @State private var showTitleOverrides = false
@@ -5108,6 +5123,8 @@ struct SettingsView: View {
                     appearanceSettings
                 case .advanced:
                     advancedSettings
+                case .updates:
+                    updatesSettings
                 }
             }
             .frame(minWidth: 320, idealWidth: 560, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -5609,6 +5626,40 @@ struct SettingsView: View {
 
                 Toggle("Always use approach when dragging file", isOn: $settings.alwaysUseApproachWhenDraggingFile)
                     .help("For file drags, approach is enabled even if disabled, and its width/height are doubled")
+            }
+        }
+        .nativeSettingsFormStyle()
+    }
+
+    private var updatesSettings: some View {
+        Form {
+            Section("Current Version") {
+                HStack(spacing: 12) {
+                    if let icon = NSApplication.shared.applicationIconImage {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .frame(width: 48, height: 48)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+                        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
+                        Text("Apollo")
+                            .font(.headline)
+                        Text("Version \(version) (\(build))")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section("Updates") {
+                CheckForUpdatesView(updater: updater)
+                
+                Toggle("Automatically check for updates on startup", isOn: Binding(
+                    get: { updater.automaticallyChecksForUpdates },
+                    set: { updater.automaticallyChecksForUpdates = $0 }
+                ))
             }
         }
         .nativeSettingsFormStyle()
