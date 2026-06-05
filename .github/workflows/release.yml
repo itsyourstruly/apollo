@@ -70,14 +70,13 @@ jobs:
 
       - name: Download and Run Sparkle Appcast Generator
         env:
-          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
-          # Download the source tools to get access to the Python platform-agnostic automation scripts
           curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.9.2/Sparkle-2.9.2.tar.xz -o Sparkle-Tools.tar.xz
           tar -xf Sparkle-Tools.tar.xz
           
-          # Run the Python implementation of generate_appcast, which honors text keys natively without native OS Keychain blocks
-          python3 ./bin/generate_appcast ./dist/ --edkey "$SPARKLE_PRIVATE_KEY"
+          # FIXED: Execute the native binary directly, placing the --edkey flag BEFORE the target folder path
+          ./bin/generate_appcast --edkey "$PRIVATE_KEY" ./dist/
 
       # Create a formal GitHub Release and attach the built .dmg
       - name: Create Official GitHub Release
