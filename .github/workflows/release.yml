@@ -75,8 +75,8 @@ jobs:
           curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.9.2/Sparkle-2.9.2.tar.xz -o Sparkle-Tools.tar.xz
           tar -xf Sparkle-Tools.tar.xz
           
-          # FIXED: Execute the native binary directly, placing the --edkey flag BEFORE the target folder path
-          ./bin/generate_appcast --edkey "$PRIVATE_KEY" ./dist/
+          # FIXED: Pipe the key secret into standard input using Sparkle's official stdin syntax option
+          echo "$PRIVATE_KEY" | ./bin/generate_appcast --ed-key-file - ./dist/
 
       # Create a formal GitHub Release and attach the built .dmg
       - name: Create Official GitHub Release
