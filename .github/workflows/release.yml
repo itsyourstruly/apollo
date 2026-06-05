@@ -46,7 +46,7 @@ jobs:
           mkdir ./dmg_staging
           cp -R ./build/Build/Products/Release/Apollo.app ./dmg_staging/
           
-          # 2. FIX: Deeply sign everything directly inside the staging directory
+          # 2. Deeply sign everything directly inside the staging directory
           echo "Resigning embedded Sparkle framework inside staging..."
           codesign --force --deep --sign - ./dmg_staging/Apollo.app/Contents/Frameworks/Sparkle.framework
           
@@ -70,10 +70,10 @@ jobs:
 
       - name: Download and Run Sparkle Appcast Generator
         env:
-          # FIXED: Mapping the environment variable natively using the exact name Sparkle expects
           SUPrivateEDKey: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
-          curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.6.4/Sparkle-2.6.4.tar.xz -o Sparkle-Tools.tar.xz
+          # VERSION MATCHING FIX: Download the 2.9.2 binaries to match your project package targets
+          curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.9.2/Sparkle-2.9.2.tar.xz -o Sparkle-Tools.tar.xz
           tar -xf Sparkle-Tools.tar.xz
           
           ./bin/generate_appcast ./dist/
