@@ -5009,7 +5009,7 @@ struct UnifiedNotchContainer: View {
             title = "Clip"
             symbol = "doc.on.clipboard"
         case .jot:
-            title = "Jot"
+            title = "Jottt"
             symbol = "note.text"
         case .box:
             title = "Box"
