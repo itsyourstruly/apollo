@@ -22,6 +22,7 @@ Select "Move to Trash".
 Gone.
 
 Planned:
+
 Custom actions, like but not limited to; open apps, set custom commands and shortcuts for easy access.
 > Potentially include an option to have the custom actions contained in their own page, or as a section below the current pages as a stationary object for quick access.
 
