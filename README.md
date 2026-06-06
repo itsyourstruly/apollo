@@ -2,6 +2,8 @@
 
 An open-source island for your Macbook notch
 
+--
+
 Features:
 
 Clipboard Manager, "Clip".
@@ -12,7 +14,7 @@ Hold any file to move/share it, "Box".
 
 Start a stopwatch or timer with HUD, "Chrono".
 
-
+--
 
 Installation:
 
@@ -24,8 +26,7 @@ You'll need to attempt to open it, which it will then say it can't be opened. He
 
 It should say "Open Anyway" for Apollo. Click that. After authenticating, it should open right away.
 
-
-
+--
 
 Removing Apollo:
 
@@ -37,8 +38,7 @@ Select "Move to Trash".
 
 Gone.
 
-
-
+--
 
 Planned:
 
@@ -53,7 +53,6 @@ Clip, ability to drag and drop items similarly to the "Box".
 
 Box, Setting to toggle a slim box when dragging files.
 
+--
 
-
-
-Made for Tahoe 26.5 using a Macbook Pro M5, not tested on another device and I cannot promise it will work.
+Created using Tahoe 26.5 on a Macbook. Untested on other Macos versions or devices. 
