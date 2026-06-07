@@ -40,19 +40,4 @@ Gone.
 
 --
 
-Planned:
-
-Custom actions, like but not limited to; open apps, set custom commands and shortcuts for easy access.
-> Potentially include an option to have the custom actions contained in their own page, or as a section below the current pages as a stationary object for quick access.
-
-Now Playing, no clue how to get it to work but try and get the now playing media to show up in the island for play/pause, next/previous.
-
-Jots, save your notes as a file, or open with a text editor.
-
-Clip, ability to drag and drop items similarly to the "Box".
-
-Box, Setting to toggle a slim box when dragging files.
-
---
-
 Created using Tahoe 26.5 on a Macbook. Untested on other Macos versions or devices. 
