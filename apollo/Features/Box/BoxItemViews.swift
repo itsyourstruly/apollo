@@ -84,6 +84,10 @@ extension UnifiedNotchContainer {
             private var didStartDrag = false
             private var didSelectOnMouseDown = false
 
+            override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+                return true
+            }
+
             override func hitTest(_ point: NSPoint) -> NSView? {
                 let removeRect = NSRect(x: 0, y: bounds.height - removeHotSpotSize, width: removeHotSpotSize, height: removeHotSpotSize)
                 if removeRect.contains(point) {

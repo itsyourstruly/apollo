@@ -310,6 +310,10 @@ extension UnifiedNotchContainer {
             private var mouseDownActive = false
             private var didStartDrag = false
 
+            override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+                return true
+            }
+
             override func mouseDown(with event: NSEvent) {
                 mouseDownPoint = convert(event.locationInWindow, from: nil)
                 mouseDownActive = true
