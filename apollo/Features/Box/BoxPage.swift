@@ -1,8 +1,9 @@
 import SwiftUI
 import AppKit
-
-// MARK: - Reintegrated Box
 import UniformTypeIdentifiers
+
+private let toastPanelWidth: CGFloat = 180
+private let toastPanelHeight: CGFloat = 260
 
 struct BoxPageContent: View, Equatable {
     let files: [BoxFile]
@@ -14,6 +15,7 @@ struct BoxPageContent: View, Equatable {
     let showNames: Bool
     let nameSize: CGFloat
     let isTargeted: Bool
+    let isSlimMode: Bool
 
     let onRemove: (BoxFile) -> Void
     let onToggleSelect: (BoxFile) -> Void
@@ -25,11 +27,11 @@ struct BoxPageContent: View, Equatable {
     static func == (lhs: BoxPageContent, rhs: BoxPageContent) -> Bool {
         lhs.files.count == rhs.files.count &&
         lhs.files.first?.id == rhs.files.first?.id &&
-        // Animated properties like width/height are removed to prevent re-renders during animations.
         lhs.selectedIDs == rhs.selectedIDs &&
         lhs.columnCount == rhs.columnCount &&
         lhs.accentColor == rhs.accentColor &&
-        lhs.isTargeted == rhs.isTargeted
+        lhs.isTargeted == rhs.isTargeted &&
+        lhs.isSlimMode == rhs.isSlimMode
     }
 
     private var chunkedFiles: [[BoxFile]] {
@@ -46,54 +48,72 @@ struct BoxPageContent: View, Equatable {
         let safeW = max(1, width)
         let safeH = max(1, height)
         VStack(spacing: 10) {
-            Group {
-                if files.isEmpty {
+            if isSlimMode {
+                VStack(spacing: 12) {
+                    Spacer()
                     Image(systemName: "shippingbox.fill")
-                        .font(.system(size: min(safeW, safeH) * 0.22, weight: .semibold))
-                        .foregroundColor(.brown.opacity(0.55))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                } else {
-                    let cols = max(1, columnCount)
-                    let maxSize = max(1, min((safeW - 16) / CGFloat(cols), safeH * 0.38))
-                    ScrollView(.vertical, showsIndicators: true) {
-                        LazyVStack(spacing: 2) {
-                            ForEach(chunkedFiles, id: \.first?.id) { row in
-                                HStack(spacing: 2) {
-                                    ForEach(row) { file in
-                                        SafeCachedBoxItemView(
-                                            file: file,
-                                            maxSize: maxSize,
-                                            isSelected: selectedIDs.contains(file.id),
-                                            accentColor: accentColor,
-                                            showBoxFileNames: showNames,
-                                            fileNameSize: nameSize,
-                                            onRemove: { onRemove(file) },
-                                            urlsForDrag: { urlsForDrag(file) },
-                                            selectForDrag: { onSelectForDrag(file) },
-                                            toggleSelection: { onToggleSelect(file) }
-                                        )
-                                        .frame(maxWidth: .infinity)
-                                    }
-                                    if row.count < cols {
-                                        ForEach(0..<(cols - row.count), id: \.self) { _ in
-                                            Color.clear.frame(maxWidth: .infinity)
+                        .font(.system(size: 56, weight: .semibold))
+                        .foregroundColor(isTargeted ? Color(accentColor) : Color.brown.opacity(0.7))
+                        .scaleEffect(isTargeted ? 1.15 : 1.0)
+                        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isTargeted)
+                    
+                    Text(isTargeted ? "Drop to Stash" : "Drag files here")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white.opacity(0.8))
+                    Spacer()
+                }
+                .frame(width: safeW, height: safeH)
+            } else {
+                Group {
+                    if files.isEmpty {
+                        Image(systemName: "shippingbox.fill")
+                            .font(.system(size: min(safeW, safeH) * 0.22, weight: .semibold))
+                            .foregroundColor(.brown.opacity(0.55))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    } else {
+                        let cols = max(1, columnCount)
+                        let maxSize = max(1, min((safeW - 16) / CGFloat(cols), safeH * 0.38))
+                        ScrollView(.vertical, showsIndicators: true) {
+                            LazyVStack(spacing: 2) {
+                                ForEach(chunkedFiles, id: \.first?.id) { row in
+                                    HStack(spacing: 2) {
+                                        ForEach(row) { file in
+                                            SafeCachedBoxItemView(
+                                                file: file,
+                                                maxSize: maxSize,
+                                                isSelected: selectedIDs.contains(file.id),
+                                                accentColor: accentColor,
+                                                showBoxFileNames: showNames,
+                                                fileNameSize: nameSize,
+                                                onRemove: { onRemove(file) },
+                                                urlsForDrag: { urlsForDrag(file) },
+                                                selectForDrag: { onSelectForDrag(file) },
+                                                toggleSelection: { onToggleSelect(file) }
+                                            )
+                                            .frame(maxWidth: .infinity)
+                                        }
+                                        if row.count < cols {
+                                            ForEach(0..<(cols - row.count), id: \.self) { _ in
+                                                Color.clear.frame(maxWidth: .infinity)
+                                            }
                                         }
                                     }
                                 }
                             }
+                            .padding(.horizontal, 8)
+                            .frame(width: width, alignment: .center)
                         }
-                        .padding(.horizontal, 8)
-                        .frame(width: width, alignment: .center)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 }
             }
         }
         .frame(width: width, height: safeH, alignment: .top)
         .onDrop(of: [.fileURL], isTargeted: Binding(get: { isTargeted }, set: { setIsTargeted($0) }), perform: handleDrop)
         .overlay(alignment: .bottomTrailing) {
-            if !files.isEmpty {
-                BoxShareButton(files: files, accentColor: accentColor)
+            if !files.isEmpty && !isSlimMode {
+                BoxShareButton(files: files, selectedIDs: selectedIDs, accentColor: accentColor)
                     .padding([.bottom, .trailing], 16)
             }
         }
@@ -102,17 +122,19 @@ struct BoxPageContent: View, Equatable {
 
 extension UnifiedNotchContainer {
     // MARK: - Box Page
-    var boxPage: some View {
-        BoxPageContent(
+    func boxPage(contentAreaHeight: CGFloat) -> some View {
+        let activeWidth = model.boxSlimModeActive ? toastPanelWidth : scaledPanelWidth(for: settings)
+        return BoxPageContent(
             files: model.boxFiles,
             selectedIDs: selectedBoxFileIDs,
-            width: scaledPanelWidth(for: settings),
-            height: max(1, scaledPanelHeight(for: settings) - settings.effectiveNotchHeight - pageTopContentInset),
-            columnCount: settings.boxColumns,
+            width: activeWidth,
+            height: max(1, contentAreaHeight - pageTopContentInset),
+            columnCount: model.boxSlimModeActive ? 1 : settings.boxColumns,
             accentColor: settings.accentColor,
-            showNames: settings.showBoxFileNames,
+            showNames: model.boxSlimModeActive ? false : settings.showBoxFileNames,
             nameSize: settings.boxFileNameSize,
             isTargeted: isBoxDropTargeted,
+            isSlimMode: model.boxSlimModeActive,
             onRemove: { file in
                 DispatchQueue.main.async {
                     withAnimation {

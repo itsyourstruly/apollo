@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 // MARK: - Reintegrated Jot
 
@@ -21,11 +22,8 @@ struct JotPageContent: View, Equatable {
     var isJotEditorFocused: FocusState<Bool>.Binding
 
     static func == (lhs: JotPageContent, rhs: JotPageContent) -> Bool {
-        lhs.notes.count == rhs.notes.count &&
-        lhs.notes.first?.id == rhs.notes.first?.id &&
-        lhs.notes.first?.updatedAt == rhs.notes.first?.updatedAt &&
+        lhs.notes == rhs.notes &&
         lhs.activeID == rhs.activeID &&
-        // Animated properties like width/height are removed to prevent re-renders during animations.
         lhs.columnCount == rhs.columnCount &&
         lhs.accentColor == rhs.accentColor &&
         lhs.closeSensitivity == rhs.closeSensitivity
@@ -87,7 +85,8 @@ struct JotPageContent: View, Equatable {
             }
         } else {
             let cols = max(1, min(columnCount, notes.count))
-            let cellWidth = max(1, (width - CGFloat(max(0, cols - 1)) * 8) / CGFloat(cols))
+            let horizontalPadding: CGFloat = 16
+            let cellWidth = max(1, ((width - horizontalPadding) - CGFloat(max(0, cols - 1)) * 8) / CGFloat(cols))
             UnifiedNotchContainer.DismissableScrollView(
                 closeSensitivity: closeSensitivity,
                 onOverscrollProgress: onUpdateCloseProgress,
@@ -136,12 +135,12 @@ struct JotPageContent: View, Equatable {
 
 extension UnifiedNotchContainer {
     // MARK: - Jot Page
-    var sidebarPage: some View {
+    func sidebarPage(contentAreaHeight: CGFloat) -> some View {
         JotPageContent(
             notes: model.jotNotes,
             activeID: model.activeJotID,
             width: scaledPanelWidth(for: settings),
-            height: max(1, scaledPanelHeight(for: settings) - settings.effectiveNotchHeight - pageTopContentInset),
+            height: max(1, contentAreaHeight - pageTopContentInset),
             columnCount: settings.jotColumns,
             textSize: settings.jotTextSize,
             accentColor: settings.accentColor,
@@ -191,6 +190,25 @@ extension UnifiedNotchContainer {
                 model.jotNotes = notes
             }
         )
+    }
+
+    func exportActiveJot() {
+        guard let activeID = model.activeJotID,
+              let note = model.jotNotes.first(where: { $0.id == activeID }) else { return }
+        
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.plainText]
+        savePanel.nameFieldStringValue = "Note-\(note.id.uuidString.prefix(6)).txt"
+        
+        savePanel.begin { response in
+            if response == .OK, let url = savePanel.url {
+                do {
+                    try note.text.write(to: url, atomically: true, encoding: .utf8)
+                } catch {
+                    print("Failed to save note: \(error)")
+                }
+            }
+        }
     }
 
 }

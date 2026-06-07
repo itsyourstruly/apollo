@@ -93,8 +93,18 @@ extension UnifiedNotchContainer {
                 textContainer.containerSize = NSSize(width: scrollView.contentSize.width, height: .greatestFiniteMagnitude)
             }
 
-            if isFocused.wrappedValue, scrollView.window?.firstResponder !== textView {
-                scrollView.window?.makeFirstResponder(textView)
+            let currentFocus = isFocused.wrappedValue
+            if currentFocus != context.coordinator.wasFocused {
+                context.coordinator.wasFocused = currentFocus
+                if currentFocus {
+                    if let window = scrollView.window, window.firstResponder !== textView {
+                        window.makeFirstResponder(textView)
+                    }
+                } else {
+                    if let window = scrollView.window, window.firstResponder === textView {
+                        window.makeFirstResponder(nil)
+                    }
+                }
             }
 
             DispatchQueue.main.async {
@@ -108,11 +118,13 @@ extension UnifiedNotchContainer {
             var onScrollMetricsChange: (CGFloat, CGFloat, CGFloat) -> Void
             weak var textView: NSTextView?
             weak var scrollView: NSScrollView?
+            var wasFocused: Bool = false
 
             init(text: Binding<String>, isFocused: FocusState<Bool>.Binding, onScrollMetricsChange: @escaping (CGFloat, CGFloat, CGFloat) -> Void) {
                 _text = text
                 self.isFocused = isFocused
                 self.onScrollMetricsChange = onScrollMetricsChange
+                self.wasFocused = isFocused.wrappedValue
             }
 
             func attach(textView: NSTextView, scrollView: NSScrollView) {
@@ -131,6 +143,24 @@ extension UnifiedNotchContainer {
             func textDidChange(_ notification: Notification) {
                 text = textView?.string ?? text
                 updateMetrics()
+            }
+
+            func textDidBeginEditing(_ notification: Notification) {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    if !self.isFocused.wrappedValue {
+                        self.isFocused.wrappedValue = true
+                    }
+                }
+            }
+
+            func textDidEndEditing(_ notification: Notification) {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    if self.isFocused.wrappedValue {
+                        self.isFocused.wrappedValue = false
+                    }
+                }
             }
 
             @objc private func boundsDidChange(_ notification: Notification) {

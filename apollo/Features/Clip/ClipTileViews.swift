@@ -201,7 +201,9 @@ extension UnifiedNotchContainer {
             }
             .frame(width: size, height: size)
             .contentShape(Rectangle())
-            .onTapGesture { onTap(item) }
+            .overlay {
+                UnifiedNotchContainer.ClipDragSurface(entry: item, onTap: { onTap(item) })
+            }
             .onAppear {
                 loadPreviewIfNeeded()
             }
@@ -282,6 +284,106 @@ extension UnifiedNotchContainer {
             }
             .frame(width: 30, height: 30)
             .scaleEffect(0.85 + 0.15 * p)
+        }
+    }
+
+    struct ClipDragSurface: NSViewRepresentable {
+        let entry: ClipboardEntry
+        let onTap: () -> Void
+
+        func makeNSView(context: Context) -> DragView {
+            let view = DragView()
+            view.entry = entry
+            view.onTap = onTap
+            return view
+        }
+
+        func updateNSView(_ nsView: DragView, context: Context) {
+            nsView.entry = entry
+            nsView.onTap = onTap
+        }
+
+        final class DragView: NSView, NSDraggingSource {
+            var entry: ClipboardEntry?
+            var onTap: (() -> Void)?
+            private var mouseDownPoint: NSPoint = .zero
+            private var mouseDownActive = false
+            private var didStartDrag = false
+
+            override func mouseDown(with event: NSEvent) {
+                mouseDownPoint = convert(event.locationInWindow, from: nil)
+                mouseDownActive = true
+                didStartDrag = false
+            }
+
+            override func mouseDragged(with event: NSEvent) {
+                guard mouseDownActive, !didStartDrag, entry != nil else { return }
+                let currentPoint = convert(event.locationInWindow, from: nil)
+                let deltaX = currentPoint.x - mouseDownPoint.x
+                let deltaY = currentPoint.y - mouseDownPoint.y
+                if hypot(deltaX, deltaY) > 12 {
+                    beginDrag(with: event)
+                    didStartDrag = true
+                }
+            }
+
+            override func mouseUp(with event: NSEvent) {
+                defer {
+                    mouseDownActive = false
+                    didStartDrag = false
+                }
+                guard mouseDownActive, !didStartDrag else { return }
+                onTap?()
+            }
+
+            private func beginDrag(with event: NSEvent) {
+                guard let entry else { return }
+                
+                var draggingItems: [NSDraggingItem] = []
+                
+                if entry.hasFiles {
+                    draggingItems = entry.fileURLs.map { url in
+                        let draggingItem = NSDraggingItem(pasteboardWriter: url as NSURL)
+                        let icon = NSWorkspace.shared.icon(forFile: url.path)
+                        icon.size = NSSize(width: 32, height: 32)
+                        draggingItem.setDraggingFrame(NSRect(x: 0, y: 0, width: 32, height: 32), contents: icon)
+                        return draggingItem
+                    }
+                } else if entry.hasText {
+                    let textWriter = entry.normalizedText as NSString
+                    let draggingItem = NSDraggingItem(pasteboardWriter: textWriter)
+                    
+                    let image = NSImage(size: NSSize(width: 120, height: 32), flipped: false) { rect in
+                        let string = textWriter as String
+                        let font = NSFont.systemFont(ofSize: 10)
+                        let attributes: [NSAttributedString.Key: Any] = [
+                            .font: font,
+                            .foregroundColor: NSColor.white
+                        ]
+                        let size = string.size(withAttributes: attributes)
+                        let textRect = NSRect(
+                            x: (rect.width - size.width) / 2,
+                            y: (rect.height - size.height) / 2,
+                            width: size.width,
+                            height: size.height
+                        )
+                        NSColor.black.withAlphaComponent(0.6).setFill()
+                        let path = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
+                        path.fill()
+                        string.draw(in: textRect, withAttributes: attributes)
+                        return true
+                    }
+                    draggingItem.setDraggingFrame(NSRect(x: 0, y: 0, width: 120, height: 32), contents: image)
+                    draggingItems = [draggingItem]
+                }
+                
+                guard !draggingItems.isEmpty else { return }
+                beginDraggingSession(with: draggingItems, event: event, source: self)
+            }
+
+            func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+                [.copy]
+            }
         }
     }
 

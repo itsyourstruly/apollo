@@ -59,6 +59,7 @@ extension UnifiedNotchContainer {
             view.toggleSelection = toggleSelection
             view.removeHotSpotSize = removeHotSpotSize
             view.isSelected = isSelected
+            view.fileURL = file.url
             return view
         }
 
@@ -68,6 +69,7 @@ extension UnifiedNotchContainer {
             nsView.toggleSelection = toggleSelection
             nsView.removeHotSpotSize = removeHotSpotSize
             nsView.isSelected = isSelected
+            nsView.fileURL = file.url
         }
 
         final class DragView: NSView, NSDraggingSource {
@@ -76,6 +78,7 @@ extension UnifiedNotchContainer {
             var toggleSelection: (() -> Void)?
             var removeHotSpotSize: CGFloat = 22
             var isSelected: Bool = false
+            var fileURL: URL?
             private var mouseDownPoint: NSPoint = .zero
             private var mouseDownActive = false
             private var didStartDrag = false
@@ -106,7 +109,7 @@ extension UnifiedNotchContainer {
                 let currentPoint = convert(event.locationInWindow, from: nil)
                 let deltaX = currentPoint.x - mouseDownPoint.x
                 let deltaY = currentPoint.y - mouseDownPoint.y
-                if hypot(deltaX, deltaY) > 3 {
+                if hypot(deltaX, deltaY) > 12 {
                     beginDrag(with: event)
                     didStartDrag = true
                 }
@@ -119,6 +122,10 @@ extension UnifiedNotchContainer {
                 }
 
                 guard mouseDownActive, !didStartDrag else { return }
+                if event.clickCount == 2, let url = fileURL {
+                    NSWorkspace.shared.open(url)
+                    return
+                }
                 if didSelectOnMouseDown { return }
                 toggleSelection?()
             }
@@ -186,6 +193,8 @@ struct SafeCachedBoxItemView: View {
                             .lineLimit(2)
                             .multilineTextAlignment(.center)
 
+
+
                         if isSelected {
                             Capsule()
                                 .fill(Color(accentColor))
@@ -209,15 +218,43 @@ struct SafeCachedBoxItemView: View {
                 removeHotSpotSize: 22
             )
         }
+        .contextMenu {
+            if !AppSettings.shared.sharingTargetApps.isEmpty {
+                ForEach(AppSettings.shared.sharingTargetApps, id: \.self) { appPath in
+                    let appURL = URL(fileURLWithPath: appPath)
+                    let appName = appURL.deletingPathExtension().lastPathComponent
+                    Button {
+                        NSWorkspace.shared.open([file.url], withApplicationAt: appURL, configuration: NSWorkspace.OpenConfiguration(), completionHandler: nil)
+                    } label: {
+                        Text("Open with \(appName)")
+                    }
+                }
+                Divider()
+            }
+            
+            Button("Open") {
+                NSWorkspace.shared.open(file.url)
+            }
+            Button("Show in Finder") {
+                NSWorkspace.shared.selectFile(file.url.path, inFileViewerRootedAtPath: "")
+            }
+            Button("Copy Name") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(file.url.lastPathComponent, forType: .string)
+            }
+            Button("Copy File Path") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(file.url.path, forType: .string)
+            }
+            Button("Remove", role: .destructive) {
+                onRemove()
+            }
+        }
         .onAppear {
             loadImage()
         }
         .onChange(of: file.url) { _, _ in
             loadImage()
-        }
-        .onDisappear {
-            loadedImage = nil
-            isLoading = false
         }
         .frame(
             width: previewSize.width + 8,
@@ -285,5 +322,23 @@ struct SafeCachedBoxItemView: View {
             return isDir.boolValue
         }
         return false
+    }
+}
+
+fileprivate struct BoxAppIconView: View {
+    let appPath: String
+    let size: CGFloat
+
+    var body: some View {
+        if FileManager.default.fileExists(atPath: appPath) {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: appPath))
+                .resizable()
+                .frame(width: size, height: size)
+        } else {
+            Image(systemName: "app.fill")
+                .resizable()
+                .frame(width: size, height: size)
+                .foregroundColor(.gray.opacity(0.5))
+        }
     }
 }

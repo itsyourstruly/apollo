@@ -11,23 +11,57 @@ import AVFoundation
 import Darwin
 import Sparkle
 
+public struct LauncherApp: Identifiable, Codable, Hashable {
+    public var id: UUID
+    public var name: String
+    public var path: String
+    public var bundleIdentifier: String?
+
+    public init(id: UUID = UUID(), name: String, path: String, bundleIdentifier: String? = nil) {
+        self.id = id
+        self.name = name
+        self.path = path
+        self.bundleIdentifier = bundleIdentifier
+    }
+}
+
+public struct BookmarkItem: Identifiable, Codable, Hashable {
+    public var id: UUID
+    public var name: String
+    public var urlString: String
+    public var customBrowserPath: String?
+    public var iconBase64: String?
+
+    public init(id: UUID = UUID(), name: String, urlString: String, customBrowserPath: String? = nil, iconBase64: String? = nil) {
+        self.id = id
+        self.name = name
+        self.urlString = urlString
+        self.customBrowserPath = customBrowserPath
+        self.iconBase64 = iconBase64
+    }
+}
+
 // MARK: - Lightweight Page Models
-enum IslandPage: Int, CaseIterable {
+enum IslandPage: Int, CaseIterable, Identifiable {
     case clipboard = 0
     case jot = 1
     case box = 2
     case chrono = 3
+    case calendar = 4
+    case launcher = 5
+    case bookmarks = 6
+    case customCombined = 7
+
+    var id: Int { rawValue }
 }
 
 enum TitleAlignmentOption: Int, CaseIterable {
     case left = 0
-    case center = 1
-    case right = 2
+    case right = 1
 
     var label: String {
         switch self {
         case .left: return "Left"
-        case .center: return "Center"
         case .right: return "Right"
         }
     }
@@ -35,7 +69,6 @@ enum TitleAlignmentOption: Int, CaseIterable {
     var alignment: Alignment {
         switch self {
         case .left: return .leading
-        case .center: return .center
         case .right: return .trailing
         }
     }
@@ -397,13 +430,6 @@ struct ApolloApp: App {
     private let updaterController: SPUStandardUpdaterController
 
     init() {
-        // Audit the absolute string sequence that the runtime engine is extracting
-            if let feedURL = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String {
-                print("➡️ CRITICAL DICTIONARY LOG: \(feedURL)")
-            } else {
-                print("❌ CRITICAL DICTIONARY LOG: SUFeedURL key is completely missing!")
-            }
-            
             self.updaterController = SPUStandardUpdaterController(
                 startingUpdater: true,
                 updaterDelegate: nil,
@@ -413,7 +439,7 @@ struct ApolloApp: App {
 
     var body: some Scene {
         Settings {
-            SettingsView(updater: updaterController.updater)
+            SettingsView(model: appDelegate.model, updater: updaterController.updater)
         }
         .commands {
             CommandGroup(after: .appInfo) {
@@ -432,6 +458,10 @@ final class NotchMenuModel: ObservableObject {
     @Published var clipboardItems: [ClipboardEntry] = []
     @Published var boxFiles: [BoxFile] = []
     @Published var jotNotes: [JotNote] = []
+    @Published var launcherApps: [LauncherApp] = []
+    @Published var bookmarkItems: [BookmarkItem] = []
+    @Published var boxDragActive = false
+    @Published var boxSlimModeActive = false
     @Published var activeJotID: UUID?
     @Published var clipboardPulseItemID: UUID?
     @Published var observedFileToast: ObservedFileToast?
@@ -447,6 +477,7 @@ final class NotchMenuModel: ObservableObject {
     @Published var timerDuration: TimeInterval = 0
     @Published var timerEndTime: TimeInterval? = nil
     @Published var timerRemainingAtPause: TimeInterval = 0
+    @Published var isAddSheetOpen = false
 }
 
 final class SwipeState: ObservableObject {
@@ -535,6 +566,82 @@ private enum AppStorageKey {
     static let notchEdgeThickness = "notchEdgeThickness"
     static let approachWidth = "approachWidth"
     static let approachHeight = "approachHeight"
+
+    // Custom Titles (String)
+    static let clipboardCustomTitle = "clipboardCustomTitle"
+    static let jotCustomTitle = "jotCustomTitle"
+    static let boxCustomTitle = "boxCustomTitle"
+    static let chronoCustomTitle = "chronoCustomTitle"
+    static let calendarCustomTitle = "calendarCustomTitle"
+    static let launcherCustomTitle = "launcherCustomTitle"
+    static let bookmarksCustomTitle = "bookmarksCustomTitle"
+    static let combinedCustomTitle = "combinedCustomTitle"
+
+    // Show Title Icons (Bool)
+    static let clipboardShowTitleIcon = "clipboardShowTitleIcon"
+    static let jotShowTitleIcon = "jotShowTitleIcon"
+    static let boxShowTitleIcon = "boxShowTitleIcon"
+    static let chronoShowTitleIcon = "chronoShowTitleIcon"
+    static let calendarShowTitleIcon = "calendarShowTitleIcon"
+    static let launcherShowTitleIcon = "launcherShowTitleIcon"
+    static let bookmarksShowTitleIcon = "bookmarksShowTitleIcon"
+    static let combinedShowTitleIcon = "combinedShowTitleIcon"
+
+    // Bookmark Layout Customizations
+    static let bookmarkIconSize = "bookmarkIconSize"
+    static let bookmarkTextSize = "bookmarkTextSize"
+    static let bookmarkShowName = "bookmarkShowName"
+
+    // Chrono Title Overrides
+    static let chronoTitleAlignment = "chronoTitleAlignment"
+    static let chronoTitleSize = "chronoTitleSize"
+    static let chronoTitleIconName = "chronoTitleIconName"
+    static let chronoTitleUseAccent = "chronoTitleUseAccent"
+    static let chronoTitleRed = "chronoTitleRed"
+    static let chronoTitleGreen = "chronoTitleGreen"
+    static let chronoTitleBlue = "chronoTitleBlue"
+    static let chronoTitleAlpha = "chronoTitleAlpha"
+
+    // Calendar Title Overrides
+    static let calendarTitleAlignment = "calendarTitleAlignment"
+    static let calendarTitleSize = "calendarTitleSize"
+    static let calendarTitleIconName = "calendarTitleIconName"
+    static let calendarTitleUseAccent = "calendarTitleUseAccent"
+    static let calendarTitleRed = "calendarTitleRed"
+    static let calendarTitleGreen = "calendarTitleGreen"
+    static let calendarTitleBlue = "calendarTitleBlue"
+    static let calendarTitleAlpha = "calendarTitleAlpha"
+
+    // Launcher Title Overrides
+    static let launcherTitleAlignment = "launcherTitleAlignment"
+    static let launcherTitleSize = "launcherTitleSize"
+    static let launcherTitleIconName = "launcherTitleIconName"
+    static let launcherTitleUseAccent = "launcherTitleUseAccent"
+    static let launcherTitleRed = "launcherTitleRed"
+    static let launcherTitleGreen = "launcherTitleGreen"
+    static let launcherTitleBlue = "launcherTitleBlue"
+    static let launcherTitleAlpha = "launcherTitleAlpha"
+
+    // Bookmarks Title Overrides
+    static let bookmarksTitleAlignment = "bookmarksTitleAlignment"
+    static let bookmarksTitleSize = "bookmarksTitleSize"
+    static let bookmarksTitleIconName = "bookmarksTitleIconName"
+    static let bookmarksTitleUseAccent = "bookmarksTitleUseAccent"
+    static let bookmarksTitleRed = "bookmarksTitleRed"
+    static let bookmarksTitleGreen = "bookmarksTitleGreen"
+    static let bookmarksTitleBlue = "bookmarksTitleBlue"
+    static let bookmarksTitleAlpha = "bookmarksTitleAlpha"
+
+    // Combined Title Overrides
+    static let combinedTitleAlignment = "combinedTitleAlignment"
+    static let combinedTitleSize = "combinedTitleSize"
+    static let combinedTitleIconName = "combinedTitleIconName"
+    static let combinedTitleUseAccent = "combinedTitleUseAccent"
+    static let combinedTitleRed = "combinedTitleRed"
+    static let combinedTitleGreen = "combinedTitleGreen"
+    static let combinedTitleBlue = "combinedTitleBlue"
+    static let combinedTitleAlpha = "combinedTitleAlpha"
+    static let disableChronoHUD = "disableChronoHUD"
 }
 
 func clamp<T: Comparable>(_ value: T, min minValue: T, max maxValue: T) -> T {
@@ -609,6 +716,73 @@ struct BottomRoundedRectangle: Shape {
         path.addLine(to: tl)
         path.closeSubpath()
         return path
+    }
+}
+
+final class AppIconCache {
+    static let shared = AppIconCache()
+    private var existingIcons: [String: NSImage] = [:]
+    private var missingPaths = Set<String>()
+    private let lock = NSRecursiveLock()
+    
+    private init() {}
+    
+    func icon(forPath path: String) -> NSImage? {
+        lock.lock()
+        defer { lock.unlock() }
+        
+        if let cached = existingIcons[path] {
+            return cached
+        }
+        if missingPaths.contains(path) {
+            return nil
+        }
+        
+        if FileManager.default.fileExists(atPath: path) {
+            let img = NSWorkspace.shared.icon(forFile: path)
+            existingIcons[path] = img
+            return img
+        } else {
+            missingPaths.insert(path)
+            return nil
+        }
+    }
+    
+    func clear() {
+        lock.lock()
+        defer { lock.unlock() }
+        existingIcons.removeAll()
+        missingPaths.removeAll()
+    }
+}
+
+final class BookmarkIconCache {
+    static let shared = BookmarkIconCache()
+    private var cache: [String: NSImage] = [:]
+    private let lock = NSRecursiveLock()
+    
+    private init() {}
+    
+    func image(forBase64 base64: String) -> NSImage? {
+        lock.lock()
+        defer { lock.unlock() }
+        
+        if let cached = cache[base64] {
+            return cached
+        }
+        
+        if let data = Data(base64Encoded: base64),
+           let img = NSImage(data: data) {
+            cache[base64] = img
+            return img
+        }
+        return nil
+    }
+    
+    func clear() {
+        lock.lock()
+        defer { lock.unlock() }
+        cache.removeAll()
     }
 }
 
@@ -934,7 +1108,7 @@ final class AppSettings: ObservableObject {
 
     let notchWidthRange: ClosedRange<CGFloat> = 205...600
     let notchHeightRange: ClosedRange<CGFloat> = 20...120
-    let rememberClipsRange: ClosedRange<Double> = 1...200
+    let rememberClipsRange: ClosedRange<Double> = 0...200
     let proximitySensitivityRange: ClosedRange<Double> = 0.3...2.4
     let carouselSensitivityRange: ClosedRange<Double> = 0.4...2.5
     let closeSensitivityRange: ClosedRange<Double> = 0.4...2.5
@@ -1185,6 +1359,272 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    // Custom Titles (String)
+    @Published var clipboardCustomTitle: String? {
+        didSet {
+            persistOptionalString(clipboardCustomTitle, key: AppStorageKey.clipboardCustomTitle)
+        }
+    }
+    @Published var jotCustomTitle: String? {
+        didSet {
+            persistOptionalString(jotCustomTitle, key: AppStorageKey.jotCustomTitle)
+        }
+    }
+    @Published var boxCustomTitle: String? {
+        didSet {
+            persistOptionalString(boxCustomTitle, key: AppStorageKey.boxCustomTitle)
+        }
+    }
+    @Published var chronoCustomTitle: String? {
+        didSet {
+            persistOptionalString(chronoCustomTitle, key: AppStorageKey.chronoCustomTitle)
+        }
+    }
+    @Published var calendarCustomTitle: String? {
+        didSet {
+            persistOptionalString(calendarCustomTitle, key: AppStorageKey.calendarCustomTitle)
+        }
+    }
+    @Published var launcherCustomTitle: String? {
+        didSet {
+            persistOptionalString(launcherCustomTitle, key: AppStorageKey.launcherCustomTitle)
+        }
+    }
+    @Published var bookmarksCustomTitle: String? {
+        didSet {
+            persistOptionalString(bookmarksCustomTitle, key: AppStorageKey.bookmarksCustomTitle)
+        }
+    }
+    @Published var combinedCustomTitle: String? {
+        didSet {
+            persistOptionalString(combinedCustomTitle, key: AppStorageKey.combinedCustomTitle)
+        }
+    }
+
+    // Show Title Icons (Bool)
+    @Published var clipboardShowTitleIcon: Bool? {
+        didSet {
+            persistOptionalBool(clipboardShowTitleIcon, key: AppStorageKey.clipboardShowTitleIcon)
+        }
+    }
+    @Published var jotShowTitleIcon: Bool? {
+        didSet {
+            persistOptionalBool(jotShowTitleIcon, key: AppStorageKey.jotShowTitleIcon)
+        }
+    }
+    @Published var boxShowTitleIcon: Bool? {
+        didSet {
+            persistOptionalBool(boxShowTitleIcon, key: AppStorageKey.boxShowTitleIcon)
+        }
+    }
+    @Published var chronoShowTitleIcon: Bool? {
+        didSet {
+            persistOptionalBool(chronoShowTitleIcon, key: AppStorageKey.chronoShowTitleIcon)
+        }
+    }
+    @Published var calendarShowTitleIcon: Bool? {
+        didSet {
+            persistOptionalBool(calendarShowTitleIcon, key: AppStorageKey.calendarShowTitleIcon)
+        }
+    }
+    @Published var launcherShowTitleIcon: Bool? {
+        didSet {
+            persistOptionalBool(launcherShowTitleIcon, key: AppStorageKey.launcherShowTitleIcon)
+        }
+    }
+    @Published var bookmarksShowTitleIcon: Bool? {
+        didSet {
+            persistOptionalBool(bookmarksShowTitleIcon, key: AppStorageKey.bookmarksShowTitleIcon)
+        }
+    }
+    @Published var combinedShowTitleIcon: Bool? {
+        didSet {
+            persistOptionalBool(combinedShowTitleIcon, key: AppStorageKey.combinedShowTitleIcon)
+        }
+    }
+
+    // Bookmark Layout Customizations
+    @Published var bookmarkIconSize: CGFloat {
+        didSet {
+            enqueueDefaultSet(Double(bookmarkIconSize), forKey: AppStorageKey.bookmarkIconSize)
+        }
+    }
+    @Published var bookmarkTextSize: CGFloat {
+        didSet {
+            enqueueDefaultSet(Double(bookmarkTextSize), forKey: AppStorageKey.bookmarkTextSize)
+        }
+    }
+    @Published var bookmarkShowName: Bool {
+        didSet {
+            enqueueDefaultSet(bookmarkShowName, forKey: AppStorageKey.bookmarkShowName)
+        }
+    }
+
+    // Chrono Title Overrides
+    @Published var chronoTitleAlignment: Int? {
+        didSet {
+            persistOptionalInt(chronoTitleAlignment, key: AppStorageKey.chronoTitleAlignment)
+        }
+    }
+    @Published var chronoTitleSize: CGFloat? {
+        didSet {
+            persistOptionalDouble(chronoTitleSize.map(Double.init), key: AppStorageKey.chronoTitleSize)
+        }
+    }
+    @Published var chronoTitleIconName: String? {
+        didSet {
+            persistOptionalString(chronoTitleIconName, key: AppStorageKey.chronoTitleIconName)
+        }
+    }
+    @Published var chronoTitleUseAccent: Bool? {
+        didSet {
+            persistOptionalBool(chronoTitleUseAccent, key: AppStorageKey.chronoTitleUseAccent)
+        }
+    }
+    @Published var chronoTitleColor: NSColor? {
+        didSet {
+            persistOptionalColor(
+                chronoTitleColor,
+                redKey: AppStorageKey.chronoTitleRed,
+                greenKey: AppStorageKey.chronoTitleGreen,
+                blueKey: AppStorageKey.chronoTitleBlue,
+                alphaKey: AppStorageKey.chronoTitleAlpha
+            )
+        }
+    }
+
+    // Calendar Title Overrides
+    @Published var calendarTitleAlignment: Int? {
+        didSet {
+            persistOptionalInt(calendarTitleAlignment, key: AppStorageKey.calendarTitleAlignment)
+        }
+    }
+    @Published var calendarTitleSize: CGFloat? {
+        didSet {
+            persistOptionalDouble(calendarTitleSize.map(Double.init), key: AppStorageKey.calendarTitleSize)
+        }
+    }
+    @Published var calendarTitleIconName: String? {
+        didSet {
+            persistOptionalString(calendarTitleIconName, key: AppStorageKey.calendarTitleIconName)
+        }
+    }
+    @Published var calendarTitleUseAccent: Bool? {
+        didSet {
+            persistOptionalBool(calendarTitleUseAccent, key: AppStorageKey.calendarTitleUseAccent)
+        }
+    }
+    @Published var calendarTitleColor: NSColor? {
+        didSet {
+            persistOptionalColor(
+                calendarTitleColor,
+                redKey: AppStorageKey.calendarTitleRed,
+                greenKey: AppStorageKey.calendarTitleGreen,
+                blueKey: AppStorageKey.calendarTitleBlue,
+                alphaKey: AppStorageKey.calendarTitleAlpha
+            )
+        }
+    }
+
+    // Launcher Title Overrides
+    @Published var launcherTitleAlignment: Int? {
+        didSet {
+            persistOptionalInt(launcherTitleAlignment, key: AppStorageKey.launcherTitleAlignment)
+        }
+    }
+    @Published var launcherTitleSize: CGFloat? {
+        didSet {
+            persistOptionalDouble(launcherTitleSize.map(Double.init), key: AppStorageKey.launcherTitleSize)
+        }
+    }
+    @Published var launcherTitleIconName: String? {
+        didSet {
+            persistOptionalString(launcherTitleIconName, key: AppStorageKey.launcherTitleIconName)
+        }
+    }
+    @Published var launcherTitleUseAccent: Bool? {
+        didSet {
+            persistOptionalBool(launcherTitleUseAccent, key: AppStorageKey.launcherTitleUseAccent)
+        }
+    }
+    @Published var launcherTitleColor: NSColor? {
+        didSet {
+            persistOptionalColor(
+                launcherTitleColor,
+                redKey: AppStorageKey.launcherTitleRed,
+                greenKey: AppStorageKey.launcherTitleGreen,
+                blueKey: AppStorageKey.launcherTitleBlue,
+                alphaKey: AppStorageKey.launcherTitleAlpha
+            )
+        }
+    }
+
+    // Bookmarks Title Overrides
+    @Published var bookmarksTitleAlignment: Int? {
+        didSet {
+            persistOptionalInt(bookmarksTitleAlignment, key: AppStorageKey.bookmarksTitleAlignment)
+        }
+    }
+    @Published var bookmarksTitleSize: CGFloat? {
+        didSet {
+            persistOptionalDouble(bookmarksTitleSize.map(Double.init), key: AppStorageKey.bookmarksTitleSize)
+        }
+    }
+    @Published var bookmarksTitleIconName: String? {
+        didSet {
+            persistOptionalString(bookmarksTitleIconName, key: AppStorageKey.bookmarksTitleIconName)
+        }
+    }
+    @Published var bookmarksTitleUseAccent: Bool? {
+        didSet {
+            persistOptionalBool(bookmarksTitleUseAccent, key: AppStorageKey.bookmarksTitleUseAccent)
+        }
+    }
+    @Published var bookmarksTitleColor: NSColor? {
+        didSet {
+            persistOptionalColor(
+                bookmarksTitleColor,
+                redKey: AppStorageKey.bookmarksTitleRed,
+                greenKey: AppStorageKey.bookmarksTitleGreen,
+                blueKey: AppStorageKey.bookmarksTitleBlue,
+                alphaKey: AppStorageKey.bookmarksTitleAlpha
+            )
+        }
+    }
+
+    // Combined Title Overrides
+    @Published var combinedTitleAlignment: Int? {
+        didSet {
+            persistOptionalInt(combinedTitleAlignment, key: AppStorageKey.combinedTitleAlignment)
+        }
+    }
+    @Published var combinedTitleSize: CGFloat? {
+        didSet {
+            persistOptionalDouble(combinedTitleSize.map(Double.init), key: AppStorageKey.combinedTitleSize)
+        }
+    }
+    @Published var combinedTitleIconName: String? {
+        didSet {
+            persistOptionalString(combinedTitleIconName, key: AppStorageKey.combinedTitleIconName)
+        }
+    }
+    @Published var combinedTitleUseAccent: Bool? {
+        didSet {
+            persistOptionalBool(combinedTitleUseAccent, key: AppStorageKey.combinedTitleUseAccent)
+        }
+    }
+    @Published var combinedTitleColor: NSColor? {
+        didSet {
+            persistOptionalColor(
+                combinedTitleColor,
+                redKey: AppStorageKey.combinedTitleRed,
+                greenKey: AppStorageKey.combinedTitleGreen,
+                blueKey: AppStorageKey.combinedTitleBlue,
+                alphaKey: AppStorageKey.combinedTitleAlpha
+            )
+        }
+    }
+
     @Published var notchWidth: CGFloat {
         didSet {
             guard !isUpdating else { return }
@@ -1216,7 +1656,7 @@ final class AppSettings: ObservableObject {
 
     @Published var defaultPage: Int {
         didSet {
-            let clampedValue = clamp(defaultPage, min: IslandPage.clipboard.rawValue, max: IslandPage.chrono.rawValue)
+            let clampedValue = clamp(defaultPage, min: IslandPage.clipboard.rawValue, max: IslandPage.customCombined.rawValue)
             if clampedValue != defaultPage {
                 defaultPage = clampedValue
             }
@@ -1227,12 +1667,7 @@ final class AppSettings: ObservableObject {
     @Published var rememberClips: Int {
         didSet {
             guard !isUpdating else { return }
-            let clampedValue: Int
-            if rememberClips == 0 {
-                clampedValue = 0
-            } else {
-                clampedValue = Int(clamp(Double(rememberClips), min: rememberClipsRange.lowerBound, max: rememberClipsRange.upperBound))
-            }
+            let clampedValue = Int(clamp(Double(rememberClips), min: rememberClipsRange.lowerBound, max: rememberClipsRange.upperBound))
             if clampedValue != rememberClips {
                 isUpdating = true
                 rememberClips = clampedValue
@@ -1285,6 +1720,12 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var disableChronoHUD: Bool {
+        didSet {
+            enqueueDefaultSet(disableChronoHUD, forKey: AppStorageKey.disableChronoHUD)
+        }
+    }
+
     @Published var showBoxFileNames: Bool {
         didSet {
             enqueueDefaultSet(showBoxFileNames, forKey: AppStorageKey.showBoxFileNames)
@@ -1313,9 +1754,9 @@ final class AppSettings: ObservableObject {
         }
     }
 
-@Published var lastVisitedPage: Int {
+    @Published var lastVisitedPage: Int {
         didSet {
-            let clampedValue = clamp(lastVisitedPage, min: IslandPage.clipboard.rawValue, max: IslandPage.chrono.rawValue)
+            let clampedValue = clamp(lastVisitedPage, min: IslandPage.clipboard.rawValue, max: IslandPage.customCombined.rawValue)
             if clampedValue != lastVisitedPage {
                 lastVisitedPage = clampedValue
             }
@@ -1521,6 +1962,108 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var calendarViewOption: Int {
+        didSet {
+            enqueueDefaultSet(calendarViewOption, forKey: "calendarViewOption")
+        }
+    }
+
+    @Published var customActionsLayoutOption: Int {
+        didSet {
+            enqueueDefaultSet(customActionsLayoutOption, forKey: "customActionsLayoutOption")
+        }
+    }
+
+    @Published var showLauncherInPeeker: Bool {
+        didSet {
+            enqueueDefaultSet(showLauncherInPeeker, forKey: "showLauncherInPeeker")
+        }
+    }
+
+    @Published var showBookmarksInPeeker: Bool {
+        didSet {
+            enqueueDefaultSet(showBookmarksInPeeker, forKey: "showBookmarksInPeeker")
+        }
+    }
+
+    @Published var showCombinedInPeeker: Bool {
+        didSet {
+            enqueueDefaultSet(showCombinedInPeeker, forKey: "showCombinedInPeeker")
+        }
+    }
+
+    @Published var showAddAppButton: Bool {
+        didSet {
+            enqueueDefaultSet(showAddAppButton, forKey: "showAddAppButton")
+        }
+    }
+
+    @Published var showAddBookmarkButton: Bool {
+        didSet {
+            enqueueDefaultSet(showAddBookmarkButton, forKey: "showAddBookmarkButton")
+        }
+    }
+
+    @Published var launcherColumns: Int {
+        didSet {
+            enqueueDefaultSet(launcherColumns, forKey: "launcherColumns")
+        }
+    }
+
+    @Published var bookmarkColumns: Int {
+        didSet {
+            enqueueDefaultSet(bookmarkColumns, forKey: "bookmarkColumns")
+        }
+    }
+
+    @Published var launcherIconSize: CGFloat {
+        didSet {
+            enqueueDefaultSet(Double(launcherIconSize), forKey: "launcherIconSize")
+        }
+    }
+
+    @Published var launcherTextSize: CGFloat {
+        didSet {
+            enqueueDefaultSet(Double(launcherTextSize), forKey: "launcherTextSize")
+        }
+    }
+
+    @Published var launcherShowName: Bool {
+        didSet {
+            enqueueDefaultSet(launcherShowName, forKey: "launcherShowName")
+        }
+    }
+
+    @Published var launcherDisplayMode: Int {
+        didSet {
+            enqueueDefaultSet(launcherDisplayMode, forKey: "launcherDisplayMode")
+        }
+    }
+
+    @Published var bookmarkDisplayMode: Int {
+        didSet {
+            enqueueDefaultSet(bookmarkDisplayMode, forKey: "bookmarkDisplayMode")
+        }
+    }
+
+    @Published var sharingTargetApps: [String] {
+        didSet {
+            enqueueDefaultSet(sharingTargetApps, forKey: "sharingTargetApps")
+        }
+    }
+
+    @Published var boxSlimModeEnabled: Bool {
+        didSet {
+            enqueueDefaultSet(boxSlimModeEnabled, forKey: "boxSlimModeEnabled")
+        }
+    }
+
+    @Published var boxSlimModeHoldDuration: Double {
+        didSet {
+            enqueueDefaultSet(boxSlimModeHoldDuration, forKey: "boxSlimModeHoldDuration")
+        }
+    }
+
     @Published var hardwareNotchX: CGFloat = 0
     @Published var hardwareNotchWidth: CGFloat = 210
     @Published var hardwareNotchHeight: CGFloat = 32
@@ -1606,7 +2149,57 @@ final class AppSettings: ObservableObject {
         .spring(response: swipeAnimationResponse, dampingFraction: swipeAnimationDamping)
     }
 
-func titleAlignment(for page: IslandPage) -> TitleAlignmentOption {
+    func titleText(for page: IslandPage) -> String {
+        switch page {
+        case .clipboard:
+            if clipboardCustomTitle == "*" { return "" }
+            return clipboardCustomTitle?.isEmpty == false ? clipboardCustomTitle! : "Clip"
+        case .jot:
+            if jotCustomTitle == "*" { return "" }
+            return jotCustomTitle?.isEmpty == false ? jotCustomTitle! : "Jot"
+        case .box:
+            if boxCustomTitle == "*" { return "" }
+            return boxCustomTitle?.isEmpty == false ? boxCustomTitle! : "Box"
+        case .chrono:
+            if chronoCustomTitle == "*" { return "" }
+            return chronoCustomTitle?.isEmpty == false ? chronoCustomTitle! : "Chrono"
+        case .calendar:
+            if calendarCustomTitle == "*" { return "" }
+            return calendarCustomTitle?.isEmpty == false ? calendarCustomTitle! : "Calendar"
+        case .launcher:
+            if launcherCustomTitle == "*" { return "" }
+            return launcherCustomTitle?.isEmpty == false ? launcherCustomTitle! : "Launcher"
+        case .bookmarks:
+            if bookmarksCustomTitle == "*" { return "" }
+            return bookmarksCustomTitle?.isEmpty == false ? bookmarksCustomTitle! : "Bookmarks"
+        case .customCombined:
+            if combinedCustomTitle == "*" { return "" }
+            return combinedCustomTitle?.isEmpty == false ? combinedCustomTitle! : "Combined"
+        }
+    }
+
+    func showTitleIcon(for page: IslandPage) -> Bool {
+        switch page {
+        case .clipboard:
+            return clipboardShowTitleIcon ?? true
+        case .jot:
+            return jotShowTitleIcon ?? true
+        case .box:
+            return boxShowTitleIcon ?? true
+        case .chrono:
+            return chronoShowTitleIcon ?? true
+        case .calendar:
+            return calendarShowTitleIcon ?? true
+        case .launcher:
+            return launcherShowTitleIcon ?? true
+        case .bookmarks:
+            return bookmarksShowTitleIcon ?? true
+        case .customCombined:
+            return combinedShowTitleIcon ?? true
+        }
+    }
+
+    func titleAlignment(for page: IslandPage) -> TitleAlignmentOption {
         switch page {
         case .clipboard:
             return TitleAlignmentOption(rawValue: clipboardTitleAlignment ?? titleAlignment) ?? titleAlignmentOption
@@ -1615,7 +2208,15 @@ func titleAlignment(for page: IslandPage) -> TitleAlignmentOption {
         case .box:
             return TitleAlignmentOption(rawValue: boxTitleAlignment ?? titleAlignment) ?? titleAlignmentOption
         case .chrono:
-            return titleAlignmentOption
+            return TitleAlignmentOption(rawValue: chronoTitleAlignment ?? titleAlignment) ?? titleAlignmentOption
+        case .calendar:
+            return TitleAlignmentOption(rawValue: calendarTitleAlignment ?? titleAlignment) ?? titleAlignmentOption
+        case .launcher:
+            return TitleAlignmentOption(rawValue: launcherTitleAlignment ?? titleAlignment) ?? titleAlignmentOption
+        case .bookmarks:
+            return TitleAlignmentOption(rawValue: bookmarksTitleAlignment ?? titleAlignment) ?? titleAlignmentOption
+        case .customCombined:
+            return TitleAlignmentOption(rawValue: combinedTitleAlignment ?? titleAlignment) ?? titleAlignmentOption
         }
     }
 
@@ -1628,48 +2229,50 @@ func titleAlignment(for page: IslandPage) -> TitleAlignmentOption {
         case .box:
             return clamp(boxTitleSize ?? titleSize, min: titleSizeRange.lowerBound, max: titleSizeRange.upperBound)
         case .chrono:
-            return clamp(titleSize, min: titleSizeRange.lowerBound, max: titleSizeRange.upperBound)
+            return clamp(chronoTitleSize ?? titleSize, min: titleSizeRange.lowerBound, max: titleSizeRange.upperBound)
+        case .calendar:
+            return clamp(calendarTitleSize ?? titleSize, min: titleSizeRange.lowerBound, max: titleSizeRange.upperBound)
+        case .launcher:
+            return clamp(launcherTitleSize ?? titleSize, min: titleSizeRange.lowerBound, max: titleSizeRange.upperBound)
+        case .bookmarks:
+            return clamp(bookmarksTitleSize ?? titleSize, min: titleSizeRange.lowerBound, max: titleSizeRange.upperBound)
+        case .customCombined:
+            return clamp(combinedTitleSize ?? titleSize, min: titleSizeRange.lowerBound, max: titleSizeRange.upperBound)
         }
+    }
+
+    private func getPageTitleColor(useAccent: Bool?, overrideColor: NSColor?, mainColor: NSColor) -> NSColor {
+        if useAccent == true {
+            return accentColor
+        }
+        if let override = overrideColor {
+            return override
+        }
+        if useAccent == false {
+            return titleColor
+        }
+        return mainColor
     }
 
     func titleColor(for page: IslandPage) -> NSColor {
         let mainColor = effectiveTitleColor
         switch page {
         case .clipboard:
-            if clipboardTitleUseAccent == true {
-                return accentColor
-            }
-            if let override = clipboardTitleColor {
-                return override
-            }
-            if clipboardTitleUseAccent == false {
-                return titleColor
-            }
-            return mainColor
+            return getPageTitleColor(useAccent: clipboardTitleUseAccent, overrideColor: clipboardTitleColor, mainColor: mainColor)
         case .jot:
-            if jotTitleUseAccent == true {
-                return accentColor
-            }
-            if let override = jotTitleColor {
-                return override
-            }
-            if jotTitleUseAccent == false {
-                return titleColor
-            }
-            return mainColor
+            return getPageTitleColor(useAccent: jotTitleUseAccent, overrideColor: jotTitleColor, mainColor: mainColor)
         case .box:
-            if boxTitleUseAccent == true {
-                return accentColor
-            }
-            if let override = boxTitleColor {
-                return override
-            }
-            if boxTitleUseAccent == false {
-                return titleColor
-            }
-            return mainColor
+            return getPageTitleColor(useAccent: boxTitleUseAccent, overrideColor: boxTitleColor, mainColor: mainColor)
         case .chrono:
-            return mainColor
+            return getPageTitleColor(useAccent: chronoTitleUseAccent, overrideColor: chronoTitleColor, mainColor: mainColor)
+        case .calendar:
+            return getPageTitleColor(useAccent: calendarTitleUseAccent, overrideColor: calendarTitleColor, mainColor: mainColor)
+        case .launcher:
+            return getPageTitleColor(useAccent: launcherTitleUseAccent, overrideColor: launcherTitleColor, mainColor: mainColor)
+        case .bookmarks:
+            return getPageTitleColor(useAccent: bookmarksTitleUseAccent, overrideColor: bookmarksTitleColor, mainColor: mainColor)
+        case .customCombined:
+            return getPageTitleColor(useAccent: combinedTitleUseAccent, overrideColor: combinedTitleColor, mainColor: mainColor)
         }
     }
 
@@ -1677,19 +2280,21 @@ func titleAlignment(for page: IslandPage) -> TitleAlignmentOption {
         let mainSymbol = titleIconName.isEmpty ? fallback : titleIconName
         switch page {
         case .clipboard:
-            if let override = clipboardTitleIconName, !override.isEmpty {
-                return override
-            }
+            if let override = clipboardTitleIconName, !override.isEmpty { return override }
         case .jot:
-            if let override = jotTitleIconName, !override.isEmpty {
-                return override
-            }
+            if let override = jotTitleIconName, !override.isEmpty { return override }
         case .box:
-            if let override = boxTitleIconName, !override.isEmpty {
-                return override
-            }
+            if let override = boxTitleIconName, !override.isEmpty { return override }
         case .chrono:
-            break
+            if let override = chronoTitleIconName, !override.isEmpty { return override }
+        case .calendar:
+            if let override = calendarTitleIconName, !override.isEmpty { return override }
+        case .launcher:
+            if let override = launcherTitleIconName, !override.isEmpty { return override }
+        case .bookmarks:
+            if let override = bookmarksTitleIconName, !override.isEmpty { return override }
+        case .customCombined:
+            if let override = combinedTitleIconName, !override.isEmpty { return override }
         }
         return mainSymbol
     }
@@ -1767,17 +2372,13 @@ func titleAlignment(for page: IslandPage) -> TitleAlignmentOption {
         if defaults.object(forKey: AppStorageKey.defaultPage) == nil {
             defaultPage = IslandPage.clipboard.rawValue
         } else {
-            defaultPage = clamp(defaults.integer(forKey: AppStorageKey.defaultPage), min: IslandPage.clipboard.rawValue, max: IslandPage.chrono.rawValue)
+            defaultPage = clamp(defaults.integer(forKey: AppStorageKey.defaultPage), min: IslandPage.clipboard.rawValue, max: IslandPage.customCombined.rawValue)
         }
         if defaults.object(forKey: AppStorageKey.rememberClips) == nil {
             rememberClips = 40
         } else {
             let storedValue = defaults.integer(forKey: AppStorageKey.rememberClips)
-            if storedValue == 0 {
-                rememberClips = 0
-            } else {
-                rememberClips = clamp(storedValue, min: Int(rememberClipsRange.lowerBound), max: Int(rememberClipsRange.upperBound))
-            }
+            rememberClips = clamp(storedValue, min: Int(rememberClipsRange.lowerBound), max: Int(rememberClipsRange.upperBound))
         }
 
         if defaults.object(forKey: AppStorageKey.titleAlignment) == nil {
@@ -1804,6 +2405,12 @@ func titleAlignment(for page: IslandPage) -> TitleAlignmentOption {
             showPagers = true
         } else {
             showPagers = defaults.bool(forKey: AppStorageKey.showPagers)
+        }
+
+        if defaults.object(forKey: AppStorageKey.disableChronoHUD) == nil {
+            disableChronoHUD = false
+        } else {
+            disableChronoHUD = defaults.bool(forKey: AppStorageKey.disableChronoHUD)
         }
 
         if defaults.object(forKey: AppStorageKey.showBoxFileNames) == nil {
@@ -1875,7 +2482,7 @@ func titleAlignment(for page: IslandPage) -> TitleAlignmentOption {
         if defaults.object(forKey: AppStorageKey.lastVisitedPage) == nil {
             lastVisitedPage = IslandPage.clipboard.rawValue
         } else {
-            lastVisitedPage = clamp(defaults.integer(forKey: AppStorageKey.lastVisitedPage), min: IslandPage.clipboard.rawValue, max: IslandPage.chrono.rawValue)
+            lastVisitedPage = clamp(defaults.integer(forKey: AppStorageKey.lastVisitedPage), min: IslandPage.clipboard.rawValue, max: IslandPage.customCombined.rawValue)
         }
 
         if let storedSensitivity = defaults.object(forKey: AppStorageKey.proximitySensitivity) as? Double {
@@ -1997,6 +2604,170 @@ func titleAlignment(for page: IslandPage) -> TitleAlignmentOption {
         }
 
         observedFolders = defaults.stringArray(forKey: AppStorageKey.observedFolders) ?? []
+
+        calendarViewOption = defaults.integer(forKey: "calendarViewOption")
+        customActionsLayoutOption = defaults.integer(forKey: "customActionsLayoutOption")
+        showLauncherInPeeker = defaults.bool(forKey: "showLauncherInPeeker")
+        showBookmarksInPeeker = defaults.bool(forKey: "showBookmarksInPeeker")
+        showCombinedInPeeker = defaults.bool(forKey: "showCombinedInPeeker")
+
+        if defaults.object(forKey: "showAddAppButton") == nil {
+            showAddAppButton = true
+        } else {
+            showAddAppButton = defaults.bool(forKey: "showAddAppButton")
+        }
+
+        if defaults.object(forKey: "showAddBookmarkButton") == nil {
+            showAddBookmarkButton = true
+        } else {
+            showAddBookmarkButton = defaults.bool(forKey: "showAddBookmarkButton")
+        }
+
+        if defaults.object(forKey: "launcherColumns") == nil {
+            launcherColumns = 4
+        } else {
+            launcherColumns = defaults.integer(forKey: "launcherColumns")
+        }
+
+        if defaults.object(forKey: "bookmarkColumns") == nil {
+            bookmarkColumns = 4
+        } else {
+            bookmarkColumns = defaults.integer(forKey: "bookmarkColumns")
+        }
+
+        if defaults.object(forKey: "launcherIconSize") == nil {
+            launcherIconSize = 24
+        } else {
+            launcherIconSize = CGFloat(defaults.double(forKey: "launcherIconSize"))
+        }
+
+        if defaults.object(forKey: "launcherTextSize") == nil {
+            launcherTextSize = 11
+        } else {
+            launcherTextSize = CGFloat(defaults.double(forKey: "launcherTextSize"))
+        }
+
+        if defaults.object(forKey: "launcherShowName") == nil {
+            launcherShowName = true
+        } else {
+            launcherShowName = defaults.bool(forKey: "launcherShowName")
+        }
+
+        launcherDisplayMode = defaults.integer(forKey: "launcherDisplayMode")
+        bookmarkDisplayMode = defaults.integer(forKey: "bookmarkDisplayMode")
+        sharingTargetApps = defaults.stringArray(forKey: "sharingTargetApps") ?? []
+
+        boxSlimModeEnabled = defaults.bool(forKey: "boxSlimModeEnabled")
+
+        if defaults.object(forKey: "boxSlimModeHoldDuration") == nil {
+            boxSlimModeHoldDuration = 1.5
+        } else {
+            boxSlimModeHoldDuration = defaults.double(forKey: "boxSlimModeHoldDuration")
+        }
+
+        // Custom Titles
+        clipboardCustomTitle = defaults.string(forKey: AppStorageKey.clipboardCustomTitle)
+        jotCustomTitle = defaults.string(forKey: AppStorageKey.jotCustomTitle)
+        boxCustomTitle = defaults.string(forKey: AppStorageKey.boxCustomTitle)
+        chronoCustomTitle = defaults.string(forKey: AppStorageKey.chronoCustomTitle)
+        calendarCustomTitle = defaults.string(forKey: AppStorageKey.calendarCustomTitle)
+        launcherCustomTitle = defaults.string(forKey: AppStorageKey.launcherCustomTitle)
+        bookmarksCustomTitle = defaults.string(forKey: AppStorageKey.bookmarksCustomTitle)
+        combinedCustomTitle = defaults.string(forKey: AppStorageKey.combinedCustomTitle)
+
+        // Show Title Icons
+        clipboardShowTitleIcon = defaults.object(forKey: AppStorageKey.clipboardShowTitleIcon) as? Bool
+        jotShowTitleIcon = defaults.object(forKey: AppStorageKey.jotShowTitleIcon) as? Bool
+        boxShowTitleIcon = defaults.object(forKey: AppStorageKey.boxShowTitleIcon) as? Bool
+        chronoShowTitleIcon = defaults.object(forKey: AppStorageKey.chronoShowTitleIcon) as? Bool
+        calendarShowTitleIcon = defaults.object(forKey: AppStorageKey.calendarShowTitleIcon) as? Bool
+        launcherShowTitleIcon = defaults.object(forKey: AppStorageKey.launcherShowTitleIcon) as? Bool
+        bookmarksShowTitleIcon = defaults.object(forKey: AppStorageKey.bookmarksShowTitleIcon) as? Bool
+        combinedShowTitleIcon = defaults.object(forKey: AppStorageKey.combinedShowTitleIcon) as? Bool
+
+        // Bookmark Layout Customizations
+        if defaults.object(forKey: AppStorageKey.bookmarkIconSize) == nil {
+            bookmarkIconSize = 24
+        } else {
+            bookmarkIconSize = CGFloat(defaults.double(forKey: AppStorageKey.bookmarkIconSize))
+        }
+
+        if defaults.object(forKey: AppStorageKey.bookmarkTextSize) == nil {
+            bookmarkTextSize = 11
+        } else {
+            bookmarkTextSize = CGFloat(defaults.double(forKey: AppStorageKey.bookmarkTextSize))
+        }
+
+        if defaults.object(forKey: AppStorageKey.bookmarkShowName) == nil {
+            bookmarkShowName = true
+        } else {
+            bookmarkShowName = defaults.bool(forKey: AppStorageKey.bookmarkShowName)
+        }
+
+        // Chrono Title Overrides
+        chronoTitleAlignment = defaults.object(forKey: AppStorageKey.chronoTitleAlignment) as? Int
+        chronoTitleSize = (defaults.object(forKey: AppStorageKey.chronoTitleSize) as? Double).map { CGFloat($0) }
+        chronoTitleIconName = defaults.string(forKey: AppStorageKey.chronoTitleIconName)
+        chronoTitleUseAccent = defaults.object(forKey: AppStorageKey.chronoTitleUseAccent) as? Bool
+        chronoTitleColor = AppSettings.loadOptionalColor(
+            defaults: defaults,
+            redKey: AppStorageKey.chronoTitleRed,
+            greenKey: AppStorageKey.chronoTitleGreen,
+            blueKey: AppStorageKey.chronoTitleBlue,
+            alphaKey: AppStorageKey.chronoTitleAlpha
+        )
+
+        // Calendar Title Overrides
+        calendarTitleAlignment = defaults.object(forKey: AppStorageKey.calendarTitleAlignment) as? Int
+        calendarTitleSize = (defaults.object(forKey: AppStorageKey.calendarTitleSize) as? Double).map { CGFloat($0) }
+        calendarTitleIconName = defaults.string(forKey: AppStorageKey.calendarTitleIconName)
+        calendarTitleUseAccent = defaults.object(forKey: AppStorageKey.calendarTitleUseAccent) as? Bool
+        calendarTitleColor = AppSettings.loadOptionalColor(
+            defaults: defaults,
+            redKey: AppStorageKey.calendarTitleRed,
+            greenKey: AppStorageKey.calendarTitleGreen,
+            blueKey: AppStorageKey.calendarTitleBlue,
+            alphaKey: AppStorageKey.calendarTitleAlpha
+        )
+
+        // Launcher Title Overrides
+        launcherTitleAlignment = defaults.object(forKey: AppStorageKey.launcherTitleAlignment) as? Int
+        launcherTitleSize = (defaults.object(forKey: AppStorageKey.launcherTitleSize) as? Double).map { CGFloat($0) }
+        launcherTitleIconName = defaults.string(forKey: AppStorageKey.launcherTitleIconName)
+        launcherTitleUseAccent = defaults.object(forKey: AppStorageKey.launcherTitleUseAccent) as? Bool
+        launcherTitleColor = AppSettings.loadOptionalColor(
+            defaults: defaults,
+            redKey: AppStorageKey.launcherTitleRed,
+            greenKey: AppStorageKey.launcherTitleGreen,
+            blueKey: AppStorageKey.launcherTitleBlue,
+            alphaKey: AppStorageKey.launcherTitleAlpha
+        )
+
+        // Bookmarks Title Overrides
+        bookmarksTitleAlignment = defaults.object(forKey: AppStorageKey.bookmarksTitleAlignment) as? Int
+        bookmarksTitleSize = (defaults.object(forKey: AppStorageKey.bookmarksTitleSize) as? Double).map { CGFloat($0) }
+        bookmarksTitleIconName = defaults.string(forKey: AppStorageKey.bookmarksTitleIconName)
+        bookmarksTitleUseAccent = defaults.object(forKey: AppStorageKey.bookmarksTitleUseAccent) as? Bool
+        bookmarksTitleColor = AppSettings.loadOptionalColor(
+            defaults: defaults,
+            redKey: AppStorageKey.bookmarksTitleRed,
+            greenKey: AppStorageKey.bookmarksTitleGreen,
+            blueKey: AppStorageKey.bookmarksTitleBlue,
+            alphaKey: AppStorageKey.bookmarksTitleAlpha
+        )
+
+        // Combined Title Overrides
+        combinedTitleAlignment = defaults.object(forKey: AppStorageKey.combinedTitleAlignment) as? Int
+        combinedTitleSize = (defaults.object(forKey: AppStorageKey.combinedTitleSize) as? Double).map { CGFloat($0) }
+        combinedTitleIconName = defaults.string(forKey: AppStorageKey.combinedTitleIconName)
+        combinedTitleUseAccent = defaults.object(forKey: AppStorageKey.combinedTitleUseAccent) as? Bool
+        combinedTitleColor = AppSettings.loadOptionalColor(
+            defaults: defaults,
+            redKey: AppStorageKey.combinedTitleRed,
+            greenKey: AppStorageKey.combinedTitleGreen,
+            blueKey: AppStorageKey.combinedTitleBlue,
+            alphaKey: AppStorageKey.combinedTitleAlpha
+        )
 
         persistAccentColor()
         persistBackgroundColor()
@@ -2277,6 +3048,34 @@ private func persistJotNotes(_ notes: [JotNote]) {
     PersistenceWriteCoordinator.shared.scheduleJotNotes(notes)
 }
 
+private func loadLauncherApps() -> [LauncherApp] {
+    guard let data = UserDefaults.standard.data(forKey: "launcherApps"),
+          let apps = try? JSONDecoder().decode([LauncherApp].self, from: data) else {
+        return []
+    }
+    return apps
+}
+
+private func persistLauncherApps(_ apps: [LauncherApp]) {
+    if let data = try? JSONEncoder().encode(apps) {
+        UserDefaults.standard.set(data, forKey: "launcherApps")
+    }
+}
+
+private func loadBookmarkItems() -> [BookmarkItem] {
+    guard let data = UserDefaults.standard.data(forKey: "bookmarkItems"),
+          let bookmarks = try? JSONDecoder().decode([BookmarkItem].self, from: data) else {
+        return []
+    }
+    return bookmarks
+}
+
+private func persistBookmarkItems(_ bookmarks: [BookmarkItem]) {
+    if let data = try? JSONEncoder().encode(bookmarks) {
+        UserDefaults.standard.set(data, forKey: "bookmarkItems")
+    }
+}
+
 // MARK: - Global Coordinate Proximity Driver
 private final class SingleInstanceLock {
     private var fileDescriptor: Int32 = -1
@@ -2311,16 +3110,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var idleCompactionWorkItem: DispatchWorkItem?
     private var pendingHideWorkItem: DispatchWorkItem?
     private var statusItem: NSStatusItem?
-    private let model = NotchMenuModel()
+    let model = NotchMenuModel()
     private let settings = AppSettings.shared
     private var settingsCancellables = Set<AnyCancellable>()
     private var hoverCloseWorkItem: DispatchWorkItem?
     private var swipeCloseWorkItem: DispatchWorkItem?
-
-    private var notchPreviewWorkItem: DispatchWorkItem?
     private var lastCloseProgressEmission: CGFloat = 0
     private var lastCarouselOffsetEmission: CGFloat = 0
+
+    private var notchPreviewWorkItem: DispatchWorkItem?
     private var lastClipboardChangeCount = NSPasteboard.general.changeCount
+    private var lastRetryChangeCount = -1
     private var lastWorkspaceClipboardPollTime: TimeInterval = 0
     private var lastImmediateClipboardPollTime: TimeInterval = 0
     private let clipboardQueue = DispatchQueue(label: "apollo.clipboard.poll", qos: .utility)
@@ -2336,6 +3136,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var proximityWakeWindow: ProximityWakeWindow?   // notch-edge / approach (open trigger)
     private var islandOpenMousePollTimer: DispatchSourceTimer?
     private var approachWorkItem: DispatchWorkItem?
+    private var boxDragHoldWorkItem: DispatchWorkItem?
     private var isDraggingOverProximity = false
     private var lastApproachProgressSampleTime: TimeInterval = 0
     private var lastApproachProgressEmitted: CGFloat = -1
@@ -2368,25 +3169,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         calculateScreenNotchDimensions()
-        model.currentPage = settings.reopenLastPage ? settings.lastVisitedPage : settings.defaultPage
+        let initialRaw = settings.reopenLastPage ? settings.lastVisitedPage : settings.defaultPage
+        let initialPage = IslandPage(rawValue: initialRaw) ?? .clipboard
+        model.currentPage = activePages.firstIndex(of: initialPage) ?? 0
         setupNotchWindow()
         setupStatusItem()
         observeSettings()
         startMemoryPressureMonitoring()
         startGlobalProximityTracking()
         startBackgroundStateTracking()
-        if settings.reopenLastPage {
-            model.currentPage = settings.lastVisitedPage
-        } else {
-            model.currentPage = settings.defaultPage
-        }
         model.clipboardItems = loadClipboardHistory()
         model.jotNotes = loadJotNotes()
+        model.launcherApps = loadLauncherApps()
+        model.bookmarkItems = loadBookmarkItems()
         refreshChunkedClipboard()
         normalizeClipboardDirectoryFlagsIfNeeded()
         applyClipboardLimitIfNeeded()
         persistClipboardHistory(model.clipboardItems)
         persistJotNotes(model.jotNotes)
+        persistLauncherApps(model.launcherApps)
+        persistBookmarkItems(model.bookmarkItems)
         refreshNativeState()
     }
 
@@ -2546,11 +3348,22 @@ private func makeStatusMenu() -> NSMenu {
         .store(in: &settingsCancellables)
 
         settings.$rememberClips
-            .sink { [weak self] _ in
+            .sink { [weak self] limit in
                 guard let self else { return }
                 self.applyClipboardLimitIfNeeded()
                 persistClipboardHistory(self.model.clipboardItems)
                 self.refreshChunkedClipboard()
+                
+                if limit == 0 {
+                    self.stopClipboardObservation()
+                    if let observer = self.clipboardActivationObserver {
+                        NSWorkspace.shared.notificationCenter.removeObserver(observer)
+                        self.clipboardActivationObserver = nil
+                    }
+                } else {
+                    self.observeWorkspaceActivationForClipboardIfNeeded()
+                    self.updateClipboardObservationMode(immediatePoll: true)
+                }
             }
             .store(in: &settingsCancellables)
 
@@ -2561,15 +3374,34 @@ private func makeStatusMenu() -> NSMenu {
             .store(in: &settingsCancellables)
 
         settings.$defaultPage
-            .sink { [weak self] _ in
+            .sink { [weak self] rawPage in
                 guard let self, !self.model.isExpanded, !self.settings.reopenLastPage else { return }
-                self.model.currentPage = self.settings.defaultPage
+                let page = IslandPage(rawValue: rawPage) ?? .clipboard
+                if let idx = self.activePages.firstIndex(of: page) {
+                    self.model.currentPage = idx
+                }
             }
             .store(in: &settingsCancellables)
 
         model.$currentPage
-            .sink { [weak self] page in
-                self?.settings.lastVisitedPage = page
+            .sink { [weak self] pageIndex in
+                guard let self = self else { return }
+                let pages = self.activePages
+                if pages.indices.contains(pageIndex) {
+                    self.settings.lastVisitedPage = pages[pageIndex].rawValue
+                }
+            }
+            .store(in: &settingsCancellables)
+
+        settings.$customActionsLayoutOption
+            .sink { [weak self] _ in
+                guard let self else { return }
+                DispatchQueue.main.async {
+                    let count = self.activePages.count
+                    if self.model.currentPage >= count {
+                        self.model.currentPage = count - 1
+                    }
+                }
             }
             .store(in: &settingsCancellables)
 
@@ -2597,6 +3429,20 @@ private func makeStatusMenu() -> NSMenu {
             }
             .store(in: &settingsCancellables)
 
+        model.$launcherApps
+            .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
+            .sink { apps in
+                persistLauncherApps(apps)
+            }
+            .store(in: &settingsCancellables)
+
+        model.$bookmarkItems
+            .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
+            .sink { bookmarks in
+                persistBookmarkItems(bookmarks)
+            }
+            .store(in: &settingsCancellables)
+
         settings.$hoverPreviewFocus
             .sink { [weak self] focus in
                 guard let self else { return }
@@ -2610,6 +3456,17 @@ private func makeStatusMenu() -> NSMenu {
                 self.updateClipboardObservationMode(immediatePoll: focus != .all)
             }
             .store(in: &settingsCancellables)
+    }
+
+    var activePages: [IslandPage] {
+        var pages: [IslandPage] = [.clipboard, .jot, .box, .chrono, .calendar]
+        if settings.customActionsLayoutOption == 0 {
+            pages.append(.customCombined)
+        } else {
+            pages.append(.launcher)
+            pages.append(.bookmarks)
+        }
+        return pages
     }
 
     private func startMemoryPressureMonitoring() {
@@ -2629,6 +3486,8 @@ private func makeStatusMenu() -> NSMenu {
         } else {
             BoxIconCache.shared.trim(keeping: urls)
         }
+        AppIconCache.shared.clear()
+        BookmarkIconCache.shared.clear()
     }
 
     private func showSettingsPreview() {
@@ -2815,7 +3674,8 @@ private func makeStatusMenu() -> NSMenu {
     private func advancePage(direction: Int) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            let next = clamp(self.model.currentPage + direction, min: IslandPage.clipboard.rawValue, max: IslandPage.chrono.rawValue)
+            let activePagesCount = self.activePages.count
+            let next = clamp(self.model.currentPage + direction, min: 0, max: activePagesCount - 1)
             SwipeState.shared.carouselDragOffset = 0
             withAnimation(self.settings.carouselAnimation) {
                 self.model.currentPage = next
@@ -2824,7 +3684,9 @@ private func makeStatusMenu() -> NSMenu {
     }
 
     private func startBackgroundStateTracking() {
-        startClipboardObservation()
+        if settings.rememberClips > 0 {
+            startClipboardObservation()
+        }
     }
 
     private func startClipboardObservation() {
@@ -2833,7 +3695,9 @@ private func makeStatusMenu() -> NSMenu {
     }
 
     private func shouldKeepClipboardTimerRunning() -> Bool {
-        (model.isExpanded || model.isPinned) && model.currentPage == IslandPage.clipboard.rawValue
+        let pages = activePages
+        guard pages.indices.contains(model.currentPage) else { return false }
+        return (model.isExpanded || model.isPinned) && pages[model.currentPage] == .clipboard
     }
 
     private func updateClipboardObservationMode(immediatePoll: Bool = false) {
@@ -2856,6 +3720,7 @@ private func makeStatusMenu() -> NSMenu {
     }
 
     private func startClipboardPollingTimerIfNeeded() {
+        guard settings.rememberClips > 0 else { return }
         guard clipboardTimer == nil else { return }
 
         let timer = DispatchSource.makeTimerSource(queue: clipboardQueue)
@@ -2877,6 +3742,7 @@ private func makeStatusMenu() -> NSMenu {
     }
 
     private func observeWorkspaceActivationForClipboardIfNeeded() {
+        guard settings.rememberClips > 0 else { return }
         guard clipboardActivationObserver == nil else { return }
         clipboardActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
@@ -2897,8 +3763,10 @@ private func makeStatusMenu() -> NSMenu {
         pollClipboard()
     }
 
-    func updateObservationState(for page: Int) {
-        updateClipboardObservationMode(immediatePoll: page == IslandPage.clipboard.rawValue)
+    func updateObservationState(for pageIndex: Int) {
+        let pages = activePages
+        guard pages.indices.contains(pageIndex) else { return }
+        updateClipboardObservationMode(immediatePoll: pages[pageIndex] == .clipboard)
     }
 
     private func refreshNativeState() {
@@ -2918,8 +3786,8 @@ private func makeStatusMenu() -> NSMenu {
     private func pollClipboardFromPasteboard(force: Bool = false) {
         let pasteboard = NSPasteboard.general
         let currentChangeCount = pasteboard.changeCount
-        guard force || currentChangeCount != lastClipboardChangeCount else { return }
-        lastClipboardChangeCount = currentChangeCount
+        let isNewChange = currentChangeCount != lastClipboardChangeCount
+        guard force || isNewChange else { return }
 
         let fileURLs = (pasteboard.readObjects(
             forClasses: [NSURL.self],
@@ -2934,19 +3802,34 @@ private func makeStatusMenu() -> NSMenu {
             trimmedText = nil
         }
 
-        guard (trimmedText?.isEmpty == false) || !fileURLs.isEmpty else { return }
+        if (trimmedText?.isEmpty == false) || !fileURLs.isEmpty {
+            lastClipboardChangeCount = currentChangeCount
 
-        clipboardQueue.async { [weak self] in
-            let entry = ClipboardEntry(text: trimmedText, fileURLs: fileURLs).normalizedForLightweightStorage()
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                guard self.model.clipboardItems.first?.signature != entry.signature else { return }
+            clipboardQueue.async { [weak self] in
+                let entry = ClipboardEntry(text: trimmedText, fileURLs: fileURLs).normalizedForLightweightStorage()
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    guard self.model.clipboardItems.first?.signature != entry.signature else { return }
 
-                self.model.clipboardItems.removeAll { $0.signature == entry.signature }
-                self.model.clipboardItems.insert(entry, at: 0)
-                self.applyClipboardLimitIfNeeded()
-                persistClipboardHistory(self.model.clipboardItems)
-                self.refreshChunkedClipboard()
+                    self.model.clipboardItems.removeAll { $0.signature == entry.signature }
+                    self.model.clipboardItems.insert(entry, at: 0)
+                    self.applyClipboardLimitIfNeeded()
+                    persistClipboardHistory(self.model.clipboardItems)
+                    self.refreshChunkedClipboard()
+                }
+            }
+        } else {
+            if isNewChange && currentChangeCount != lastRetryChangeCount {
+                lastRetryChangeCount = currentChangeCount
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) { [weak self] in
+                    self?.pollClipboard(force: true)
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                    self?.pollClipboard(force: true)
+                }
+            }
+            if !isNewChange {
+                lastClipboardChangeCount = currentChangeCount
             }
         }
     }
@@ -3235,6 +4118,10 @@ private func makeStatusMenu() -> NSMenu {
 
     private func handleProximityDraggingExited() {
         isDraggingOverProximity = false
+        boxDragHoldWorkItem?.cancel()
+        boxDragHoldWorkItem = nil
+        model.boxDragActive = false
+        model.boxSlimModeActive = false
         handleLegacyProximityWakeExitedFallback()
     }
 
@@ -3296,6 +4183,7 @@ private func makeStatusMenu() -> NSMenu {
     }
 
     private func scheduleHoverCloseIfNeeded() {
+        guard !model.isAddSheetOpen else { return }
         guard hoverCloseWorkItem == nil else { return }
         let delay = settings.hoverCloseDelay
         if delay <= 0 {
@@ -3326,6 +4214,7 @@ private func makeStatusMenu() -> NSMenu {
     }
 
     private func handleIslandOpenMousePollTick() {
+        guard !model.isAddSheetOpen else { return }
         guard model.isExpanded, !model.isPinned, let window = islandWindow else {
             stopIslandOpenMousePolling()
             return
@@ -3383,6 +4272,11 @@ private func makeStatusMenu() -> NSMenu {
     }
 
     private func evaluateMouseCoordinates(_ globalPoint: NSPoint, isFileDrag: Bool) {
+        if model.isAddSheetOpen {
+            hoverCloseWorkItem?.cancel()
+            hoverCloseWorkItem = nil
+            return
+        }
         guard let screen = NSScreen.screens.first else { return }
         let screenRect = screen.frame
         let zones = makeProximityZones(screenRect: screenRect, point: globalPoint, isFileDrag: isFileDrag)
@@ -3405,6 +4299,53 @@ private func makeStatusMenu() -> NSMenu {
                 hoverCloseWorkItem = nil
             } else {
                 scheduleHoverCloseIfNeeded()
+            }
+            return
+        }
+
+        if isFileDrag {
+            if isInsideActiveZone {
+                if settings.boxSlimModeEnabled {
+                    if zones.isInsideNotch || zones.isHoveringEdge {
+                        boxDragHoldWorkItem?.cancel()
+                        boxDragHoldWorkItem = nil
+                        model.boxSlimModeActive = true
+                        model.boxDragActive = true
+                        showPanel(expanded: true, pinned: false, preferredPage: IslandPage.box.rawValue)
+                    } else {
+                        if boxDragHoldWorkItem == nil {
+                            let holdDuration = settings.boxSlimModeHoldDuration
+                            let item = DispatchWorkItem { [weak self] in
+                                guard let self = self else { return }
+                                self.model.boxSlimModeActive = true
+                                self.model.boxDragActive = true
+                                self.showPanel(expanded: true, pinned: false, preferredPage: IslandPage.box.rawValue)
+                            }
+                            self.boxDragHoldWorkItem = item
+                            DispatchQueue.main.asyncAfter(deadline: .now() + holdDuration, execute: item)
+                        }
+                    }
+                } else {
+                    boxDragHoldWorkItem?.cancel()
+                    boxDragHoldWorkItem = nil
+                    model.boxSlimModeActive = false
+                    model.boxDragActive = true
+                    showPanel(expanded: true, pinned: false, preferredPage: IslandPage.box.rawValue)
+                }
+
+                if notchWindow?.alphaValue != 1.0 {
+                    notchWindow?.alphaValue = 1.0
+                }
+                if notchWindow?.isVisible == false {
+                    notchWindow?.orderFrontRegardless()
+                }
+                if notchWindow?.ignoresMouseEvents != false {
+                    notchWindow?.ignoresMouseEvents = false
+                }
+            } else {
+                boxDragHoldWorkItem?.cancel()
+                boxDragHoldWorkItem = nil
+                hidePanel()
             }
             return
         }
@@ -3471,23 +4412,24 @@ private func makeStatusMenu() -> NSMenu {
             panelVisibilityEpoch &+= 1
         }
 
-        let resolvedPage: Int?
+        let resolvedPage: IslandPage?
         if let preferredPage {
-            resolvedPage = preferredPage
+            resolvedPage = IslandPage(rawValue: preferredPage)
         } else if expanded {
             if settings.reopenLastPage {
-                resolvedPage = settings.lastVisitedPage
+                resolvedPage = IslandPage(rawValue: settings.lastVisitedPage)
             } else if settings.defaultToBoxIfItems, !model.boxFiles.isEmpty {
-                resolvedPage = IslandPage.box.rawValue
+                resolvedPage = .box
             } else {
-                resolvedPage = settings.defaultPage
+                resolvedPage = IslandPage(rawValue: settings.defaultPage)
             }
         } else {
             resolvedPage = nil
         }
 
         let stateMatches = model.isExpanded == expanded && model.isPinned == pinned
-        let pageMatches = resolvedPage == nil || model.currentPage == resolvedPage
+        let currentPageEnum = activePages.indices.contains(model.currentPage) ? activePages[model.currentPage] : .clipboard
+        let pageMatches = resolvedPage == nil || currentPageEnum == resolvedPage
         if stateMatches,
            pageMatches,
            abs(model.expansionProgress - 1.0) < 0.001,
@@ -3556,8 +4498,10 @@ private func makeStatusMenu() -> NSMenu {
         }
         lastCloseProgressEmission = 0
         lastCarouselOffsetEmission = 0
-        if let resolvedPage, model.currentPage != resolvedPage {
-            model.currentPage = resolvedPage
+        if let resolvedPage, let idx = activePages.firstIndex(of: resolvedPage) {
+            if model.currentPage != idx {
+                model.currentPage = idx
+            }
         }
         if window.alphaValue != 1.0 {
             window.alphaValue = 1.0
@@ -3593,6 +4537,8 @@ private func makeStatusMenu() -> NSMenu {
         hoverCloseWorkItem?.cancel()
         hoverCloseWorkItem = nil
         stopIslandOpenMousePolling()
+        model.boxDragActive = false
+        model.boxSlimModeActive = false
         // Match open exactly: use the same notch spring for collapse.
         // Keep the window visible long enough for the spring to settle.
         withAnimation(settings.notchOpenAnimation) {
@@ -3700,6 +4646,8 @@ private func makeStatusMenu() -> NSMenu {
 
     private func performIdleCompaction() {
         BoxIconCache.shared.removeAll()
+        AppIconCache.shared.clear()
+        BookmarkIconCache.shared.clear()
         if !model.isExpanded && !model.isPinned {
             SwipeState.shared.carouselDragOffset = 0
             model.closeGestureProgress = 0
@@ -4014,6 +4962,9 @@ final class ProximityWakeWindow: NSPanel {
         }
 
         func updateTrackingGeometry(notchEdgeRect: CGRect, approachRect: CGRect) {
+            guard self.notchEdgeRect != notchEdgeRect || self.approachRect != approachRect else {
+                return
+            }
             self.notchEdgeRect = notchEdgeRect
             self.approachRect = approachRect
             rebuildTrackingArea()
@@ -4114,7 +5065,11 @@ final class ProximityWakeWindow: NSPanel {
 
 struct IslandExitTracker {}
 
-final class IslandHostingView<Content: View>: NSHostingView<Content> {}
+final class IslandHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        return true
+    }
+}
 
 final class IslandPanel: NSPanel {
     var onSwipeLeft: (() -> Void)?
@@ -4359,27 +5314,122 @@ final class IslandPanel: NSPanel {
 }
 
 // MARK: - Box Share Feature
-struct BoxShareButton: View {
-    let files: [BoxFile]
-    let accentColor: NSColor
-    @State private var isTargeted = false
+// MARK: - Box Share Feature
+struct BoxControlsAppIconView: View {
+    let appPath: String
+    let size: CGFloat
 
     var body: some View {
-        Button {
-            share(urls: files.map(\.url))
-        } label: {
-            Image(systemName: "square.and.arrow.up")
-                .symbolRenderingMode(.palette)
-                .foregroundStyle(.white, Color(accentColor).gradient)
+        if FileManager.default.fileExists(atPath: appPath) {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: appPath))
+                .resizable()
+                .frame(width: size, height: size)
+        } else {
+            Image(systemName: "app.fill")
+                .resizable()
+                .frame(width: size, height: size)
+                .foregroundColor(.gray.opacity(0.5))
+        }
+    }
+}
+
+struct BoxShareButton: View {
+    let files: [BoxFile]
+    let selectedIDs: Set<UUID>
+    let accentColor: NSColor
+    
+    @State private var isShareTargeted = false
+    @State private var targetedAppPath: String? = nil
+
+    private var urlsToShare: [URL] {
+        let selected = files.filter { selectedIDs.contains($0.id) }.map(\.url)
+        return selected.isEmpty ? files.map(\.url) : selected
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if !AppSettings.shared.sharingTargetApps.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(AppSettings.shared.sharingTargetApps, id: \.self) { appPath in
+                        let appURL = URL(fileURLWithPath: appPath)
+                        let appName = appURL.deletingPathExtension().lastPathComponent
+                        let isHovered = targetedAppPath == appPath
+                        
+                        Button {
+                            openFiles(urlsToShare, with: appPath)
+                        } label: {
+                            BoxControlsAppIconView(appPath: appPath, size: 20)
+                                .padding(8)
+                                .background(isHovered ? Color.white.opacity(0.3) : Color.black.opacity(0.4), in: Circle())
+                                .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Open with \(appName)")
+                        .onDrop(of: [.fileURL], isTargeted: Binding(
+                            get: { self.targetedAppPath == appPath },
+                            set: { isTargeted in
+                                if isTargeted {
+                                    self.targetedAppPath = appPath
+                                } else if self.targetedAppPath == appPath {
+                                    self.targetedAppPath = nil
+                                }
+                            }
+                        )) { providers in
+                            handleAppDrop(providers: providers, appPath: appPath)
+                            return true
+                        }
+                    }
+                }
+                
+                Rectangle()
+                    .fill(Color.white.opacity(0.25))
+                    .frame(width: 1, height: 20)
+                    .padding(.horizontal, 4)
+            }
+
+            Button {
+                share(urls: urlsToShare)
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, Color(accentColor).gradient)
                     .font(.system(size: 18, weight: .semibold))
                     .padding(10)
-                    .background(isTargeted ? Color.white.opacity(0.3) : Color.black.opacity(0.4), in: Circle())
+                    .background(isShareTargeted ? Color.white.opacity(0.3) : Color.black.opacity(0.4), in: Circle())
                     .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
+            }
+            .buttonStyle(.plain)
+            .onDrop(of: [.fileURL], isTargeted: $isShareTargeted) { providers in
+                handleShareDrop(providers: providers)
+                return true
+            }
         }
-        .buttonStyle(.plain)
-        .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
-            handleShareDrop(providers: providers)
-            return true
+        .padding(6)
+        .background(Color.black.opacity(0.25), in: Capsule())
+    }
+
+    private func openFiles(_ urls: [URL], with appPath: String) {
+        guard !urls.isEmpty else { return }
+        let appURL = URL(fileURLWithPath: appPath)
+        NSWorkspace.shared.open(urls, withApplicationAt: appURL, configuration: NSWorkspace.OpenConfiguration(), completionHandler: nil)
+    }
+
+    private func handleAppDrop(providers: [NSItemProvider], appPath: String) {
+        var droppedURLs: [URL] = []
+        let group = DispatchGroup()
+        for provider in providers where provider.canLoadObject(ofClass: URL.self) {
+            group.enter()
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                if let fileUrl = url {
+                    DispatchQueue.main.async {
+                        droppedURLs.append(fileUrl)
+                    }
+                }
+                group.leave()
+            }
+        }
+        group.notify(queue: .main) {
+            self.openFiles(droppedURLs, with: appPath)
         }
     }
 
@@ -4394,10 +5444,20 @@ struct BoxShareButton: View {
 
     private func handleShareDrop(providers: [NSItemProvider]) {
         var droppedURLs: [URL] = []
+        let group = DispatchGroup()
         for provider in providers where provider.canLoadObject(ofClass: URL.self) {
+            group.enter()
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                if let fileUrl = url { DispatchQueue.main.async { droppedURLs.append(fileUrl); share(urls: droppedURLs) } }
+                if let fileUrl = url {
+                    DispatchQueue.main.async {
+                        droppedURLs.append(fileUrl)
+                    }
+                }
+                group.leave()
             }
+        }
+        group.notify(queue: .main) {
+            self.share(urls: droppedURLs)
         }
     }
 }
@@ -4435,7 +5495,21 @@ struct UnifiedNotchContainer: View {
     @State var isNotchFileDropTargeted = false
     @State var isBoxDropTargeted = false
     @State var selectedBoxFileIDs = Set<UUID>()
-    let pageTopContentInset: CGFloat = 8
+    @State private var isAddAppPresented = false
+    @State private var isAddBookmarkPresented = false
+    @State private var animatingFromPage: Int? = nil
+    var activePages: [IslandPage] {
+        var pages: [IslandPage] = [.clipboard, .jot, .box, .chrono, .calendar]
+        if settings.customActionsLayoutOption == 0 {
+            pages.append(.customCombined)
+        } else {
+            pages.append(.launcher)
+            pages.append(.bookmarks)
+        }
+        return pages
+    }
+
+    let pageTopContentInset: CGFloat = 2
 
     // This preference key is used to report the animated height of the island back to the AppDelegate.
     struct ShellHeightKey: PreferenceKey {
@@ -4494,7 +5568,7 @@ struct UnifiedNotchContainer: View {
     }
 
     private var boxMenuBarControls: some View {
-        let isBoxPage = (IslandPage(rawValue: model.currentPage) ?? .clipboard) == .box
+        let isBoxPage = activePages.indices.contains(model.currentPage) && activePages[model.currentPage] == .box
         let showControls = model.isExpanded && isBoxPage && !model.boxFiles.isEmpty
         return GeometryReader { geo in
             let edgeNotchWidth = settings.effectiveNotchWidth
@@ -4543,8 +5617,8 @@ struct UnifiedNotchContainer: View {
     }
 
     var body: some View {
-        let panelWidth = scaledPanelWidth(for: settings)
-        let panelHeight = scaledPanelHeight(for: settings)
+        let panelWidth = model.boxSlimModeActive ? toastPanelWidth : scaledPanelWidth(for: settings)
+        let panelHeight = model.boxSlimModeActive ? toastPanelHeight : scaledPanelHeight(for: settings)
 
         let notchWidth = settings.effectiveNotchWidth
         let notchHeight = settings.effectiveNotchHeight
@@ -4572,7 +5646,11 @@ struct UnifiedNotchContainer: View {
         let pagerRowHeight: CGFloat = settings.showPagers ? 14 : 0
         let pagerBottomInset: CGFloat = settings.showPagers ? 8 : 0
         let pagerReservedHeight = pagerRowHeight + pagerBottomInset
-        let contentAreaHeight = max(1, panelHeight - notchHeight - pagerReservedHeight)
+        let isPeekerVisible = (settings.showLauncherInPeeker && !model.launcherApps.isEmpty) ||
+                              (settings.showBookmarksInPeeker && !model.bookmarkItems.isEmpty) ||
+                              (settings.showCombinedInPeeker && (!model.launcherApps.isEmpty || !model.bookmarkItems.isEmpty))
+        let peekerHeight: CGFloat = isPeekerVisible ? 24 : 0
+        let contentAreaHeight = max(1, panelHeight - notchHeight - pagerReservedHeight - peekerHeight - 2)
         let cornerRadius = safeDimension(max(4, settings.cornerRadius * (0.6 + 0.4 * easedProgress)), fallback: 8)
         let contentProgress = easedProgress.isFinite ? max(0, min(1, (easedProgress - 0.18) / 0.82)) : 0
         let showToastOnly = (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded && !model.isPinned
@@ -4647,20 +5725,42 @@ struct UnifiedNotchContainer: View {
                         .frame(width: islandWidth, height: islandHeight)
                         .padding(.top, 0)
 
+                        let pages = activePages
                         HStack(spacing: 0) {
-                            clipboardPage.frame(width: panelWidth, height: contentAreaHeight).clipped()
-                            sidebarPage.frame(width: panelWidth, height: contentAreaHeight).clipped()
-                            boxPage.frame(width: panelWidth, height: contentAreaHeight).clipped()
-                            chronoPage.frame(width: panelWidth, height: contentAreaHeight).clipped()
+                            ForEach(0..<pages.count, id: \.self) { index in
+                                if shouldRenderExpandedContent && (index == model.currentPage || index == animatingFromPage || (SwipeState.shared.carouselDragOffset != 0 && abs(model.currentPage - index) <= 1)) {
+                                    pageView(for: pages[index], contentAreaHeight: contentAreaHeight)
+                                        .frame(width: panelWidth, height: contentAreaHeight, alignment: .top)
+                                        .clipped()
+                                } else {
+                                    Color.clear
+                                        .frame(width: panelWidth, height: contentAreaHeight, alignment: .top)
+                                }
+                            }
                         }
                         .frame(width: panelWidth, height: contentAreaHeight, alignment: .leading)
                         .modifier(CarouselOffsetModifier(panelWidth: panelWidth, currentPage: model.currentPage))
+                        .padding(.top, 2)
                         .opacity(shouldRenderExpandedContent ? contentProgress : 0)
                         .allowsHitTesting(shouldRenderExpandedContent)
 
+                        if isPeekerVisible {
+                            PeekerWidgetView(
+                                apps: model.launcherApps,
+                                bookmarks: model.bookmarkItems,
+                                showApps: settings.showLauncherInPeeker || settings.showCombinedInPeeker,
+                                showBookmarks: settings.showBookmarksInPeeker || settings.showCombinedInPeeker,
+                                accentColor: Color(settings.accentColor)
+                            )
+                            .frame(height: 20)
+                            .opacity(shouldRenderExpandedContent ? contentProgress : 0)
+                            .padding(.bottom, 4)
+                            .allowsHitTesting(shouldRenderExpandedContent)
+                        }
+
                         if settings.showPagers {
                             HStack(spacing: 8) {
-                                ForEach(0..<4) { index in
+                                ForEach(0..<pages.count, id: \.self) { index in
                                     Button {
                                         setPageFromCarousel(index)
                                     } label: {
@@ -4673,8 +5773,9 @@ struct UnifiedNotchContainer: View {
                             }
                             .frame(maxWidth: .infinity)
                             .frame(height: pagerRowHeight)
-                            .opacity(shouldRenderExpandedContent ? contentProgress : 0)
+                            .opacity(easedProgress)
                             .padding(.bottom, pagerBottomInset)
+                            .offset(y: -(panelHeight - notchHeight - settings.clampedNotchEdgeThickness) * (1 - (model.isExpanded || model.isPinned ? easedProgress : 0)))
                             .allowsHitTesting(shouldRenderExpandedContent)
                         }
                     }
@@ -4714,6 +5815,20 @@ struct UnifiedNotchContainer: View {
             if targeted {
                 if let delegate = NSApp.delegate as? AppDelegate {
                     delegate.openBoxPage()
+                }
+            }
+        }
+        .onChange(of: isAddBookmarkPresented) { _, newValue in
+            model.isAddSheetOpen = newValue
+        }
+        .onChange(of: isAddAppPresented) { _, newValue in
+            model.isAddSheetOpen = newValue
+        }
+        .onChange(of: model.currentPage) { oldValue, newValue in
+            animatingFromPage = oldValue
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                if animatingFromPage == oldValue {
+                    animatingFromPage = nil
                 }
             }
         }
@@ -4828,19 +5943,43 @@ struct UnifiedNotchContainer: View {
         .drawingGroup()
     }
 
+    @ViewBuilder
+    private func pageView(for page: IslandPage, contentAreaHeight: CGFloat) -> some View {
+        switch page {
+        case .clipboard:
+            clipboardPage(contentAreaHeight: contentAreaHeight)
+        case .jot:
+            sidebarPage(contentAreaHeight: contentAreaHeight)
+        case .box:
+            boxPage(contentAreaHeight: contentAreaHeight)
+        case .chrono:
+            chronoPage(contentAreaHeight: contentAreaHeight)
+        case .calendar:
+            calendarPage(contentAreaHeight: contentAreaHeight)
+        case .launcher:
+            launcherPage(contentAreaHeight: contentAreaHeight)
+        case .bookmarks:
+            bookmarksPage(contentAreaHeight: contentAreaHeight)
+        case .customCombined:
+            customCombinedPage(contentAreaHeight: contentAreaHeight)
+        }
+    }
+
     private var horizontalPagingGesture: some Gesture {
-        DragGesture(minimumDistance: 14, coordinateSpace: .local)
+        let pagesCount = activePages.count
+        return DragGesture(minimumDistance: 14, coordinateSpace: .local)
             .onEnded { value in
                 guard abs(value.translation.width) > abs(value.translation.height), abs(value.translation.width) > 40 else { return }
                 let nextPage = value.translation.width < 0
-                    ? min(IslandPage.chrono.rawValue, model.currentPage + 1)
-                    : max(IslandPage.clipboard.rawValue, model.currentPage - 1)
+                    ? min(pagesCount - 1, model.currentPage + 1)
+                    : max(0, model.currentPage - 1)
                 setPageFromCarousel(nextPage)
             }
     }
 
     private func setPageFromCarousel(_ page: Int) {
-        let nextPage = clamp(page, min: IslandPage.clipboard.rawValue, max: IslandPage.chrono.rawValue)
+        let pagesCount = activePages.count
+        let nextPage = clamp(page, min: 0, max: pagesCount - 1)
         SwipeState.shared.carouselDragOffset = 0
         withAnimation(settings.carouselAnimation) {
             model.currentPage = nextPage
@@ -4848,8 +5987,12 @@ struct UnifiedNotchContainer: View {
     }
 
     private func unloadInactivePageState(activePage: Int) {
+        let pages = activePages
+        guard pages.indices.contains(activePage) else { return }
+        let resolvedPage = pages[activePage]
+
         // Clipboard-only transient UI should reset when the clipboard page is inactive.
-        if activePage != IslandPage.clipboard.rawValue {
+        if resolvedPage != .clipboard {
             highlightedClipboardID = nil
             clipboardTapFeedbackProgress = 0
         }
@@ -4857,12 +6000,12 @@ struct UnifiedNotchContainer: View {
         // Cancel box preview work only when the Box page is inactive.
         // We deliberately do NOT trim the shared NSCache here — it has its own
         // count/cost limits and a memory-pressure handler.
-        if activePage != IslandPage.box.rawValue {
+        if resolvedPage != .box {
             BoxIconCache.shared.cancelQueuedPreviewLoads()
             selectedBoxFileIDs.removeAll()
         }
 
-        if activePage != IslandPage.jot.rawValue {
+        if resolvedPage != .jot {
             isJotEditorFocused = false
         }
     }
@@ -4935,7 +6078,9 @@ struct UnifiedNotchContainer: View {
             }
 
             if openBoxPage {
-                model.currentPage = 2
+                if let idx = activePages.firstIndex(of: .box) {
+                    model.currentPage = idx
+                }
                 model.isExpanded = true
                 model.expansionProgress = 1.0
             }
@@ -4955,55 +6100,187 @@ struct UnifiedNotchContainer: View {
     }
 
     private func globalControlsOverlay(islandWidth: CGFloat, islandHeight: CGFloat) -> some View {
-        let page = IslandPage(rawValue: model.currentPage) ?? .clipboard
+        let page = activePages.indices.contains(model.currentPage) ? activePages[model.currentPage] : .clipboard
         let edgeNotchWidth = settings.effectiveNotchWidth
+        let alignmentOption = settings.titleAlignment(for: page)
 
         return Color.clear
             .overlay(alignment: .topLeading) {
                 GeometryReader { geo in
+                    let notchLeft = (geo.size.width - edgeNotchWidth) / 2
                     let notchRight = (geo.size.width + edgeNotchWidth) / 2
-                    HStack {
-                        switch page {
-                        case .clipboard:
-                            if !model.clipboardItems.isEmpty {
+                    
+                    if page == .customCombined {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label(settings.titleText(for: .bookmarks), systemImage: settings.titleSymbol(for: .bookmarks, fallback: "globe"))
+                                .conditionalLabelStyle(showIcon: settings.showTitleIcon(for: .bookmarks))
+                                .font(.system(size: settings.titleSize(for: .bookmarks), weight: .bold))
+                                .foregroundColor(Color(settings.titleColor(for: .bookmarks)))
+                            
+                            if settings.showAddBookmarkButton {
                                 Button {
-                                    clearClipboardHistory()
+                                    model.isAddSheetOpen = true
+                                    isAddBookmarkPresented = true
                                 } label: {
-                                    Image(systemName: "trash")
-                                        .foregroundColor(.white.opacity(0.7))
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(.white.opacity(0.8))
                                 }
                                 .buttonStyle(.plain)
-                            }
-                        case .jot:
-                            Button {
-                                if model.activeJotID == nil {
-                                    createJot()
-                                } else {
-                                    closeActiveJot()
+                                .popover(isPresented: $isAddBookmarkPresented, arrowEdge: .bottom) {
+                                    AddBookmarkSheet(isPresented: Binding(
+                                        get: { self.isAddBookmarkPresented },
+                                        set: { newValue in
+                                            self.isAddBookmarkPresented = newValue
+                                            if !newValue { self.model.isAddSheetOpen = false }
+                                        }
+                                    ), onAdd: { bookmark in
+                                        model.bookmarkItems.append(bookmark)
+                                        persistBookmarkItems(model.bookmarkItems)
+                                        
+                                        fetchFaviconBase64(for: bookmark.urlString) { base64 in
+                                            if let base64 = base64 {
+                                                DispatchQueue.main.async {
+                                                    if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
+                                                        model.bookmarkItems[idx].iconBase64 = base64
+                                                        persistBookmarkItems(model.bookmarkItems)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    })
                                 }
-                            } label: {
-                                Image(systemName: model.activeJotID == nil ? "plus" : "chevron.left")
-                                    .foregroundColor(.white)
                             }
-                            .buttonStyle(.plain)
-                        case .box:
-                            EmptyView()
-                        case .chrono:
-                            EmptyView()
+                        }
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .offset(x: notchRight + 12, y: 2)
+                    } else {
+                        let controls = HStack {
+                            switch page {
+                            case .clipboard:
+                                if !model.clipboardItems.isEmpty {
+                                    Button {
+                                        clearClipboardHistory()
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .foregroundColor(.white.opacity(0.7))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            case .jot:
+                                HStack(spacing: 12) {
+                                    Button {
+                                        if model.activeJotID == nil {
+                                            createJot()
+                                        } else {
+                                            closeActiveJot()
+                                        }
+                                    } label: {
+                                        Image(systemName: model.activeJotID == nil ? "plus" : "chevron.left")
+                                            .foregroundColor(.white)
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    if model.activeJotID != nil {
+                                        Button {
+                                            exportActiveJot()
+                                        } label: {
+                                            Image(systemName: "square.and.arrow.down")
+                                                .foregroundColor(.white)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            case .box:
+                                EmptyView()
+                            case .chrono:
+                                EmptyView()
+                            case .launcher:
+                                if settings.showAddAppButton {
+                                    Button {
+                                        model.isAddSheetOpen = true
+                                        isAddAppPresented = true
+                                    } label: {
+                                        Image(systemName: "plus")
+                                            .foregroundColor(.white)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .popover(isPresented: $isAddAppPresented, arrowEdge: .bottom) {
+                                        AddAppSheet(isPresented: Binding(
+                                            get: { self.isAddAppPresented },
+                                            set: { newValue in
+                                                self.isAddAppPresented = newValue
+                                                if !newValue { self.model.isAddSheetOpen = false }
+                                            }
+                                        ), onAdd: { app in
+                                            model.launcherApps.append(app)
+                                            persistLauncherApps(model.launcherApps)
+                                        })
+                                    }
+                                }
+                            case .bookmarks:
+                                if settings.showAddBookmarkButton {
+                                    Button {
+                                        model.isAddSheetOpen = true
+                                        isAddBookmarkPresented = true
+                                    } label: {
+                                        Image(systemName: "plus")
+                                            .foregroundColor(.white)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .popover(isPresented: $isAddBookmarkPresented, arrowEdge: .bottom) {
+                                        AddBookmarkSheet(isPresented: Binding(
+                                            get: { self.isAddBookmarkPresented },
+                                            set: { newValue in
+                                                self.isAddBookmarkPresented = newValue
+                                                if !newValue { self.model.isAddSheetOpen = false }
+                                            }
+                                        ), onAdd: { bookmark in
+                                            model.bookmarkItems.append(bookmark)
+                                            persistBookmarkItems(model.bookmarkItems)
+                                            
+                                            fetchFaviconBase64(for: bookmark.urlString) { base64 in
+                                                if let base64 = base64 {
+                                                    DispatchQueue.main.async {
+                                                        if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
+                                                            model.bookmarkItems[idx].iconBase64 = base64
+                                                            persistBookmarkItems(model.bookmarkItems)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        })
+                                    }
+                                }
+                            default:
+                                EmptyView()
+                            }
+                        }
+                        .fixedSize(horizontal: true, vertical: false)
+
+                        if alignmentOption == .left {
+                            controls
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .offset(x: notchRight + 12, y: 2)
+                        } else {
+                            controls
+                                .frame(width: max(0, notchLeft - 12), alignment: .trailing)
+                                .offset(y: 2)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .offset(x: notchRight + 12, y: 2)
                 }
             }
             .frame(width: islandWidth, height: islandHeight)
     }
 
     private func globalTitleOverlay(islandWidth: CGFloat, islandHeight: CGFloat) -> some View {
-        let page = IslandPage(rawValue: model.currentPage) ?? .clipboard
+        let page = activePages.indices.contains(model.currentPage) ? activePages[model.currentPage] : .clipboard
         let edgeNotchWidth = settings.effectiveNotchWidth
+        let alignmentOption = settings.titleAlignment(for: page)
         let title: String
         let symbol: String
+
         switch page {
         case .clipboard:
             title = "Clip"
@@ -5017,17 +6294,75 @@ struct UnifiedNotchContainer: View {
         case .chrono:
             title = "Chrono"
             symbol = "timer"
+        case .calendar:
+            title = "Calendar"
+            symbol = "calendar"
+        case .launcher:
+            title = "Launcher"
+            symbol = "app.fill"
+        case .bookmarks:
+            title = "Bookmarks"
+            symbol = "globe"
+        default:
+            title = ""
+            symbol = "empty"
         }
 
         return Color.clear
             .overlay(alignment: .topLeading) {
                 GeometryReader { geo in
                     let notchLeft = (geo.size.width - edgeNotchWidth) / 2
-                    if symbol != "empty" {
-                        header(title: title, symbol: symbol, page: page)
-                            .fixedSize(horizontal: true, vertical: false)
-                            .frame(width: max(0, notchLeft - 12), alignment: .trailing)
-                            .offset(y: 2)
+                    let notchRight = (geo.size.width + edgeNotchWidth) / 2
+                    
+                    if page == .customCombined {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Label(settings.titleText(for: .launcher), systemImage: settings.titleSymbol(for: .launcher, fallback: "app.fill"))
+                                .conditionalLabelStyle(showIcon: settings.showTitleIcon(for: .launcher))
+                                .font(.system(size: settings.titleSize(for: .launcher), weight: .bold))
+                                .foregroundColor(Color(settings.titleColor(for: .launcher)))
+                            
+                            if settings.showAddAppButton {
+                                Button {
+                                    model.isAddSheetOpen = true
+                                    isAddAppPresented = true
+                                } label: {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                                .buttonStyle(.plain)
+                                .popover(isPresented: $isAddAppPresented, arrowEdge: .bottom) {
+                                    AddAppSheet(isPresented: Binding(
+                                        get: { self.isAddAppPresented },
+                                        set: { newValue in
+                                            self.isAddAppPresented = newValue
+                                            if !newValue { self.model.isAddSheetOpen = false }
+                                        }
+                                    ), onAdd: { app in
+                                        model.launcherApps.append(app)
+                                        persistLauncherApps(model.launcherApps)
+                                    })
+                                }
+                            }
+                        }
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(width: max(0, notchLeft - 12), alignment: .trailing)
+                        .offset(y: 2)
+                    } else {
+                        if symbol != "empty" {
+                            let titleView = header(title: title, symbol: symbol, page: page)
+                                .fixedSize(horizontal: true, vertical: false)
+                            
+                            if alignmentOption == .left {
+                                titleView
+                                    .frame(width: max(0, notchLeft - 12), alignment: .trailing)
+                                    .offset(y: 2)
+                            } else {
+                                titleView
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .offset(x: notchRight + 12, y: 2)
+                            }
+                        }
                     }
                 }
             }
@@ -5036,7 +6371,8 @@ struct UnifiedNotchContainer: View {
 
     private func header(title: String, symbol: String, page: IslandPage) -> some View {
         let displaySymbol = settings.titleSymbol(for: page, fallback: symbol)
-        return Label(title, systemImage: displaySymbol)
+        return Label(settings.titleText(for: page), systemImage: displaySymbol)
+            .conditionalLabelStyle(showIcon: settings.showTitleIcon(for: page))
             .font(.system(size: settings.titleSize(for: page), weight: .bold))
             .foregroundColor(Color(settings.titleColor(for: page)))
             .lineLimit(1)
@@ -5065,6 +6401,13 @@ extension NSView {
 private enum SettingsSection: String, CaseIterable, Identifiable {
     case general = "General"
     case appearance = "Appearance"
+    case clip = "Clipboard"
+    case jot = "Jot"
+    case box = "Box"
+    case chrono = "Chrono"
+    case calendar = "Calendar"
+    case launcherBookmarks = "Launcher/Bookmarks"
+    case sharing = "Sharing"
     case advanced = "Advanced"
     case updates = "Updates"
 
@@ -5074,6 +6417,13 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "slider.horizontal.3"
         case .appearance: return "paintbrush"
+        case .clip: return "doc.on.clipboard"
+        case .jot: return "note.text"
+        case .box: return "shippingbox.fill"
+        case .chrono: return "timer"
+        case .calendar: return "calendar"
+        case .launcherBookmarks: return "square.grid.2x2"
+        case .sharing: return "square.and.arrow.up"
         case .advanced: return "gearshape"
         case .updates: return "arrow.triangle.2.circlepath"
         }
@@ -5086,14 +6436,26 @@ private extension View {
             .padding(.horizontal, 20)
             .padding(.bottom, 14)
     }
+
+    @ViewBuilder
+    func conditionalLabelStyle(showIcon: Bool) -> some View {
+        if showIcon {
+            self.labelStyle(.titleAndIcon)
+        } else {
+            self.labelStyle(.titleOnly)
+        }
+    }
 }
 
 struct SettingsView: View {
+    @ObservedObject var model: NotchMenuModel
     @ObservedObject private var settings = AppSettings.shared
     let updater: SPUUpdater
 
     @State private var selection: SettingsSection? = .general
     @State private var selectedTitlePage: IslandPage = .clipboard
+    @State private var isSettingsAddAppPresented = false
+    @State private var isSettingsAddBookmarkPresented = false
     @State private var showTitleOverrides = false
     @State private var showAdvancedAnimation = false
 
@@ -5121,6 +6483,20 @@ struct SettingsView: View {
                     generalSettings
                 case .appearance:
                     appearanceSettings
+                case .clip:
+                    clipSettings
+                case .jot:
+                    jotSettings
+                case .box:
+                    boxSettings
+                case .chrono:
+                    chronoSettings
+                case .calendar:
+                    calendarSettings
+                case .launcherBookmarks:
+                    launcherBookmarksSettings
+                case .sharing:
+                    SharingSettingsView()
                 case .advanced:
                     advancedSettings
                 case .updates:
@@ -5135,11 +6511,62 @@ struct SettingsView: View {
         .controlSize(.regular)
         .toggleStyle(.switch)
         .background(SettingsWindowChromeConfigurator())
+        .toolbarBackground(.hidden, for: .windowToolbar)
         .onAppear {
             settings.showHoverPreviews = true
         }
         .onDisappear {
             settings.showHoverPreviews = false
+        }
+    }
+
+    @ViewBuilder
+    private func titleCustomizationSection(for page: IslandPage) -> some View {
+        Section("Title Overrides") {
+            VStack(alignment: .leading, spacing: 4) {
+                TextField("Custom title text", text: pageCustomTitleBinding(page))
+                    .textFieldStyle(.roundedBorder)
+                Text("* for empty")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Toggle("Show title icon", isOn: pageShowTitleIconBinding(page))
+            
+            Picker("Alignment", selection: pageTitleAlignmentBinding(page)) {
+                ForEach(TitleAlignmentOption.allCases, id: \.rawValue) { option in
+                    Text(option.label).tag(option.rawValue)
+                }
+            }
+            .pickerStyle(.segmented)
+            
+            HStack {
+                Text("Size")
+                Slider(value: pageTitleSizeBinding(page), in: settings.titleSizeRange, onEditingChanged: { isEditing in
+                    setTitlePreviewFocus(isEditing: isEditing, page: page)
+                })
+                Text("\(Int(settings.titleSize(for: page)))")
+                    .frame(width: 36, alignment: .trailing)
+            }
+            
+            HStack {
+                ColorPicker("Color", selection: pageTitleColorBinding(page))
+                    .disabled(pageTitleUseAccentBinding(page).wrappedValue)
+                Toggle("Use accent", isOn: pageTitleUseAccentBinding(page))
+                    .toggleStyle(.switch)
+            }
+            
+            HStack(spacing: 10) {
+                TextField("SF Symbol", text: pageTitleSymbolBinding(page))
+                    .textFieldStyle(.roundedBorder)
+                Image(systemName: settings.titleSymbol(for: page, fallback: "textformat"))
+                    .foregroundColor(Color(settings.titleColor(for: page)))
+            }
+            
+            Button("Reset overrides") {
+                resetTitleOverrides(for: page)
+            }
+            .buttonStyle(.bordered)
         }
     }
 
@@ -5176,6 +6603,10 @@ struct SettingsView: View {
                             case .jot: return "Jot"
                             case .box: return "Box"
                             case .chrono: return "Chrono"
+                            case .calendar: return "Calendar"
+                            case .launcher: return "Launcher"
+                            case .bookmarks: return "Bookmarks"
+                            case .customCombined: return "Combined"
                             }
                         }()
                         Text(label)
@@ -5189,8 +6620,13 @@ struct SettingsView: View {
 
                 Toggle("Default to Box if it has items", isOn: $settings.defaultToBoxIfItems)
             }
+        }
+        .nativeSettingsFormStyle()
+    }
 
-            Section("Clipboard") {
+    private var clipSettings: some View {
+        Form {
+            Section("Clipboard Configuration") {
                 HStack {
                     Text("Remember clips")
                     Slider(
@@ -5203,8 +6639,6 @@ struct SettingsView: View {
                             setPreviewFocus(.clipboardLimit, isEditing: isEditing)
                         }
                     )
-                    TextField("Limit", value: $settings.rememberClips, formatter: Self.numberFormatter)
-                        .frame(width: 60)
                 }
                 Text("Set to 0 for unlimited")
                     .font(.caption)
@@ -5225,8 +6659,107 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Box") {
+            Section("Clipboard Layout") {
+                HStack {
+                    Text("Columns")
+                    Slider(
+                        value: Binding(
+                            get: { Double(settings.clipboardColumns) },
+                            set: { settings.clipboardColumns = Int($0.rounded()) }
+                        ),
+                        in: settings.clipboardColumnsRange
+                    )
+                    Text("\(settings.clipboardColumns)")
+                        .frame(width: 32, alignment: .trailing)
+                }
+
+                HStack {
+                    Text("Text size")
+                    Slider(value: $settings.clipTextSize, in: settings.clipTextSizeRange)
+                    Text("\(Int(settings.clipTextSize))")
+                        .frame(width: 36, alignment: .trailing)
+                }
+
+                HStack {
+                    Text("File label size")
+                    Slider(value: $settings.clipFileLabelSize, in: settings.clipFileLabelSizeRange)
+                    Text("\(Int(settings.clipFileLabelSize))")
+                        .frame(width: 36, alignment: .trailing)
+                }
+            }
+
+            titleCustomizationSection(for: .clipboard)
+        }
+        .nativeSettingsFormStyle()
+    }
+
+    private var jotSettings: some View {
+        Form {
+            Section("Jot Layout") {
+                HStack {
+                    Text("Columns")
+                    Slider(
+                        value: Binding(
+                            get: { Double(settings.jotColumns) },
+                            set: { settings.jotColumns = Int($0.rounded()) }
+                        ),
+                        in: settings.jotColumnsRange
+                    )
+                    Text("\(settings.jotColumns)")
+                        .frame(width: 32, alignment: .trailing)
+                }
+
+                HStack {
+                    Text("Text size")
+                    Slider(value: $settings.jotTextSize, in: settings.jotTextSizeRange)
+                    Text("\(Int(settings.jotTextSize))")
+                        .frame(width: 36, alignment: .trailing)
+                }
+            }
+
+            titleCustomizationSection(for: .jot)
+        }
+        .nativeSettingsFormStyle()
+    }
+
+    private var boxSettings: some View {
+        Form {
+            Section("Box Configuration") {
                 Toggle("Show file names in Box", isOn: $settings.showBoxFileNames)
+                
+                Toggle("Enable Slim Box Mode", isOn: $settings.boxSlimModeEnabled)
+                    .help("Open a compact 180x260 view of the Box page on drag or when holding a file")
+                
+                if settings.boxSlimModeEnabled {
+                    HStack {
+                        Text("Slim Box Hold Delay")
+                        Slider(value: $settings.boxSlimModeHoldDuration, in: 0.5...3.0)
+                        Text(String(format: "%.1fs", settings.boxSlimModeHoldDuration))
+                            .frame(width: 40, alignment: .trailing)
+                    }
+                }
+            }
+
+            Section("Box Layout") {
+                HStack {
+                    Text("Columns")
+                    Slider(
+                        value: Binding(
+                            get: { Double(settings.boxColumns) },
+                            set: { settings.boxColumns = Int($0.rounded()) }
+                        ),
+                        in: settings.boxColumnsRange
+                    )
+                    Text("\(settings.boxColumns)")
+                        .frame(width: 32, alignment: .trailing)
+                }
+
+                HStack {
+                    Text("File name size")
+                    Slider(value: $settings.boxFileNameSize, in: settings.boxFileNameSizeRange)
+                    Text("\(Int(settings.boxFileNameSize))")
+                        .frame(width: 36, alignment: .trailing)
+                }
             }
 
             Section("Observe Folder") {
@@ -5242,8 +6775,8 @@ struct SettingsView: View {
                                 Text(URL(fileURLWithPath: path).lastPathComponent)
                                     .font(.subheadline)
                                 Text(path)
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
                             }
                             Spacer()
                             Button {
@@ -5262,6 +6795,237 @@ struct SettingsView: View {
                         Label("Add folder", systemImage: "plus")
                     }
                 }
+            }
+
+            titleCustomizationSection(for: .box)
+        }
+        .nativeSettingsFormStyle()
+    }
+
+    private var chronoSettings: some View {
+        Form {
+            Section("HUD Options") {
+                Toggle("Disable HUD when notch is closed", isOn: $settings.disableChronoHUD)
+            }
+            titleCustomizationSection(for: .chrono)
+        }
+        .nativeSettingsFormStyle()
+    }
+
+    private var calendarSettings: some View {
+        Form {
+            Section("Calendar Access") {
+                CalendarPermissionStatusView()
+            }
+            
+            Section("Layout Options") {
+                Picker("View Style", selection: $settings.calendarViewOption) {
+                    Text("Month Grid").tag(0)
+                    Text("Week Carousel").tag(1)
+                }
+                .pickerStyle(.segmented)
+                
+                Text("Month Grid displays a full monthly layout with day details. Week Carousel displays a horizontal scrolling strip of the current week.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            titleCustomizationSection(for: .calendar)
+        }
+        .nativeSettingsFormStyle()
+    }
+
+    private var launcherBookmarksSettings: some View {
+        Form {
+            Section("Actions Layout") {
+                Picker("Layout mode", selection: $settings.customActionsLayoutOption) {
+                    Text("Combined Page").tag(0)
+                    Text("Separated Pages").tag(1)
+                }
+                .pickerStyle(.segmented)
+                
+                Text("Combined mode places Launcher and Bookmarks inside one scrolling page. Separated mode splits them into two individual pages.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Section("Peeker Widget") {
+                Text("Show custom actions at the bottom of the expanded island as a quick-access shortcut strip:")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                if settings.customActionsLayoutOption == 0 {
+                    Toggle("Show combined actions in Peeker", isOn: $settings.showCombinedInPeeker)
+                } else {
+                    Toggle("Show launcher apps in Peeker", isOn: $settings.showLauncherInPeeker)
+                    Toggle("Show bookmarks in Peeker", isOn: $settings.showBookmarksInPeeker)
+                }
+            }
+
+            Section("Launcher Setup") {
+                HStack {
+                    Text("Columns")
+                    Slider(
+                        value: Binding(
+                            get: { Double(settings.launcherColumns) },
+                            set: { settings.launcherColumns = Int($0.rounded()) }
+                        ),
+                        in: 2...8
+                    )
+                    Text("\(settings.launcherColumns)")
+                        .frame(width: 32, alignment: .trailing)
+                }
+                
+                HStack {
+                    Text("Icon Size")
+                    Slider(value: $settings.launcherIconSize, in: 24...64)
+                    Text("\(Int(settings.launcherIconSize)) pt")
+                        .frame(width: 48, alignment: .trailing)
+                }
+                
+                HStack {
+                    Text("Text Size")
+                    Slider(value: $settings.launcherTextSize, in: 8...16)
+                    Text("\(Int(settings.launcherTextSize)) pt")
+                        .frame(width: 48, alignment: .trailing)
+                }
+                
+                Toggle("Show application names", isOn: $settings.launcherShowName)
+                
+                Picker("Display layout", selection: $settings.launcherDisplayMode) {
+                    Text("Grid").tag(0)
+                    Text("List").tag(1)
+                }
+                .pickerStyle(.segmented)
+                
+                Toggle("Show 'Add Application' button in island", isOn: $settings.showAddAppButton)
+            }
+
+            Section("Manage Applications") {
+                List {
+                    ForEach(model.launcherApps) { app in
+                        HStack {
+                            CustomAppIconView(appPath: app.path, size: 20)
+                            Text(app.name)
+                                .font(.body)
+                            Spacer()
+                            Button {
+                                if let idx = model.launcherApps.firstIndex(where: { $0.id == app.id }) {
+                                    model.launcherApps.remove(at: idx)
+                                }
+                            } label: {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.red)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .frame(minHeight: 120, maxHeight: 200)
+                
+                Button("Add Application...") {
+                    isSettingsAddAppPresented = true
+                }
+                .popover(isPresented: $isSettingsAddAppPresented, arrowEdge: .bottom) {
+                    AddAppSheet(isPresented: $isSettingsAddAppPresented, onAdd: { app in
+                        model.launcherApps.append(app)
+                    })
+                }
+            }
+
+            if settings.customActionsLayoutOption != 0 {
+                titleCustomizationSection(for: .launcher)
+            }
+
+            Section("Bookmarks Setup") {
+                HStack {
+                    Text("Columns")
+                    Slider(
+                        value: Binding(
+                            get: { Double(settings.bookmarkColumns) },
+                            set: { settings.bookmarkColumns = Int($0.rounded()) }
+                        ),
+                        in: 2...8
+                    )
+                    Text("\(settings.bookmarkColumns)")
+                        .frame(width: 32, alignment: .trailing)
+                }
+
+                HStack {
+                    Text("Icon Size")
+                    Slider(value: $settings.bookmarkIconSize, in: 24...64)
+                    Text("\(Int(settings.bookmarkIconSize)) pt")
+                        .frame(width: 48, alignment: .trailing)
+                }
+                
+                HStack {
+                    Text("Text Size")
+                    Slider(value: $settings.bookmarkTextSize, in: 8...16)
+                    Text("\(Int(settings.bookmarkTextSize)) pt")
+                        .frame(width: 48, alignment: .trailing)
+                }
+                
+                Toggle("Show bookmark names", isOn: $settings.bookmarkShowName)
+                
+                Picker("Display layout", selection: $settings.bookmarkDisplayMode) {
+                    Text("Grid").tag(0)
+                    Text("List").tag(1)
+                }
+                .pickerStyle(.segmented)
+                
+                Toggle("Show 'Add Bookmark' button in island", isOn: $settings.showAddBookmarkButton)
+            }
+
+            Section("Manage Bookmarks") {
+                List {
+                    ForEach(model.bookmarkItems) { bookmark in
+                        HStack {
+                            BookmarkIconView(bookmark: bookmark, size: 20, accentColor: Color(settings.accentColor))
+                            VStack(alignment: .leading, spacing: 2) {
+                                  Text(bookmark.name)
+                                      .font(.body)
+                                  Text(bookmark.urlString)
+                                      .font(.caption)
+                                      .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Button {
+                                if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
+                                    model.bookmarkItems.remove(at: idx)
+                                }
+                            } label: {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.red)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .frame(minHeight: 120, maxHeight: 200)
+                
+                Button("Add Bookmark...") {
+                    isSettingsAddBookmarkPresented = true
+                }
+                .popover(isPresented: $isSettingsAddBookmarkPresented, arrowEdge: .bottom) {
+                    AddBookmarkSheet(isPresented: $isSettingsAddBookmarkPresented, onAdd: { bookmark in
+                        model.bookmarkItems.append(bookmark)
+                        fetchFaviconBase64(for: bookmark.urlString) { base64 in
+                            if let base64 = base64 {
+                                DispatchQueue.main.async {
+                                    if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
+                                        model.bookmarkItems[idx].iconBase64 = base64
+                                    }
+                                }
+                            }
+                        }
+                    })
+                }
+            }
+
+            if settings.customActionsLayoutOption != 0 {
+                titleCustomizationSection(for: .bookmarks)
+            } else {
+                titleCustomizationSection(for: .customCombined)
             }
         }
         .nativeSettingsFormStyle()
@@ -5315,62 +7079,6 @@ struct SettingsView: View {
                     Image(systemName: settings.titleIconName.isEmpty ? "textformat" : settings.titleIconName)
                         .foregroundColor(Color(settings.effectiveTitleColor))
                 }
-
-                DisclosureGroup("Titles", isExpanded: $showTitleOverrides) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Picker("Page", selection: $selectedTitlePage) {
-                            ForEach(IslandPage.allCases, id: \.rawValue) { page in
-                                Text(titlePageLabel(page))
-                                    .tag(page)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-
-                        Picker("Alignment", selection: pageTitleAlignmentBinding(selectedTitlePage)) {
-                            ForEach(TitleAlignmentOption.allCases, id: \.rawValue) { option in
-                                Text(option.label)
-                                    .tag(option.rawValue)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-
-                        HStack {
-                            Text("Size")
-                            Slider(value: pageTitleSizeBinding(selectedTitlePage), in: settings.titleSizeRange, onEditingChanged: { isEditing in
-                                setTitlePreviewFocus(isEditing: isEditing, page: selectedTitlePage)
-                            })
-                            Text("\(Int(settings.titleSize(for: selectedTitlePage)))")
-                                .frame(width: 36, alignment: .trailing)
-                        }
-
-                        HStack {
-                            Spacer()
-                            ColorPicker("Color", selection: pageTitleColorBinding(selectedTitlePage))
-                                .disabled(pageTitleUseAccentBinding(selectedTitlePage).wrappedValue)
-                            Toggle("Use accent", isOn: pageTitleUseAccentBinding(selectedTitlePage))
-                                .toggleStyle(.switch)
-                        }
-
-                        HStack(spacing: 10) {
-                            TextField("SF Symbol", text: pageTitleSymbolBinding(selectedTitlePage))
-                                .textFieldStyle(.roundedBorder)
-                            Image(systemName: settings.titleSymbol(for: selectedTitlePage, fallback: "textformat"))
-                                .foregroundColor(Color(settings.titleColor(for: selectedTitlePage)))
-                        }
-
-                        HStack {
-                            Button("Reset page overrides") {
-                                resetTitleOverrides(for: selectedTitlePage)
-                            }
-                            .buttonStyle(.bordered)
-
-                            Text("Overrides stay empty until you change them.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(.top, 6)
-                }
             }
 
             Section("Layout") {
@@ -5380,73 +7088,6 @@ struct SettingsView: View {
                         setPreviewFocus(.cornerRadius, isEditing: isEditing)
                     })
                     Text("\(Int(settings.cornerRadius))")
-                        .frame(width: 36, alignment: .trailing)
-                }
-
-                HStack {
-                    Text("Clip columns")
-                    Slider(
-                        value: Binding(
-                            get: { Double(settings.clipboardColumns) },
-                            set: { settings.clipboardColumns = Int($0.rounded()) }
-                        ),
-                        in: settings.clipboardColumnsRange
-                    )
-                    Text("\(settings.clipboardColumns)")
-                        .frame(width: 32, alignment: .trailing)
-                }
-
-                HStack {
-                    Text("Jot columns")
-                    Slider(
-                        value: Binding(
-                            get: { Double(settings.jotColumns) },
-                            set: { settings.jotColumns = Int($0.rounded()) }
-                        ),
-                        in: settings.jotColumnsRange
-                    )
-                    Text("\(settings.jotColumns)")
-                        .frame(width: 32, alignment: .trailing)
-                }
-
-                HStack {
-                    Text("Box columns")
-                    Slider(
-                        value: Binding(
-                            get: { Double(settings.boxColumns) },
-                            set: { settings.boxColumns = Int($0.rounded()) }
-                        ),
-                        in: settings.boxColumnsRange
-                    )
-                    Text("\(settings.boxColumns)")
-                        .frame(width: 32, alignment: .trailing)
-                }
-
-                HStack {
-                    Text("Clip text size")
-                    Slider(value: $settings.clipTextSize, in: settings.clipTextSizeRange)
-                    Text("\(Int(settings.clipTextSize))")
-                        .frame(width: 36, alignment: .trailing)
-                }
-
-                HStack {
-                    Text("Clip file label size")
-                    Slider(value: $settings.clipFileLabelSize, in: settings.clipFileLabelSizeRange)
-                    Text("\(Int(settings.clipFileLabelSize))")
-                        .frame(width: 36, alignment: .trailing)
-                }
-
-                HStack {
-                    Text("Jot text size")
-                    Slider(value: $settings.jotTextSize, in: settings.jotTextSizeRange)
-                    Text("\(Int(settings.jotTextSize))")
-                        .frame(width: 36, alignment: .trailing)
-                }
-
-                HStack {
-                    Text("Box file name size")
-                    Slider(value: $settings.boxFileNameSize, in: settings.boxFileNameSizeRange)
-                    Text("\(Int(settings.boxFileNameSize))")
                         .frame(width: 36, alignment: .trailing)
                 }
 
@@ -5665,6 +7306,66 @@ struct SettingsView: View {
         .nativeSettingsFormStyle()
     }
 
+    private func pageCustomTitleBinding(_ page: IslandPage) -> Binding<String> {
+        Binding(
+            get: {
+                switch page {
+                case .clipboard: return settings.clipboardCustomTitle ?? ""
+                case .jot: return settings.jotCustomTitle ?? ""
+                case .box: return settings.boxCustomTitle ?? ""
+                case .chrono: return settings.chronoCustomTitle ?? ""
+                case .calendar: return settings.calendarCustomTitle ?? ""
+                case .launcher: return settings.launcherCustomTitle ?? ""
+                case .bookmarks: return settings.bookmarksCustomTitle ?? ""
+                case .customCombined: return settings.combinedCustomTitle ?? ""
+                }
+            },
+            set: { newValue in
+                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                let value = trimmed.isEmpty ? nil : trimmed
+                switch page {
+                case .clipboard: settings.clipboardCustomTitle = value
+                case .jot: settings.jotCustomTitle = value
+                case .box: settings.boxCustomTitle = value
+                case .chrono: settings.chronoCustomTitle = value
+                case .calendar: settings.calendarCustomTitle = value
+                case .launcher: settings.launcherCustomTitle = value
+                case .bookmarks: settings.bookmarksCustomTitle = value
+                case .customCombined: settings.combinedCustomTitle = value
+                }
+            }
+        )
+    }
+
+    private func pageShowTitleIconBinding(_ page: IslandPage) -> Binding<Bool> {
+        Binding(
+            get: {
+                switch page {
+                case .clipboard: return settings.clipboardShowTitleIcon ?? true
+                case .jot: return settings.jotShowTitleIcon ?? true
+                case .box: return settings.boxShowTitleIcon ?? true
+                case .chrono: return settings.chronoShowTitleIcon ?? true
+                case .calendar: return settings.calendarShowTitleIcon ?? true
+                case .launcher: return settings.launcherShowTitleIcon ?? true
+                case .bookmarks: return settings.bookmarksShowTitleIcon ?? true
+                case .customCombined: return settings.combinedShowTitleIcon ?? true
+                }
+            },
+            set: { newValue in
+                switch page {
+                case .clipboard: settings.clipboardShowTitleIcon = newValue
+                case .jot: settings.jotShowTitleIcon = newValue
+                case .box: settings.boxShowTitleIcon = newValue
+                case .chrono: settings.chronoShowTitleIcon = newValue
+                case .calendar: settings.calendarShowTitleIcon = newValue
+                case .launcher: settings.launcherShowTitleIcon = newValue
+                case .bookmarks: settings.bookmarksShowTitleIcon = newValue
+                case .customCombined: settings.combinedShowTitleIcon = newValue
+                }
+            }
+        )
+    }
+
     private func setPreviewFocus(_ focus: HoverPreviewFocus, isEditing: Bool) {
         settings.hoverPreviewFocus = isEditing ? focus : .all
     }
@@ -5682,6 +7383,7 @@ struct SettingsView: View {
         case .jot: return "Jot"
         case .box: return "Box"
         case .chrono: return "Chrono"
+        default: return "Custom"
         }
     }
 
@@ -5697,7 +7399,15 @@ struct SettingsView: View {
                 case .box:
                     settings.boxTitleAlignment = newValue
                 case .chrono:
-                    break
+                    settings.chronoTitleAlignment = newValue
+                case .calendar:
+                    settings.calendarTitleAlignment = newValue
+                case .launcher:
+                    settings.launcherTitleAlignment = newValue
+                case .bookmarks:
+                    settings.bookmarksTitleAlignment = newValue
+                case .customCombined:
+                    settings.combinedTitleAlignment = newValue
                 }
             }
         )
@@ -5715,7 +7425,15 @@ struct SettingsView: View {
                 case .box:
                     settings.boxTitleSize = newValue
                 case .chrono:
-                    break
+                    settings.chronoTitleSize = newValue
+                case .calendar:
+                    settings.calendarTitleSize = newValue
+                case .launcher:
+                    settings.launcherTitleSize = newValue
+                case .bookmarks:
+                    settings.bookmarksTitleSize = newValue
+                case .customCombined:
+                    settings.combinedTitleSize = newValue
                 }
             }
         )
@@ -5733,7 +7451,15 @@ struct SettingsView: View {
                 case .box:
                     settings.boxTitleColor = NSColor(newValue)
                 case .chrono:
-                    break
+                    settings.chronoTitleColor = NSColor(newValue)
+                case .calendar:
+                    settings.calendarTitleColor = NSColor(newValue)
+                case .launcher:
+                    settings.launcherTitleColor = NSColor(newValue)
+                case .bookmarks:
+                    settings.bookmarksTitleColor = NSColor(newValue)
+                case .customCombined:
+                    settings.combinedTitleColor = NSColor(newValue)
                 }
             }
         )
@@ -5750,7 +7476,15 @@ struct SettingsView: View {
                 case .box:
                     return settings.boxTitleUseAccent ?? false
                 case .chrono:
-                    return false
+                    return settings.chronoTitleUseAccent ?? false
+                case .calendar:
+                    return settings.calendarTitleUseAccent ?? false
+                case .launcher:
+                    return settings.launcherTitleUseAccent ?? false
+                case .bookmarks:
+                    return settings.bookmarksTitleUseAccent ?? false
+                case .customCombined:
+                    return settings.combinedTitleUseAccent ?? false
                 }
             },
             set: { newValue in
@@ -5762,7 +7496,15 @@ struct SettingsView: View {
                 case .box:
                     settings.boxTitleUseAccent = newValue
                 case .chrono:
-                    break
+                    settings.chronoTitleUseAccent = newValue
+                case .calendar:
+                    settings.calendarTitleUseAccent = newValue
+                case .launcher:
+                    settings.launcherTitleUseAccent = newValue
+                case .bookmarks:
+                    settings.bookmarksTitleUseAccent = newValue
+                case .customCombined:
+                    settings.combinedTitleUseAccent = newValue
                 }
             }
         )
@@ -5779,7 +7521,15 @@ struct SettingsView: View {
                 case .box:
                     return settings.boxTitleIconName ?? ""
                 case .chrono:
-                    return ""
+                    return settings.chronoTitleIconName ?? ""
+                case .calendar:
+                    return settings.calendarTitleIconName ?? ""
+                case .launcher:
+                    return settings.launcherTitleIconName ?? ""
+                case .bookmarks:
+                    return settings.bookmarksTitleIconName ?? ""
+                case .customCombined:
+                    return settings.combinedTitleIconName ?? ""
                 }
             },
             set: { newValue in
@@ -5793,7 +7543,15 @@ struct SettingsView: View {
                 case .box:
                     settings.boxTitleIconName = value
                 case .chrono:
-                    break
+                    settings.chronoTitleIconName = value
+                case .calendar:
+                    settings.calendarTitleIconName = value
+                case .launcher:
+                    settings.launcherTitleIconName = value
+                case .bookmarks:
+                    settings.bookmarksTitleIconName = value
+                case .customCombined:
+                    settings.combinedTitleIconName = value
                 }
             }
         )
@@ -5820,7 +7578,35 @@ struct SettingsView: View {
             settings.boxTitleUseAccent = nil
             settings.boxTitleColor = nil
         case .chrono:
-            break
+            settings.chronoTitleAlignment = nil
+            settings.chronoTitleSize = nil
+            settings.chronoTitleIconName = nil
+            settings.chronoTitleUseAccent = nil
+            settings.chronoTitleColor = nil
+        case .calendar:
+            settings.calendarTitleAlignment = nil
+            settings.calendarTitleSize = nil
+            settings.calendarTitleIconName = nil
+            settings.calendarTitleUseAccent = nil
+            settings.calendarTitleColor = nil
+        case .launcher:
+            settings.launcherTitleAlignment = nil
+            settings.launcherTitleSize = nil
+            settings.launcherTitleIconName = nil
+            settings.launcherTitleUseAccent = nil
+            settings.launcherTitleColor = nil
+        case .bookmarks:
+            settings.bookmarksTitleAlignment = nil
+            settings.bookmarksTitleSize = nil
+            settings.bookmarksTitleIconName = nil
+            settings.bookmarksTitleUseAccent = nil
+            settings.bookmarksTitleColor = nil
+        case .customCombined:
+            settings.combinedTitleAlignment = nil
+            settings.combinedTitleSize = nil
+            settings.combinedTitleIconName = nil
+            settings.combinedTitleUseAccent = nil
+            settings.combinedTitleColor = nil
         }
     }
 
@@ -6055,10 +7841,10 @@ struct ChronoPageContent: View, Equatable {
 }
 
 extension UnifiedNotchContainer {
-    var chronoPage: some View {
+    func chronoPage(contentAreaHeight: CGFloat) -> some View {
         ChronoPageContent(
             width: scaledPanelWidth(for: settings),
-            height: max(1, scaledPanelHeight(for: settings) - settings.effectiveNotchHeight - pageTopContentInset),
+            height: max(1, contentAreaHeight - pageTopContentInset),
             isStopwatchRunning: model.isStopwatchRunning,
             stopwatchAccumulatedTime: model.stopwatchAccumulatedTime,
             stopwatchStartTime: model.stopwatchStartTime,
@@ -6066,7 +7852,7 @@ extension UnifiedNotchContainer {
             timerDuration: model.timerDuration,
             timerRemainingAtPause: model.timerRemainingAtPause,
             timerEndTime: model.timerEndTime,
-            isVisible: (model.isExpanded || model.isPinned) && model.currentPage == IslandPage.chrono.rawValue,
+            isVisible: (model.isExpanded || model.isPinned) && activePages.indices.contains(model.currentPage) && activePages[model.currentPage] == .chrono,
             toggleStopwatch: toggleStopwatch,
             resetStopwatch: resetStopwatch,
             toggleTimer: toggleTimer,
@@ -6081,31 +7867,35 @@ extension UnifiedNotchContainer {
 
     @ViewBuilder
     func closedIslandChronoWidgets(islandWidth: CGFloat, islandHeight: CGFloat, leftExt: CGFloat, rightExt: CGFloat) -> some View {
-        let showStopwatch = model.isStopwatchRunning
-        let showTimer = model.isTimerRunning
+        if settings.disableChronoHUD {
+            EmptyView()
+        } else {
+            let showStopwatch = model.isStopwatchRunning
+            let showTimer = model.isTimerRunning
 
-        if showStopwatch || showTimer {
-            Color.clear
-                .overlay(alignment: .topLeading) {
-                    GeometryReader { geo in
-                        let hardwareCenter = geo.size.width / 2 - ((rightExt - leftExt) / 2)
-                        let hardwareLeft = hardwareCenter - (settings.effectiveNotchWidth / 2)
-                        let hardwareRight = hardwareCenter + (settings.effectiveNotchWidth / 2)
-                        
-                        if showStopwatch {
-                            chronoStopwatchWidget
-                                .frame(width: leftExt, height: islandHeight)
-                                .offset(x: hardwareLeft - leftExt, y: 0)
-                        }
-                        
-                        if showTimer {
-                            chronoTimerWidget
-                                .frame(width: rightExt, height: islandHeight)
-                                .offset(x: hardwareRight, y: 0)
+            if showStopwatch || showTimer {
+                Color.clear
+                    .overlay(alignment: .topLeading) {
+                        GeometryReader { geo in
+                            let hardwareCenter = geo.size.width / 2 - ((rightExt - leftExt) / 2)
+                            let hardwareLeft = hardwareCenter - (settings.effectiveNotchWidth / 2)
+                            let hardwareRight = hardwareCenter + (settings.effectiveNotchWidth / 2)
+                            
+                            if showStopwatch {
+                                chronoStopwatchWidget
+                                    .frame(width: leftExt, height: islandHeight)
+                                    .offset(x: hardwareLeft - leftExt, y: 0)
+                            }
+                            
+                            if showTimer {
+                                chronoTimerWidget
+                                    .frame(width: rightExt, height: islandHeight)
+                                    .offset(x: hardwareRight, y: 0)
+                            }
                         }
                     }
-                }
-                .frame(width: islandWidth, height: islandHeight)
+                    .frame(width: islandWidth, height: islandHeight)
+            }
         }
     }
     
@@ -6241,6 +8031,186 @@ struct TimerColumn: View {
                     .foregroundColor(.white.opacity(0.7))
             }
             .buttonStyle(.plain)
+        }
+    }
+}
+
+extension UnifiedNotchContainer {
+    func calendarPage(contentAreaHeight: CGFloat) -> some View {
+        CalendarPageContent(
+            width: scaledPanelWidth(for: settings),
+            height: max(1, contentAreaHeight - pageTopContentInset),
+            accentColor: Color(settings.accentColor),
+            calendarViewOption: settings.calendarViewOption
+        )
+        .equatable()
+        .padding(.top, pageTopContentInset)
+    }
+
+    func launcherPage(contentAreaHeight: CGFloat) -> some View {
+        LauncherPageContent(
+            apps: model.launcherApps,
+            displayMode: settings.launcherDisplayMode,
+            columnsCount: settings.launcherColumns,
+            iconSize: settings.launcherIconSize,
+            textSize: settings.launcherTextSize,
+            showName: settings.launcherShowName,
+            width: scaledPanelWidth(for: settings),
+            height: max(1, contentAreaHeight - pageTopContentInset),
+            accentColor: Color(settings.accentColor),
+            showHeader: false,
+            onRemove: { app in
+                if let idx = model.launcherApps.firstIndex(where: { $0.id == app.id }) {
+                    model.launcherApps.remove(at: idx)
+                    persistLauncherApps(model.launcherApps)
+                }
+            },
+            onAdd: { app in
+                model.launcherApps.append(app)
+                persistLauncherApps(model.launcherApps)
+            }
+        )
+        .equatable()
+        .padding(.top, pageTopContentInset)
+    }
+
+    func bookmarksPage(contentAreaHeight: CGFloat) -> some View {
+        BookmarksPageContent(
+            bookmarks: model.bookmarkItems,
+            displayMode: settings.bookmarkDisplayMode,
+            columnsCount: settings.bookmarkColumns,
+            iconSize: settings.bookmarkIconSize,
+            textSize: settings.bookmarkTextSize,
+            showName: settings.bookmarkShowName,
+            width: scaledPanelWidth(for: settings),
+            height: max(1, contentAreaHeight - pageTopContentInset),
+            accentColor: Color(settings.accentColor),
+            showHeader: false,
+            onRemove: { bookmark in
+                if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
+                    model.bookmarkItems.remove(at: idx)
+                    persistBookmarkItems(model.bookmarkItems)
+                }
+            },
+            onAdd: { bookmark in
+                model.bookmarkItems.append(bookmark)
+                persistBookmarkItems(model.bookmarkItems)
+                
+                fetchFaviconBase64(for: bookmark.urlString) { base64 in
+                    if let base64 = base64 {
+                        DispatchQueue.main.async {
+                            if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
+                                model.bookmarkItems[idx].iconBase64 = base64
+                                persistBookmarkItems(model.bookmarkItems)
+                            }
+                        }
+                    }
+                }
+            }
+        )
+        .equatable()
+        .padding(.top, pageTopContentInset)
+    }
+
+    func customCombinedPage(contentAreaHeight: CGFloat) -> some View {
+        CombinedActionsPageContent(
+            model: model,
+            apps: model.launcherApps,
+            bookmarks: model.bookmarkItems,
+            launcherMode: settings.launcherDisplayMode,
+            bookmarkMode: settings.bookmarkDisplayMode,
+            launcherColumns: settings.launcherColumns,
+            bookmarkColumns: settings.bookmarkColumns,
+            launcherIconSize: settings.launcherIconSize,
+            launcherTextSize: settings.launcherTextSize,
+            launcherShowName: settings.launcherShowName,
+            bookmarkIconSize: settings.bookmarkIconSize,
+            bookmarkTextSize: settings.bookmarkTextSize,
+            bookmarkShowName: settings.bookmarkShowName,
+            width: scaledPanelWidth(for: settings),
+            height: max(1, contentAreaHeight - pageTopContentInset),
+            accentColor: Color(settings.accentColor),
+            onRemoveApp: { app in
+                if let idx = model.launcherApps.firstIndex(where: { $0.id == app.id }) {
+                    model.launcherApps.remove(at: idx)
+                    persistLauncherApps(model.launcherApps)
+                }
+            },
+            onAddApp: { app in
+                model.launcherApps.append(app)
+                persistLauncherApps(model.launcherApps)
+            },
+            onRemoveBookmark: { bookmark in
+                if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
+                    model.bookmarkItems.remove(at: idx)
+                    persistBookmarkItems(model.bookmarkItems)
+                }
+            },
+            onAddBookmark: { bookmark in
+                model.bookmarkItems.append(bookmark)
+                persistBookmarkItems(model.bookmarkItems)
+                
+                fetchFaviconBase64(for: bookmark.urlString) { base64 in
+                    if let base64 = base64 {
+                        DispatchQueue.main.async {
+                            if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
+                                model.bookmarkItems[idx].iconBase64 = base64
+                                persistBookmarkItems(model.bookmarkItems)
+                            }
+                        }
+                    }
+                }
+            }
+        )
+        .equatable()
+        .padding(.top, pageTopContentInset)
+    }
+}
+
+// MARK: - Calendar Permission helper View
+struct CalendarPermissionStatusView: View {
+    @ObservedObject private var manager = CalendarManager.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                if manager.permissionGranted {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("Calendar permission is granted.")
+                        .font(.body)
+                } else if manager.permissionChecked {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.red)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Calendar access is denied.")
+                            .font(.body)
+                            .fontWeight(.semibold)
+                        Text("Please enable Calendar permissions for Apollo in System Settings -> Privacy & Security -> Calendars.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    Image(systemName: "questionmark.circle.fill")
+                        .foregroundColor(.gray)
+                    Text("Calendar permission has not been requested yet.")
+                        .font(.body)
+                }
+            }
+            
+            if !manager.permissionGranted {
+                Button("Request Calendar Access") {
+                    manager.requestPermission { granted in
+                        manager.checkPermission()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.top, 4)
+            }
+        }
+        .padding(.vertical, 4)
+        .onAppear {
+            manager.checkPermission()
         }
     }
 }

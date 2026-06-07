@@ -5,11 +5,11 @@ import AppKit
 
 extension UnifiedNotchContainer {
     // MARK: - Clipboard Page
-    var clipboardPage: some View {
+    func clipboardPage(contentAreaHeight: CGFloat) -> some View {
         ClipboardPageContent(
             chunkedRows: model.chunkedClipboardRows,
             width: scaledPanelWidth(for: settings),
-            height: max(1, scaledPanelHeight(for: settings) - settings.effectiveNotchHeight - pageTopContentInset),
+            height: max(1, contentAreaHeight - pageTopContentInset),
             columnCount: settings.clipboardColumns,
             plainTextSize: settings.clipTextSize,
             fileLabelSize: settings.clipFileLabelSize,
