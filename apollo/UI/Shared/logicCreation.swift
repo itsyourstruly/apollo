@@ -353,9 +353,7 @@ private func makeStatusMenu() -> NSMenu {
                     if files.isEmpty {
                         self.hideSlimBox()
                     } else {
-                        DispatchQueue.main.async {
-                            self.updateSlimBoxWindowFrame()
-                        }
+                        self.updateSlimBoxWindowFrame(files: files)
                     }
                 }
             }
@@ -1133,6 +1131,7 @@ private func makeStatusMenu() -> NSMenu {
         let shouldWakeTrackCursor =
             !model.isExpanded &&
             !model.isPinned &&
+            !model.boxSlimModeActive &&
             model.observedFileToast == nil &&
             !(settings.showHoverPreviews && settings.hoverPreviewFocus != .all)
         guard shouldWakeTrackCursor else {
@@ -1334,7 +1333,8 @@ private func makeStatusMenu() -> NSMenu {
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.setAccessibilityElement(false)
         window.setAccessibilityRole(.none)
-        window.isMovableByWindowBackground = true
+        window.isMovableByWindowBackground = false
+        window.isSlimWindowProvider = { return true }
         
         window.isActiveProvider = { return false }
         
@@ -1370,11 +1370,12 @@ private func makeStatusMenu() -> NSMenu {
         slimBoxWindow = window
     }
 
-    func updateSlimBoxWindowFrame() {
+    func updateSlimBoxWindowFrame(files: [BoxFile]? = nil) {
         guard let window = slimBoxWindow, cachedScreenFrame != .zero else { return }
         let screenRect = cachedScreenFrame
         
-        let count = model.isSlimBoxCollapsed ? (model.boxFiles.isEmpty ? 0 : 1) : model.boxFiles.count
+        let filesList = files ?? model.boxFiles
+        let count = model.isSlimBoxCollapsed ? (filesList.isEmpty ? 0 : 1) : filesList.count
         let direction = settings.boxSlimModeExpandDirection // 0 = Horizontal, 1 = Vertical
         
         let itemSize: CGFloat = min(CGFloat(settings.boxSlimModeItemWidth), CGFloat(settings.boxSlimModeItemHeight))
@@ -1482,6 +1483,7 @@ private func makeStatusMenu() -> NSMenu {
         
         model.boxSlimModeActive = true
         model.boxDragActive = true
+        updateProximityWakeWindowFrame()
         if settings.boxSlimModePosition == 1 {
             slimBoxOpenPosition = NSEvent.mouseLocation
         } else {
@@ -1505,6 +1507,7 @@ private func makeStatusMenu() -> NSMenu {
         guard let window = slimBoxWindow else { return }
         model.boxSlimModeActive = false
         model.boxDragActive = false
+        updateProximityWakeWindowFrame()
         // Issue 4d: Don't permanently suppress proximity after hiding the slim box.
         // The cursor may already be outside the notch zone, so suppression would
         // block the very next hover attempt. Reset immediately.

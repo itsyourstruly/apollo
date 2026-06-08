@@ -554,6 +554,7 @@ final class IslandHostingView<Content: View>: NSHostingView<Content> {
         }
         return super.hitTest(point)
     }
+
 }
 
 extension NSView {
@@ -589,6 +590,7 @@ final class IslandPanel: NSPanel {
     var isTapToOpenProvider: (() -> Bool)?
     var isExpandedProvider: (() -> Bool)?
     var onTapToOpen: (() -> Void)?
+    var isSlimWindowProvider: (() -> Bool)?
 
     private var accumulatedDeltaX: CGFloat = 0
     private var accumulatedDeltaY: CGFloat = 0
@@ -617,9 +619,55 @@ final class IslandPanel: NSPanel {
         return frameRect
     }
 
+    // MARK: - Slim Box header-drag state
+    private var headerDragStartWindowOrigin: NSPoint = .zero
+    private var headerDragStartMouseScreen: NSPoint = .zero
+    private var headerDragArmed: Bool = false   // mouseDown landed in header
+    private var isHeaderDragging: Bool = false  // threshold exceeded – actually moving
+
+    private let headerDragThreshold: CGFloat = 5
+
     override func sendEvent(_ event: NSEvent) {
-        // Intercept left mouse clicks in the close button region at the AppKit level
-        // This bypasses SwiftUI's gesture system which doesn't work reliably in non-activating panels
+        let isSlim = isSlimWindowProvider?() == true
+
+        // ── Slim Box header drag ──────────────────────────────────────────────
+        if isSlim {
+            let loc = event.locationInWindow
+            let size = self.frame.size
+            let headerRect = NSRect(x: 0, y: size.height - 40, width: size.width, height: 40)
+
+            if event.type == .leftMouseDown && headerRect.contains(loc) {
+                // Always arm for a potential drag, but DON'T consume – let SwiftUI
+                // see the event so buttons, selects, etc. still fire normally.
+                headerDragArmed = true
+                isHeaderDragging = false
+                headerDragStartWindowOrigin = self.frame.origin
+                headerDragStartMouseScreen = NSEvent.mouseLocation
+                // fall through to super.sendEvent so SwiftUI processes clicks
+            }
+
+            if event.type == .leftMouseDragged && headerDragArmed {
+                let currentMouse = NSEvent.mouseLocation
+                let dx = currentMouse.x - headerDragStartMouseScreen.x
+                let dy = currentMouse.y - headerDragStartMouseScreen.y
+                if !isHeaderDragging && hypot(dx, dy) > headerDragThreshold {
+                    isHeaderDragging = true
+                }
+                if isHeaderDragging {
+                    self.setFrameOrigin(NSPoint(x: headerDragStartWindowOrigin.x + dx,
+                                                y: headerDragStartWindowOrigin.y + dy))
+                    return  // consume drag events once we've taken ownership
+                }
+            }
+
+            if event.type == .leftMouseUp {
+                headerDragArmed = false
+                isHeaderDragging = false
+                // fall through to super so SwiftUI can clean up its gesture state
+            }
+        }
+
+        // ── Regular (non-slim) intercepts ────────────────────────────────────
         if event.type == .leftMouseDown {
             if isTapToOpenProvider?() == true, isExpandedProvider?() == false {
                 onTapToOpen?()
@@ -638,7 +686,7 @@ final class IslandPanel: NSPanel {
                 }
             }
             
-            // Collapse button: 40x42 hit region immediately to the left of the close button (x: width - 80 to width - 40)
+            // Collapse button: 40x42 hit region immediately to the left of the close button
             if let collapseHandler = onCollapseButtonTapped, isCollapseButtonVisible?() == true {
                 let collapseRect = NSRect(x: size.width - 80, y: size.height - 42, width: 40, height: 42)
                 if collapseRect.contains(loc) {
