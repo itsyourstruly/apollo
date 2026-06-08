@@ -483,6 +483,9 @@ final class NotchMenuModel: ObservableObject {
     @Published var bookmarkItems: [BookmarkItem] = []
     @Published var boxDragActive = false
     @Published var boxSlimModeActive = false
+    @Published var isSlimBoxCollapsed = false
+    @Published var slimBoxWidth: CGFloat = 180
+    @Published var slimBoxHeight: CGFloat = 260
     @Published var activeJotID: UUID?
     @Published var clipboardPulseItemID: UUID?
     @Published var observedFileToast: ObservedFileToast?
@@ -2085,6 +2088,66 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var boxSlimModeTrigger: Int {
+        didSet {
+            enqueueDefaultSet(boxSlimModeTrigger, forKey: "boxSlimModeTrigger")
+        }
+    }
+
+    @Published var boxSlimModeWiggleSensitivity: Double {
+        didSet {
+            enqueueDefaultSet(boxSlimModeWiggleSensitivity, forKey: "boxSlimModeWiggleSensitivity")
+        }
+    }
+
+    @Published var boxSlimModePosition: Int {
+        didSet {
+            enqueueDefaultSet(boxSlimModePosition, forKey: "boxSlimModePosition")
+        }
+    }
+
+    @Published var boxSlimModeKeepOpen: Bool {
+        didSet {
+            enqueueDefaultSet(boxSlimModeKeepOpen, forKey: "boxSlimModeKeepOpen")
+        }
+    }
+
+    @Published var boxSlimModeExpandDirection: Int {
+        didSet {
+            enqueueDefaultSet(boxSlimModeExpandDirection, forKey: "boxSlimModeExpandDirection")
+        }
+    }
+
+    @Published var boxSlimModeMaxViewSize: Double {
+        didSet {
+            enqueueDefaultSet(boxSlimModeMaxViewSize, forKey: "boxSlimModeMaxViewSize")
+        }
+    }
+
+    @Published var boxSlimModeItemWidth: Double {
+        didSet {
+            enqueueDefaultSet(boxSlimModeItemWidth, forKey: "boxSlimModeItemWidth")
+        }
+    }
+
+    @Published var boxSlimModeItemHeight: Double {
+        didSet {
+            enqueueDefaultSet(boxSlimModeItemHeight, forKey: "boxSlimModeItemHeight")
+        }
+    }
+
+    @Published var boxSlimModeWidth: Double {
+        didSet {
+            enqueueDefaultSet(boxSlimModeWidth, forKey: "boxSlimModeWidth")
+        }
+    }
+
+    @Published var boxSlimModeHeight: Double {
+        didSet {
+            enqueueDefaultSet(boxSlimModeHeight, forKey: "boxSlimModeHeight")
+        }
+    }
+
     @Published var hardwareNotchX: CGFloat = 0
     @Published var hardwareNotchWidth: CGFloat = 210
     @Published var hardwareNotchHeight: CGFloat = 32
@@ -2686,6 +2749,67 @@ final class AppSettings: ObservableObject {
             boxSlimModeHoldDuration = defaults.double(forKey: "boxSlimModeHoldDuration")
         }
 
+        if defaults.object(forKey: "boxSlimModeTrigger") == nil {
+            boxSlimModeTrigger = 0
+        } else {
+            boxSlimModeTrigger = defaults.integer(forKey: "boxSlimModeTrigger")
+        }
+
+        if defaults.object(forKey: "boxSlimModeWiggleSensitivity") == nil {
+            boxSlimModeWiggleSensitivity = 5.0
+        } else {
+            boxSlimModeWiggleSensitivity = defaults.double(forKey: "boxSlimModeWiggleSensitivity")
+        }
+
+        if defaults.object(forKey: "boxSlimModePosition") == nil {
+            boxSlimModePosition = 0
+        } else {
+            boxSlimModePosition = defaults.integer(forKey: "boxSlimModePosition")
+        }
+
+        boxSlimModeKeepOpen = defaults.bool(forKey: "boxSlimModeKeepOpen")
+
+        if defaults.object(forKey: "boxSlimModeExpandDirection") == nil {
+            boxSlimModeExpandDirection = 0
+        } else {
+            boxSlimModeExpandDirection = defaults.integer(forKey: "boxSlimModeExpandDirection")
+        }
+
+        if defaults.object(forKey: "boxSlimModeMaxViewSize") == nil {
+            boxSlimModeMaxViewSize = 5.0
+        } else {
+            let val = defaults.double(forKey: "boxSlimModeMaxViewSize")
+            if val > 10.0 {
+                boxSlimModeMaxViewSize = 5.0
+            } else {
+                boxSlimModeMaxViewSize = val
+            }
+        }
+
+        if defaults.object(forKey: "boxSlimModeItemWidth") == nil {
+            boxSlimModeItemWidth = 80.0
+        } else {
+            boxSlimModeItemWidth = defaults.double(forKey: "boxSlimModeItemWidth")
+        }
+
+        if defaults.object(forKey: "boxSlimModeItemHeight") == nil {
+            boxSlimModeItemHeight = 80.0
+        } else {
+            boxSlimModeItemHeight = defaults.double(forKey: "boxSlimModeItemHeight")
+        }
+
+        if defaults.object(forKey: "boxSlimModeWidth") == nil {
+            boxSlimModeWidth = 180.0
+        } else {
+            boxSlimModeWidth = defaults.double(forKey: "boxSlimModeWidth")
+        }
+
+        if defaults.object(forKey: "boxSlimModeHeight") == nil {
+            boxSlimModeHeight = 260.0
+        } else {
+            boxSlimModeHeight = defaults.double(forKey: "boxSlimModeHeight")
+        }
+
         // Custom Titles
         clipboardCustomTitle = defaults.string(forKey: AppStorageKey.clipboardCustomTitle)
         jotCustomTitle = defaults.string(forKey: AppStorageKey.jotCustomTitle)
@@ -3126,6 +3250,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var islandWindow: IslandPanel!
     var notchWindow: IslandPanel! { islandWindow }
     private var clipboardTimer: DispatchSourceTimer?
+    private var dragPollingTimer: DispatchSourceTimer?
+    private var fastDragTrackingTimer: DispatchSourceTimer?
+    private var isDragSessionActive = false
+    var slimBoxWindow: IslandPanel?
+    var slimBoxDidReceiveDropThisSession = false
+    private var lastDragChangeCount = -1
     private var clipboardActivationObserver: NSObjectProtocol?
     private var memoryPressureSource: DispatchSourceMemoryPressure?
     private var idleCompactionWorkItem: DispatchWorkItem?
@@ -3164,6 +3294,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastPanelExpandedAt: TimeInterval = 0
     private var panelVisibilityEpoch: UInt64 = 0
 
+    // Wiggle & Slim Box positioning tracking
+    var dragWiggleAccumulator: CGFloat = 0
+    var lastDragPoint: NSPoint?
+    var lastDragTime: TimeInterval = 0
+    var slimBoxOpenPosition: NSPoint?
+    private var lastDxSign = 0
+    private var lastDySign = 0
+    private var directionChanges = 0
+    private var lastDirectionChangeTime: TimeInterval = 0
+
     // Dynamic structural dimensions
     private var notchWidth: CGFloat = 210
     private var notchHeight: CGFloat = 32
@@ -3198,6 +3338,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         observeSettings()
         startMemoryPressureMonitoring()
         startGlobalProximityTracking()
+        startGlobalDragPolling()
         startBackgroundStateTracking()
         model.clipboardItems = loadClipboardHistory()
         model.jotNotes = loadJotNotes()
@@ -3433,12 +3574,27 @@ private func makeStatusMenu() -> NSMenu {
             .store(in: &settingsCancellables)
 
         model.$boxFiles
-            .sink { files in
+            .receive(on: RunLoop.main)
+            .sink { [weak self] files in
                 let urls = files.map(\.url)
                 if urls.isEmpty {
                     BoxIconCache.shared.removeAll()
                 } else {
                     BoxIconCache.shared.trim(keeping: urls)
+                }
+                
+                guard let self = self else { return }
+                if files.count <= 1 {
+                    self.model.isSlimBoxCollapsed = false
+                }
+                if self.model.boxSlimModeActive {
+                    if files.isEmpty {
+                        self.hideSlimBox()
+                    } else {
+                        DispatchQueue.main.async {
+                            self.updateSlimBoxWindowFrame()
+                        }
+                    }
                 }
             }
             .store(in: &settingsCancellables)
@@ -3480,6 +3636,9 @@ private func makeStatusMenu() -> NSMenu {
     }
 
     var activePages: [IslandPage] {
+        if model.boxSlimModeActive {
+            return [.box]
+        }
         var pages: [IslandPage] = [.clipboard, .jot, .box, .chrono, .calendar]
         if settings.customActionsLayoutOption == 0 {
             pages.append(.customCombined)
@@ -4013,10 +4172,6 @@ private func makeStatusMenu() -> NSMenu {
         let approachHeight = settings.disableApproach ? 0 : settings.clampedApproachHeight * approachScale
 
         let cushion: CGFloat = 6
-        let totalHeight = edgeNotchRect.height + approachHeight + cushion
-        let totalWidth = edgeNotchRect.width + approachWidth * 2
-        let originX = edgeNotchRect.minX - approachWidth
-        let originY = screenRect.maxY - totalHeight
         let approachRect = CGRect(
             x: edgeNotchRect.minX - approachWidth,
             y: edgeNotchRect.minY - approachHeight,
@@ -4024,6 +4179,10 @@ private func makeStatusMenu() -> NSMenu {
             height: approachHeight
         )
 
+        let totalHeight = edgeNotchRect.height + approachHeight + cushion
+        let totalWidth = edgeNotchRect.width + approachWidth * 2
+        let originX = edgeNotchRect.minX - approachWidth
+        let originY = screenRect.maxY - totalHeight
         wake.setFrame(NSRect(x: originX, y: originY, width: totalWidth, height: totalHeight), display: false)
         if !wake.isVisible {
             wake.orderFrontRegardless()
@@ -4141,9 +4300,403 @@ private func makeStatusMenu() -> NSMenu {
         isDraggingOverProximity = false
         boxDragHoldWorkItem?.cancel()
         boxDragHoldWorkItem = nil
+        dragWiggleAccumulator = 0
+        lastDragPoint = nil
+        slimBoxOpenPosition = nil
         model.boxDragActive = false
         model.boxSlimModeActive = false
         handleLegacyProximityWakeExitedFallback()
+    }
+
+    // MARK: - Global Drag Polling & Separate Slim Box
+    private func setupSlimBoxWindow() {
+        guard slimBoxWindow == nil else { return }
+        
+        let windowWidth: CGFloat = CGFloat(settings.boxSlimModeWidth)
+        let windowHeight: CGFloat = CGFloat(settings.boxSlimModeHeight)
+        
+        let initialRect = NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight)
+        let window = IslandPanel(
+            contentRect: initialRect,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        
+        window.backgroundColor = .clear
+        window.isOpaque = false
+        window.hasShadow = false
+        window.level = .statusBar + 2
+        window.alphaValue = 0.0
+        window.ignoresMouseEvents = true
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        window.isMovableByWindowBackground = true
+        
+        window.isActiveProvider = { return false }
+        
+        // AppKit-level close button handler — fires even when the app is inactive
+        window.onCloseButtonTapped = { [weak self] in
+            self?.hideSlimBox()
+        }
+        
+        // AppKit-level collapse button handler — fires even when the app is inactive
+        window.onCollapseButtonTapped = { [weak self] in
+            guard let self = self, self.model.boxFiles.count > 1 else { return }
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                self.model.isSlimBoxCollapsed.toggle()
+            }
+            DispatchQueue.main.async {
+                self.updateSlimBoxWindowFrame()
+            }
+        }
+        
+        window.isCloseButtonVisible = { [weak self] in
+            guard let self = self else { return false }
+            return !self.model.boxFiles.isEmpty && self.settings.boxSlimModeKeepOpen
+        }
+        
+        window.isCollapseButtonVisible = { [weak self] in
+            guard let self = self else { return false }
+            return self.model.boxFiles.count > 1 && self.settings.boxSlimModeKeepOpen
+        }
+        
+        let containerView = UnifiedNotchContainer(model: model, settings: settings, isSlimBoxInstance: true)
+        window.contentView = IslandHostingView(rootView: containerView)
+        
+        slimBoxWindow = window
+    }
+
+    func updateSlimBoxWindowFrame() {
+        guard let window = slimBoxWindow, let screen = NSScreen.screens.first else { return }
+        let screenRect = screen.frame
+        
+        let count = settings.boxSlimModeKeepOpen ? (model.isSlimBoxCollapsed ? (model.boxFiles.isEmpty ? 0 : 1) : model.boxFiles.count) : 0
+        let direction = settings.boxSlimModeExpandDirection // 0 = Horizontal, 1 = Vertical
+        
+        let itemSize: CGFloat = min(CGFloat(settings.boxSlimModeItemWidth), CGFloat(settings.boxSlimModeItemHeight))
+        let maxItems = CGFloat(settings.boxSlimModeMaxViewSize)
+        
+        let padLeftRight: CGFloat = 24
+        let padTopBottom: CGFloat = 24
+        let spacing: CGFloat = 8
+        let headerHeight: CGFloat = 40
+        
+        // Compute the max width/height based on the item size and max item settings
+        var maxSlimWidth: CGFloat = 180
+        var maxSlimHeight: CGFloat = 260
+        
+        if direction == 0 { // Horizontal
+            let rawMaxW = padLeftRight + (itemSize * maxItems) + (spacing * (maxItems - 1)) + padLeftRight
+            maxSlimWidth = max(180, rawMaxW)
+            maxSlimHeight = itemSize + padTopBottom + padTopBottom + headerHeight
+        } else { // Vertical
+            maxSlimWidth = max(180, itemSize + padLeftRight + padLeftRight)
+            let rawMaxH = headerHeight + padTopBottom + (itemSize * maxItems) + (spacing * (maxItems - 1)) + padTopBottom
+            maxSlimHeight = max(180, rawMaxH)
+        }
+        
+        var windowWidth: CGFloat = maxSlimWidth
+        var windowHeight: CGFloat = maxSlimHeight
+        
+        if count == 0 {
+            if direction == 0 {
+                windowWidth = 160
+                windowHeight = 90
+            } else {
+                windowWidth = 120
+                windowHeight = 160
+            }
+        } else {
+            if direction == 0 { // Horizontal expansion
+                // Height is fixed to the calculated height
+                windowHeight = maxSlimHeight
+                
+                // Width expands to fit current item count up to maxSlimWidth
+                let rawWidth = padLeftRight + (itemSize * CGFloat(count)) + (spacing * CGFloat(count - 1)) + padLeftRight
+                windowWidth = rawWidth
+                if windowWidth > maxSlimWidth { windowWidth = maxSlimWidth }
+                if windowWidth < 180 { windowWidth = 180 }
+            } else { // Vertical expansion
+                // Width is fixed to the calculated width
+                windowWidth = maxSlimWidth
+                
+                // Height expands to fit current item count up to maxSlimHeight
+                let rawHeight = headerHeight + padTopBottom + (itemSize * CGFloat(count)) + (spacing * CGFloat(count - 1)) + padTopBottom
+                windowHeight = rawHeight
+                if windowHeight > maxSlimHeight { windowHeight = maxSlimHeight }
+                if windowHeight < 160 { windowHeight = 160 }
+            }
+        }
+        
+        var windowX: CGFloat = 0
+        var windowY: CGFloat = 0
+        
+        if model.boxSlimModeActive && window.alphaValue > 0.1 {
+            let currentFrame = window.frame
+            windowX = currentFrame.midX - windowWidth / 2
+            windowY = currentFrame.maxY - windowHeight
+        } else if settings.boxSlimModePosition == 1, let openPos = slimBoxOpenPosition {
+            windowX = openPos.x - windowWidth / 2
+            // Fixed top positioning: top is at openPos.y + 40, growing downwards
+            windowY = (openPos.y + 40) - windowHeight
+        } else {
+            // Default position centered under the notch
+            let notchX = settings.hardwareNotchX
+            let notchWidth = settings.effectiveNotchWidth
+            windowX = notchX - (windowWidth - notchWidth) / 2
+            // Fixed top positioning: top is at screenRect.maxY - 20, growing downwards
+            windowY = screenRect.maxY - windowHeight - 20
+        }
+        
+        // Clamp to screen bounds with 20px padding
+        let screenMinX = screenRect.minX + 20
+        let screenMaxX = screenRect.maxX - 20
+        let screenMinY = screenRect.minY + 20
+        let screenMaxY = screenRect.maxY - 20
+        
+        if windowX < screenMinX {
+            windowX = screenMinX
+        } else if windowX + windowWidth > screenMaxX {
+            windowX = screenMaxX - windowWidth
+        }
+        
+        if windowY < screenMinY {
+            windowY = screenMinY
+        } else if windowY + windowHeight > screenMaxY {
+            windowY = screenMaxY - windowHeight
+        }
+        
+        window.setFrame(NSRect(x: windowX, y: windowY, width: windowWidth, height: windowHeight), display: true)
+        model.slimBoxWidth = windowWidth
+        model.slimBoxHeight = windowHeight
+        settings.boxSlimModeWidth = Double(windowWidth)
+        settings.boxSlimModeHeight = Double(windowHeight)
+    }
+
+    private func triggerSlimBoxMode() {
+        setupSlimBoxWindow()
+        
+        model.boxSlimModeActive = true
+        model.boxDragActive = true
+        if settings.boxSlimModePosition == 1 {
+            slimBoxOpenPosition = NSEvent.mouseLocation
+        } else {
+            slimBoxOpenPosition = nil
+        }
+        
+        if let idx = activePages.firstIndex(of: .box) {
+            model.currentPage = idx
+        }
+        
+        updateSlimBoxWindowFrame()
+        
+        if let window = slimBoxWindow {
+            window.alphaValue = 1.0
+            window.ignoresMouseEvents = false
+            window.orderFrontRegardless()
+        }
+    }
+
+    func hideSlimBox() {
+        guard let window = slimBoxWindow else { return }
+        model.boxSlimModeActive = false
+        model.boxDragActive = false
+        suppressProximityUntilExit = true
+        slimBoxOpenPosition = nil
+        
+        window.alphaValue = 0.0
+        window.ignoresMouseEvents = true
+        window.orderOut(nil)
+    }
+
+    private func startGlobalDragPolling() {
+        dragPollingTimer?.cancel()
+        
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now(), repeating: .milliseconds(100))
+        timer.setEventHandler { [weak self] in
+            self?.pollGlobalDragState()
+        }
+        timer.resume()
+        dragPollingTimer = timer
+    }
+
+    private func pollGlobalDragState() {
+        guard settings.boxSlimModeEnabled else {
+            if isDragSessionActive {
+                isDragSessionActive = false
+                stopFastDragTracking()
+                resetDragTrackingState()
+            }
+            return
+        }
+        
+        let isLeftButtonPressed = (NSEvent.pressedMouseButtons & (1 << 0)) != 0
+        
+        if isDragSessionActive {
+            if !isLeftButtonPressed {
+                isDragSessionActive = false
+                stopFastDragTracking()
+                resetDragTrackingState()
+                if model.boxSlimModeActive {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                        guard let self = self else { return }
+                        if self.slimBoxDidReceiveDropThisSession {
+                            self.slimBoxDidReceiveDropThisSession = false
+                            return
+                        }
+                        let isHovered = self.slimBoxWindow?.frame.contains(NSEvent.mouseLocation) ?? false
+                        if !isHovered {
+                            self.hideSlimBox()
+                        }
+                    }
+                }
+            }
+            return
+        }
+        
+        let dragPboard = NSPasteboard(name: .drag)
+        let currentChangeCount = dragPboard.changeCount
+        
+        if currentChangeCount != lastDragChangeCount {
+            lastDragChangeCount = currentChangeCount
+            
+            let hasFileTypes = dragPboard.types?.contains(where: {
+                $0 == .fileURL || $0.rawValue == "public.file-url" || $0.rawValue == "NSFilenamesPboardType"
+            }) ?? false
+            
+            if hasFileTypes && isLeftButtonPressed {
+                isDragSessionActive = true
+                slimBoxDidReceiveDropThisSession = false
+                startFastDragTracking()
+            }
+        }
+    }
+
+    private func startFastDragTracking() {
+        slimBoxDidReceiveDropThisSession = false
+        fastDragTrackingTimer?.cancel()
+        
+        dragWiggleAccumulator = 0
+        lastDxSign = 0
+        lastDySign = 0
+        directionChanges = 0
+        lastDirectionChangeTime = 0
+        lastDragPoint = NSEvent.mouseLocation
+        lastDragTime = ProcessInfo.processInfo.systemUptime
+        boxDragHoldWorkItem?.cancel()
+        boxDragHoldWorkItem = nil
+        
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now(), repeating: .milliseconds(30))
+        timer.setEventHandler { [weak self] in
+            self?.trackDragCursorLocation()
+        }
+        timer.resume()
+        fastDragTrackingTimer = timer
+    }
+
+    private func stopFastDragTracking() {
+        fastDragTrackingTimer?.cancel()
+        fastDragTrackingTimer = nil
+    }
+
+    private func resetDragTrackingState() {
+        boxDragHoldWorkItem?.cancel()
+        boxDragHoldWorkItem = nil
+        dragWiggleAccumulator = 0
+        lastDragPoint = nil
+        lastDragTime = 0
+        lastDxSign = 0
+        lastDySign = 0
+        directionChanges = 0
+        lastDirectionChangeTime = 0
+    }
+
+    private func trackDragCursorLocation() {
+        guard settings.boxSlimModeEnabled else { return }
+        guard !model.boxSlimModeActive else { return }
+        
+        let isLeftButtonPressed = (NSEvent.pressedMouseButtons & (1 << 0)) != 0
+        if !isLeftButtonPressed {
+            isDragSessionActive = false
+            stopFastDragTracking()
+            resetDragTrackingState()
+            if model.boxSlimModeActive {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                    guard let self = self else { return }
+                    if self.slimBoxDidReceiveDropThisSession {
+                        self.slimBoxDidReceiveDropThisSession = false
+                        return
+                    }
+                    let isHovered = self.slimBoxWindow?.frame.contains(NSEvent.mouseLocation) ?? false
+                    if !isHovered {
+                        self.hideSlimBox()
+                    }
+                }
+            }
+            return
+        }
+        
+        guard !model.isExpanded else { return }
+        
+        let globalPoint = NSEvent.mouseLocation
+        let now = ProcessInfo.processInfo.systemUptime
+        
+        if settings.boxSlimModeTrigger == 0 { // Wiggle Trigger
+            if let lastPoint = lastDragPoint {
+                let dx = globalPoint.x - lastPoint.x
+                let dy = globalPoint.y - lastPoint.y
+                
+                let threshold: CGFloat = max(3.0, 25.0 / CGFloat(settings.boxSlimModeWiggleSensitivity))
+                var signChanged = false
+                
+                if abs(dx) > threshold {
+                    let currentSignX = dx > 0 ? 1 : -1
+                    if lastDxSign != 0 && currentSignX != lastDxSign {
+                        signChanged = true
+                    }
+                    lastDxSign = currentSignX
+                }
+                
+                if abs(dy) > threshold {
+                    let currentSignY = dy > 0 ? 1 : -1
+                    if lastDySign != 0 && currentSignY != lastDySign {
+                        signChanged = true
+                    }
+                    lastDySign = currentSignY
+                }
+                
+                if signChanged {
+                    if now - lastDirectionChangeTime < 0.5 {
+                        directionChanges += 1
+                    } else {
+                        directionChanges = 1
+                    }
+                    lastDirectionChangeTime = now
+                } else if now - lastDirectionChangeTime > 0.5 {
+                    directionChanges = 0
+                }
+                
+                if directionChanges >= 4 {
+                    triggerSlimBoxMode()
+                    stopFastDragTracking()
+                }
+            }
+            lastDragPoint = globalPoint
+            lastDragTime = now
+        } else { // Delay Trigger
+            if boxDragHoldWorkItem == nil {
+                let holdDuration = settings.boxSlimModeHoldDuration
+                let item = DispatchWorkItem { [weak self] in
+                    guard let self = self else { return }
+                    self.triggerSlimBoxMode()
+                    self.stopFastDragTracking()
+                }
+                boxDragHoldWorkItem = item
+                DispatchQueue.main.asyncAfter(deadline: .now() + holdDuration, execute: item)
+            }
+        }
     }
 
     private struct ProximityZones {
@@ -4292,7 +4845,12 @@ private func makeStatusMenu() -> NSMenu {
         }
     }
 
+
+
     private func evaluateMouseCoordinates(_ globalPoint: NSPoint, isFileDrag: Bool) {
+        if model.boxSlimModeActive {
+            return
+        }
         if model.isAddSheetOpen {
             hoverCloseWorkItem?.cancel()
             hoverCloseWorkItem = nil
@@ -4314,7 +4872,15 @@ private func makeStatusMenu() -> NSMenu {
         }
 
         if model.isExpanded {
-            let isWithinExpandedPanel = notchWindow?.frame.contains(globalPoint) ?? false
+            var isWithinExpandedPanel = false
+            if let frame = notchWindow?.frame {
+                if model.boxSlimModeActive {
+                    let bufferFrame = frame.insetBy(dx: -40, dy: -40)
+                    isWithinExpandedPanel = bufferFrame.contains(globalPoint)
+                } else {
+                    isWithinExpandedPanel = frame.contains(globalPoint)
+                }
+            }
             if isWithinExpandedPanel || zones.isInsideNotch || zones.isHoveringEdge {
                 hoverCloseWorkItem?.cancel()
                 hoverCloseWorkItem = nil
@@ -4325,48 +4891,33 @@ private func makeStatusMenu() -> NSMenu {
         }
 
         if isFileDrag {
-            if isInsideActiveZone {
-                if settings.boxSlimModeEnabled {
-                    if zones.isInsideNotch || zones.isHoveringEdge {
-                        boxDragHoldWorkItem?.cancel()
-                        boxDragHoldWorkItem = nil
-                        model.boxSlimModeActive = true
-                        model.boxDragActive = true
-                        showPanel(expanded: true, pinned: false, preferredPage: IslandPage.box.rawValue)
-                    } else {
-                        if boxDragHoldWorkItem == nil {
-                            let holdDuration = settings.boxSlimModeHoldDuration
-                            let item = DispatchWorkItem { [weak self] in
-                                guard let self = self else { return }
-                                self.model.boxSlimModeActive = true
-                                self.model.boxDragActive = true
-                                self.showPanel(expanded: true, pinned: false, preferredPage: IslandPage.box.rawValue)
-                            }
-                            self.boxDragHoldWorkItem = item
-                            DispatchQueue.main.asyncAfter(deadline: .now() + holdDuration, execute: item)
-                        }
-                    }
-                } else {
+            if settings.boxSlimModeEnabled {
+                // Background drag polling handles the Slim Box triggers, ignore here.
+                return
+            } else {
+                if isInsideActiveZone {
                     boxDragHoldWorkItem?.cancel()
                     boxDragHoldWorkItem = nil
                     model.boxSlimModeActive = false
                     model.boxDragActive = true
                     showPanel(expanded: true, pinned: false, preferredPage: IslandPage.box.rawValue)
+                    
+                    if notchWindow?.alphaValue != 1.0 {
+                        notchWindow?.alphaValue = 1.0
+                    }
+                    if notchWindow?.isVisible == false {
+                        notchWindow?.orderFrontRegardless()
+                    }
+                    if notchWindow?.ignoresMouseEvents != false {
+                        notchWindow?.ignoresMouseEvents = false
+                    }
+                } else {
+                    boxDragHoldWorkItem?.cancel()
+                    boxDragHoldWorkItem = nil
+                    dragWiggleAccumulator = 0
+                    lastDragPoint = nil
+                    hidePanel()
                 }
-
-                if notchWindow?.alphaValue != 1.0 {
-                    notchWindow?.alphaValue = 1.0
-                }
-                if notchWindow?.isVisible == false {
-                    notchWindow?.orderFrontRegardless()
-                }
-                if notchWindow?.ignoresMouseEvents != false {
-                    notchWindow?.ignoresMouseEvents = false
-                }
-            } else {
-                boxDragHoldWorkItem?.cancel()
-                boxDragHoldWorkItem = nil
-                hidePanel()
             }
             return
         }
@@ -4483,6 +5034,11 @@ private func makeStatusMenu() -> NSMenu {
         swipeCloseWorkItem?.cancel()
         swipeCloseWorkItem = nil
 
+        if expanded {
+            if model.boxSlimModeActive {
+                hideSlimBox()
+            }
+        }
         let isFreshOpenRequest = expanded && !model.isExpanded
         let wasExpanded = model.isExpanded
         let shouldAnimateOpen = expanded && (isFreshOpenRequest || !wasExpanded || model.expansionProgress < 0.999 || model.closeGestureProgress > 0.001)
@@ -4546,7 +5102,11 @@ private func makeStatusMenu() -> NSMenu {
         }
     }
 
-    private func hidePanel(preserveCloseProgress: Bool = false) {
+    func hidePanel(preserveCloseProgress: Bool = false) {
+        if model.boxSlimModeActive {
+            hideSlimBox()
+            return
+        }
         guard let window = islandWindow else { return }
         if (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded {
             return
@@ -4593,6 +5153,10 @@ private func makeStatusMenu() -> NSMenu {
             }
             self.clearCursorPresenceState()
             self.model.expansionProgress = 0
+            self.model.boxSlimModeActive = false
+            self.slimBoxOpenPosition = nil
+            self.dragWiggleAccumulator = 0
+            self.lastDragPoint = nil
             self.scheduleIdleCompactionIfNeeded()
             self.updateClipboardObservationMode()
             self.updateProximityWakeWindowFrame()
@@ -4829,6 +5393,9 @@ private func makeStatusMenu() -> NSMenu {
 
     private func scheduleWindowFrameUpdate(for newHeight: CGFloat) {
         guard newHeight.isFinite, newHeight > 1 else { return }
+        if model.boxSlimModeActive {
+            return
+        }
         if !model.isExpanded,
            !model.isPinned,
            model.observedFileToast == nil,
@@ -4857,6 +5424,12 @@ private func makeStatusMenu() -> NSMenu {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        dragPollingTimer?.cancel()
+        dragPollingTimer = nil
+        fastDragTrackingTimer?.cancel()
+        fastDragTrackingTimer = nil
+        slimBoxWindow?.orderOut(nil)
+        slimBoxWindow = nil
         cancelIdleCompaction()
         stopIslandOpenMousePolling()
         stopClipboardObservation()
@@ -5103,6 +5676,10 @@ final class IslandPanel: NSPanel {
     var onCarouselOffset: ((CGFloat, Bool) -> Void)?
     var carouselSensitivityProvider: (() -> CGFloat)?
     var closeSensitivityProvider: (() -> CGFloat)?
+    var onCloseButtonTapped: (() -> Void)?
+    var onCollapseButtonTapped: (() -> Void)?
+    var isCloseButtonVisible: (() -> Bool)?
+    var isCollapseButtonVisible: (() -> Bool)?
 
     private var accumulatedDeltaX: CGFloat = 0
     private var accumulatedDeltaY: CGFloat = 0
@@ -5128,6 +5705,30 @@ final class IslandPanel: NSPanel {
     override var canBecomeKey: Bool { true }
 
     override func sendEvent(_ event: NSEvent) {
+        // Intercept left mouse clicks in the close button region at the AppKit level
+        // This bypasses SwiftUI's gesture system which doesn't work reliably in non-activating panels
+        if event.type == .leftMouseDown {
+            let loc = event.locationInWindow
+            let size = self.frame.size
+            
+            // Close button is in the top-right corner: 40x42 hit region
+            if let closeHandler = onCloseButtonTapped, isCloseButtonVisible?() == true {
+                let closeRect = NSRect(x: size.width - 40, y: size.height - 42, width: 40, height: 42)
+                if closeRect.contains(loc) {
+                    closeHandler()
+                    return
+                }
+            }
+            
+            // Collapse button: 40x42 hit region immediately to the left of the close button (x: width - 80 to width - 40)
+            if let collapseHandler = onCollapseButtonTapped, isCollapseButtonVisible?() == true {
+                let collapseRect = NSRect(x: size.width - 80, y: size.height - 42, width: 40, height: 42)
+                if collapseRect.contains(loc) {
+                    collapseHandler()
+                    return
+                }
+            }
+        }
         if event.type == .scrollWheel || event.type == .swipe {
             if handleGestureEvent(event) {
                 return
@@ -5436,6 +6037,9 @@ struct BoxShareButton: View {
     }
 
     private func handleAppDrop(providers: [NSItemProvider], appPath: String) {
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.slimBoxDidReceiveDropThisSession = true
+        }
         var droppedURLs: [URL] = []
         let group = DispatchGroup()
         for provider in providers where provider.canLoadObject(ofClass: URL.self) {
@@ -5464,6 +6068,9 @@ struct BoxShareButton: View {
     }
 
     private func handleShareDrop(providers: [NSItemProvider]) {
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.slimBoxDidReceiveDropThisSession = true
+        }
         var droppedURLs: [URL] = []
         let group = DispatchGroup()
         for provider in providers where provider.canLoadObject(ofClass: URL.self) {
@@ -5508,6 +6115,7 @@ struct CarouselOffsetModifier: ViewModifier {
 struct UnifiedNotchContainer: View {
     @ObservedObject var model: NotchMenuModel
     @ObservedObject var settings: AppSettings
+    var isSlimBoxInstance: Bool = false
 
     @FocusState var isJotEditorFocused: Bool
 
@@ -5519,7 +6127,15 @@ struct UnifiedNotchContainer: View {
     @State private var isAddAppPresented = false
     @State private var isAddBookmarkPresented = false
     @State private var animatingFromPage: Int? = nil
+    
+    var isSlimModeActive: Bool {
+        isSlimBoxInstance && model.boxSlimModeActive
+    }
+    
     var activePages: [IslandPage] {
+        if isSlimModeActive {
+            return [.box]
+        }
         var pages: [IslandPage] = [.clipboard, .jot, .box, .chrono, .calendar]
         if settings.customActionsLayoutOption == 0 {
             pages.append(.customCombined)
@@ -5590,7 +6206,7 @@ struct UnifiedNotchContainer: View {
 
     private var boxMenuBarControls: some View {
         let isBoxPage = activePages.indices.contains(model.currentPage) && activePages[model.currentPage] == .box
-        let showControls = model.isExpanded && isBoxPage && !model.boxFiles.isEmpty
+        let showControls = model.isExpanded && isBoxPage && !model.boxFiles.isEmpty && !isSlimModeActive
         return GeometryReader { geo in
             let edgeNotchWidth = settings.effectiveNotchWidth
             let notchRight = (geo.size.width + edgeNotchWidth) / 2
@@ -5637,13 +6253,58 @@ struct UnifiedNotchContainer: View {
         }
     }
 
-    var body: some View {
-        let panelWidth = model.boxSlimModeActive ? toastPanelWidth : scaledPanelWidth(for: settings)
-        let panelHeight = model.boxSlimModeActive ? toastPanelHeight : scaledPanelHeight(for: settings)
+    private var slimBoxMenuBarControls: some View {
+        HStack(spacing: 8) {
+            Button {
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                    if selectedBoxFileIDs.count == model.boxFiles.count {
+                        selectedBoxFileIDs.removeAll()
+                    } else {
+                        selectedBoxFileIDs = Set(model.boxFiles.map { $0.id })
+                    }
+                }
+            } label: {
+                Image(systemName: selectedBoxFileIDs.count == model.boxFiles.count ? "bookmark.slash.fill" : "checkmark.circle.fill")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.white.opacity(0.85))
+            }
+            .buttonStyle(.plain)
+            .help(selectedBoxFileIDs.count == model.boxFiles.count ? "Deselect All" : "Select All")
 
-        let notchWidth = settings.effectiveNotchWidth
-        let notchHeight = settings.effectiveNotchHeight
-        let rawProgress = model.expansionProgress
+            Button {
+                withAnimation {
+                    if selectedBoxFileIDs.isEmpty {
+                        model.boxFiles.removeAll()
+                        selectedBoxFileIDs.removeAll()
+                    } else {
+                        model.boxFiles.removeAll { selectedBoxFileIDs.contains($0.id) }
+                        selectedBoxFileIDs.removeAll()
+                    }
+                }
+            } label: {
+                Image(systemName: "trash.fill")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.red.opacity(0.9))
+            }
+            .buttonStyle(.plain)
+            .help(selectedBoxFileIDs.isEmpty ? "Clear All" : "Clear Selected")
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(Capsule().fill(Color.black.opacity(0.5)))
+        .padding(6)
+    }
+
+    var body: some View {
+        let currentSlimWidth = model.slimBoxWidth
+        let currentSlimHeight = model.slimBoxHeight
+
+        let panelWidth = isSlimModeActive ? currentSlimWidth : scaledPanelWidth(for: settings)
+        let panelHeight = isSlimModeActive ? currentSlimHeight : scaledPanelHeight(for: settings)
+
+        let notchWidth = isSlimModeActive ? 0 : settings.effectiveNotchWidth
+        let notchHeight = isSlimModeActive ? 0 : settings.effectiveNotchHeight
+        let rawProgress = isSlimModeActive ? 1.0 : model.expansionProgress
         let progress = rawProgress.isFinite ? max(0, min(1, rawProgress)) : 0
         let easedProgress = progress * progress * (3 - 2 * progress)
         
@@ -5655,7 +6316,7 @@ struct UnifiedNotchContainer: View {
         let activeRightExt = targetRightExt * (1 - easedProgress)
 
         let baseRawShellWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress)
-        let rawShellWidth = max(baseRawShellWidth, notchWidth + activeLeftExt + activeRightExt)
+        let rawShellWidth = isSlimModeActive ? panelWidth : max(baseRawShellWidth, notchWidth + activeLeftExt + activeRightExt)
         let rawShellHeight = notchHeight + ((panelHeight - notchHeight) * easedProgress)
         let shellWidth = safeDimension(rawShellWidth, fallback: panelWidth)
         let shellHeight = safeDimension(rawShellHeight, fallback: panelHeight)
@@ -5664,28 +6325,28 @@ struct UnifiedNotchContainer: View {
         let targetIslandWidth = notchWidth + ((panelWidth - notchWidth) * 0.4)
         let islandOffset = (activeRightExt - activeLeftExt) / 2
         let islandHeight = notchHeight
-        let pagerRowHeight: CGFloat = settings.showPagers ? 14 : 0
-        let pagerBottomInset: CGFloat = settings.showPagers ? 8 : 0
+        let pagerRowHeight: CGFloat = (settings.showPagers && !isSlimModeActive) ? 14 : 0
+        let pagerBottomInset: CGFloat = (settings.showPagers && !isSlimModeActive) ? 8 : 0
         let pagerReservedHeight = pagerRowHeight + pagerBottomInset
-        let isPeekerVisible = (settings.showLauncherInPeeker && !model.launcherApps.isEmpty) ||
-                              (settings.showBookmarksInPeeker && !model.bookmarkItems.isEmpty)
+        let isPeekerVisible = !isSlimModeActive && ((settings.showLauncherInPeeker && !model.launcherApps.isEmpty) ||
+                              (settings.showBookmarksInPeeker && !model.bookmarkItems.isEmpty))
         let peekerHeight: CGFloat = isPeekerVisible ? 24 : 0
-        let contentAreaHeight = max(1, panelHeight - notchHeight - pagerReservedHeight - peekerHeight - 2)
+        let contentAreaHeight = max(1, panelHeight - notchHeight - pagerReservedHeight - peekerHeight - (isSlimModeActive ? 0 : 2))
         let cornerRadius = safeDimension(max(4, settings.cornerRadius * (0.6 + 0.4 * easedProgress)), fallback: 8)
         let contentProgress = easedProgress.isFinite ? max(0, min(1, (easedProgress - 0.18) / 0.82)) : 0
         let showToastOnly = (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded && !model.isPinned
-        let containerHeight = safeDimension(showToastOnly ? max(panelHeight, toastPanelHeight) : panelHeight, fallback: panelHeight)
+        let containerHeight = safeDimension(isSlimModeActive ? currentSlimHeight : (showToastOnly ? max(panelHeight, toastPanelHeight) : panelHeight), fallback: panelHeight)
         let toastWidth = toastPanelWidth
-        let containerWidth = max(panelWidth, notchWidth + 240)
+        let containerWidth = isSlimModeActive ? currentSlimWidth : max(panelWidth, notchWidth + 240)
         let closeProgress = max(0, min(1, model.closeGestureProgress))
         let closeEase = closeProgress * closeProgress * (3 - 2 * closeProgress)
         let closeOffset = -44 * closeEase
         let closeScale = 1 - (0.14 * closeEase)
-        let shouldRenderExpandedContent = model.isExpanded || model.isPinned
+        let shouldRenderExpandedContent = model.isExpanded || model.isPinned || isSlimModeActive
 
         ZStack(alignment: .top) {
             // Overlay previews so they don't impact the measured height of the island body
-            if settings.showHoverPreviews {
+            if settings.showHoverPreviews && !isSlimModeActive {
                 settingsPreviewOverlay
                     .zIndex(100)
             }
@@ -5724,31 +6385,33 @@ struct UnifiedNotchContainer: View {
                 VStack(spacing: 0) {
                     VStack(spacing: 0) {
                         // UNIFIED FIX: Pad internal layouts to offset default top window inset masking values
-                        ZStack {
-                            Capsule()
-                                .fill(Color(nsColor: settings.backgroundColor.withAlphaComponent(1.0)))
-                                .frame(width: islandWidth, height: islandHeight)
+                        if !isSlimModeActive {
+                            ZStack {
+                                Capsule()
+                                    .fill(Color(nsColor: settings.backgroundColor.withAlphaComponent(1.0)))
+                                    .frame(width: islandWidth, height: islandHeight)
 
-                            globalTitleOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
-                                .opacity(shouldRenderExpandedContent ? contentProgress : 0)
-                                .allowsHitTesting(shouldRenderExpandedContent)
-                            globalControlsOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
-                                .opacity(shouldRenderExpandedContent ? contentProgress : 0)
-                                .allowsHitTesting(shouldRenderExpandedContent)
+                                globalTitleOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
+                                    .opacity(shouldRenderExpandedContent ? contentProgress : 0)
+                                    .allowsHitTesting(shouldRenderExpandedContent)
+                                globalControlsOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
+                                    .opacity(shouldRenderExpandedContent ? contentProgress : 0)
+                                    .allowsHitTesting(shouldRenderExpandedContent)
 
-                            if !model.isExpanded && !model.isPinned {
-                                closedIslandChronoWidgets(islandWidth: islandWidth, islandHeight: islandHeight, leftExt: activeLeftExt, rightExt: activeRightExt)
+                                if !model.isExpanded && !model.isPinned {
+                                    closedIslandChronoWidgets(islandWidth: islandWidth, islandHeight: islandHeight, leftExt: activeLeftExt, rightExt: activeRightExt)
+                                }
                             }
+                            .compositingGroup()
+                            .frame(width: islandWidth, height: islandHeight)
+                            .padding(.top, 0)
                         }
-
-                        .compositingGroup()
-                        .frame(width: islandWidth, height: islandHeight)
-                        .padding(.top, 0)
 
                         let pages = activePages
                         HStack(spacing: 0) {
                             ForEach(0..<pages.count, id: \.self) { index in
-                                if shouldRenderExpandedContent && (index == model.currentPage || index == animatingFromPage || (SwipeState.shared.carouselDragOffset != 0 && abs(model.currentPage - index) <= 1)) {
+                                let resolvedCurrentPage = isSlimBoxInstance ? 0 : model.currentPage
+                                if shouldRenderExpandedContent && (index == resolvedCurrentPage || index == animatingFromPage || (SwipeState.shared.carouselDragOffset != 0 && abs(resolvedCurrentPage - index) <= 1)) {
                                     pageView(for: pages[index], contentAreaHeight: contentAreaHeight)
                                         .frame(width: panelWidth, height: contentAreaHeight, alignment: .top)
                                         .clipped()
@@ -5759,12 +6422,12 @@ struct UnifiedNotchContainer: View {
                             }
                         }
                         .frame(width: panelWidth, height: contentAreaHeight, alignment: .leading)
-                        .modifier(CarouselOffsetModifier(panelWidth: panelWidth, currentPage: model.currentPage))
+                        .modifier(CarouselOffsetModifier(panelWidth: panelWidth, currentPage: isSlimBoxInstance ? 0 : model.currentPage))
                         .padding(.top, 2)
                         .opacity(shouldRenderExpandedContent ? contentProgress : 0)
                         .allowsHitTesting(shouldRenderExpandedContent)
 
-                        if isPeekerVisible {
+                        if isPeekerVisible && !isSlimModeActive {
                             PeekerWidgetView(
                                 apps: model.launcherApps,
                                 bookmarks: model.bookmarkItems,
@@ -5778,7 +6441,7 @@ struct UnifiedNotchContainer: View {
                             .allowsHitTesting(shouldRenderExpandedContent)
                         }
 
-                        if settings.showPagers {
+                        if settings.showPagers && !isSlimModeActive {
                             HStack(spacing: 8) {
                                 ForEach(0..<pages.count, id: \.self) { index in
                                     Button {
@@ -5801,12 +6464,21 @@ struct UnifiedNotchContainer: View {
                     }
                     .frame(width: panelWidth, height: panelHeight, alignment: .top)
                     .frame(width: shellWidth, height: shellHeight, alignment: .top)
-                    .clipShape(BottomRoundedRectangle(cornerRadius: cornerRadius))
+                    .conditionalClip(clipAll: isSlimModeActive, cornerRadius: cornerRadius)
                     .background(
-                        BottomRoundedRectangle(cornerRadius: cornerRadius)
-                            .fill(Color(settings.backgroundColor))
-                            .shadow(color: Color.black.opacity(shouldRenderExpandedContent ? 0.22 : 0),
-                                    radius: shouldRenderExpandedContent ? 18 : 0, x: 0, y: shouldRenderExpandedContent ? 10 : 0)
+                        Group {
+                            if isSlimModeActive {
+                                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                    .fill(Color(settings.backgroundColor))
+                                    .shadow(color: Color.black.opacity(shouldRenderExpandedContent ? 0.22 : 0),
+                                            radius: shouldRenderExpandedContent ? 18 : 0, x: 0, y: shouldRenderExpandedContent ? 10 : 0)
+                            } else {
+                                BottomRoundedRectangle(cornerRadius: cornerRadius)
+                                    .fill(Color(settings.backgroundColor))
+                                    .shadow(color: Color.black.opacity(shouldRenderExpandedContent ? 0.22 : 0),
+                                            radius: shouldRenderExpandedContent ? 18 : 0, x: 0, y: shouldRenderExpandedContent ? 10 : 0)
+                            }
+                        }
                     )
                     .animation(settings.notchOpenAnimation, value: model.expansionProgress)
                     .background(GeometryReader { proxy in
@@ -5818,13 +6490,20 @@ struct UnifiedNotchContainer: View {
         } // End ZStack
         .frame(width: containerWidth, height: containerHeight, alignment: .top)
         .overlay(alignment: .topLeading) {
-            boxMenuBarControls
-                .zIndex(50)
+            if isSlimModeActive {
+                if !model.boxFiles.isEmpty && settings.boxSlimModeKeepOpen {
+                    slimBoxMenuBarControls
+                        .zIndex(50)
+                }
+            } else {
+                boxMenuBarControls
+                    .zIndex(50)
+            }
         }
         .scaleEffect(closeScale, anchor: .top)
         .offset(y: closeOffset)
-        // Keep swipe paging, but don't preempt taps on pager buttons.
-        .simultaneousGesture(horizontalPagingGesture)
+        // Keep swipe paging, but don't preempt taps on pager buttons. Disable swipe gesture in slim mode so window background dragging works.
+        .simultaneousGesture(isSlimModeActive ? nil : horizontalPagingGesture)
         .contextMenu {
             SettingsLink {
                 Text("Settings")
@@ -6063,6 +6742,9 @@ struct UnifiedNotchContainer: View {
     }
 
     func handleFileDrop(providers: [NSItemProvider], openBoxPage: Bool) -> Bool {
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.slimBoxDidReceiveDropThisSession = true
+        }
         let acceptedProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
         guard !acceptedProviders.isEmpty else { return false }
 
@@ -6096,7 +6778,18 @@ struct UnifiedNotchContainer: View {
                 model.boxFiles.insert(contentsOf: urlsToInsert.reversed().map(BoxFile.init(url:)), at: 0)
             }
 
-            if openBoxPage {
+            if model.boxSlimModeActive {
+                if !settings.boxSlimModeKeepOpen {
+                    if let delegate = NSApp.delegate as? AppDelegate {
+                        delegate.hidePanel()
+                    }
+                } else {
+                    NSApp.activate(ignoringOtherApps: true)
+                    if let delegate = NSApp.delegate as? AppDelegate {
+                        delegate.slimBoxWindow?.makeKeyAndOrderFront(nil)
+                    }
+                }
+            } else if openBoxPage {
                 if let idx = activePages.firstIndex(of: .box) {
                     model.currentPage = idx
                 }
@@ -6750,12 +7443,62 @@ struct SettingsView: View {
                     .help("Open a compact 180x260 view of the Box page on drag or when holding a file")
                 
                 if settings.boxSlimModeEnabled {
-                    HStack {
-                        Text("Slim Box Hold Delay")
-                        Slider(value: $settings.boxSlimModeHoldDuration, in: 0.5...3.0)
-                        Text(String(format: "%.1fs", settings.boxSlimModeHoldDuration))
-                            .frame(width: 40, alignment: .trailing)
+                    Picker("Trigger Method", selection: $settings.boxSlimModeTrigger) {
+                        Text("Wiggle Mouse").tag(0)
+                        Text("Hold Delay").tag(1)
                     }
+                    .pickerStyle(.segmented)
+                    
+                    if settings.boxSlimModeTrigger == 0 {
+                        HStack {
+                            Text("Wiggle Sensitivity")
+                            Slider(value: $settings.boxSlimModeWiggleSensitivity, in: 1.0...10.0)
+                            Text(String(format: "%.1f", settings.boxSlimModeWiggleSensitivity))
+                                .frame(width: 40, alignment: .trailing)
+                        }
+                    } else {
+                        HStack {
+                            Text("Slim Box Hold Delay")
+                            Slider(value: $settings.boxSlimModeHoldDuration, in: 0.5...3.0)
+                            Text(String(format: "%.1fs", settings.boxSlimModeHoldDuration))
+                                .frame(width: 40, alignment: .trailing)
+                        }
+                    }
+                    
+                    Picker("Window Position", selection: $settings.boxSlimModePosition) {
+                        Text("Default (Notch)").tag(0)
+                        Text("Next to Mouse").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    Toggle("Keep Slim Box open after drop", isOn: $settings.boxSlimModeKeepOpen)
+                    
+                    Picker("Expand Direction", selection: $settings.boxSlimModeExpandDirection) {
+                        Text("Horizontal").tag(0)
+                        Text("Vertical").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    HStack {
+                        Text("Max View Size")
+                        Slider(value: $settings.boxSlimModeMaxViewSize, in: 1.0...10.0, step: 1.0)
+                        Text("\(Int(settings.boxSlimModeMaxViewSize)) items")
+                            .frame(width: 60, alignment: .trailing)
+                    }
+                    
+                    HStack {
+                        Text("Item Size")
+                        Slider(value: Binding(
+                            get: { settings.boxSlimModeItemWidth },
+                            set: { newValue in
+                                settings.boxSlimModeItemWidth = newValue
+                                settings.boxSlimModeItemHeight = newValue
+                            }
+                        ), in: 40.0...160.0, step: 4.0)
+                        Text("\(Int(settings.boxSlimModeItemWidth))px")
+                            .frame(width: 50, alignment: .trailing)
+                    }
+                    
                 }
             }
 
@@ -8293,6 +9036,17 @@ struct CalendarPermissionStatusView: View {
         .padding(.vertical, 4)
         .onAppear {
             manager.checkPermission()
+        }
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func conditionalClip(clipAll: Bool, cornerRadius: CGFloat) -> some View {
+        if clipAll {
+            self.clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        } else {
+            self.clipShape(BottomRoundedRectangle(cornerRadius: cornerRadius))
         }
     }
 }

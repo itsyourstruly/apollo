@@ -16,6 +16,8 @@ struct BoxPageContent: View, Equatable {
     let nameSize: CGFloat
     let isTargeted: Bool
     let isSlimMode: Bool
+    let isCollapsed: Bool
+    let showCollapseButton: Bool
 
     let onRemove: (BoxFile) -> Void
     let onToggleSelect: (BoxFile) -> Void
@@ -23,15 +25,21 @@ struct BoxPageContent: View, Equatable {
     let urlsForDrag: (BoxFile) -> [URL]
     let handleDrop: ([NSItemProvider]) -> Bool
     let setIsTargeted: (Bool) -> Void
+    let onToggleCollapse: () -> Void
 
     static func == (lhs: BoxPageContent, rhs: BoxPageContent) -> Bool {
-        lhs.files.count == rhs.files.count &&
-        lhs.files.first?.id == rhs.files.first?.id &&
+        lhs.files == rhs.files &&
         lhs.selectedIDs == rhs.selectedIDs &&
+        lhs.width == rhs.width &&
+        lhs.height == rhs.height &&
         lhs.columnCount == rhs.columnCount &&
         lhs.accentColor == rhs.accentColor &&
+        lhs.showNames == rhs.showNames &&
+        lhs.nameSize == rhs.nameSize &&
         lhs.isTargeted == rhs.isTargeted &&
-        lhs.isSlimMode == rhs.isSlimMode
+        lhs.isSlimMode == rhs.isSlimMode &&
+        lhs.isCollapsed == rhs.isCollapsed &&
+        lhs.showCollapseButton == rhs.showCollapseButton
     }
 
     private var chunkedFiles: [[BoxFile]] {
@@ -47,25 +55,191 @@ struct BoxPageContent: View, Equatable {
     var body: some View {
         let safeW = max(1, width)
         let safeH = max(1, height)
-        VStack(spacing: 10) {
+        let settings = AppSettings.shared
+        
+        Group {
             if isSlimMode {
-                VStack(spacing: 12) {
-                    Spacer()
-                    Image(systemName: "shippingbox.fill")
-                        .font(.system(size: 56, weight: .semibold))
-                        .foregroundColor(isTargeted ? Color(accentColor) : Color.brown.opacity(0.7))
-                        .scaleEffect(isTargeted ? 1.15 : 1.0)
-                        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isTargeted)
+                ZStack(alignment: .top) {
+                    if files.isEmpty {
+                        Image(systemName: "shippingbox.fill")
+                            .font(.system(size: 28, weight: .semibold))
+                            .foregroundColor(isTargeted ? Color(accentColor) : Color.brown.opacity(0.7))
+                            .frame(width: safeW, height: safeH, alignment: .center)
+                    } else {
+                        VStack(spacing: 0) {
+                            Color.clear.frame(height: 40)
+                            
+                            Group {
+                                let itemSize: CGFloat = min(CGFloat(settings.boxSlimModeItemWidth), CGFloat(settings.boxSlimModeItemHeight))
+                                let direction = settings.boxSlimModeExpandDirection // 0 = Horizontal, 1 = Vertical
+                                
+                                let padding: CGFloat = 24
+                                let spacing: CGFloat = 8
+                                
+                                if direction == 0 { // Horizontal
+                                    let fits = !isCollapsed && files.count <= Int(settings.boxSlimModeMaxViewSize)
+                                    
+                                    if fits {
+                                        HStack(spacing: spacing) {
+                                            ForEach(files) { file in
+                                                SafeCachedBoxItemView(
+                                                    file: file,
+                                                    maxSize: itemSize,
+                                                    isSelected: selectedIDs.contains(file.id),
+                                                    accentColor: accentColor,
+                                                    showBoxFileNames: settings.showBoxFileNames,
+                                                    fileNameSize: settings.boxFileNameSize,
+                                                    onRemove: { onRemove(file) },
+                                                    urlsForDrag: { urlsForDrag(file) },
+                                                    selectForDrag: { onSelectForDrag(file) },
+                                                    toggleSelection: { onToggleSelect(file) }
+                                                )
+                                            }
+                                        }
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                                    } else {
+                                        ScrollView(.horizontal, showsIndicators: false) {
+                                            HStack(spacing: spacing) {
+                                                ForEach(files) { file in
+                                                    SafeCachedBoxItemView(
+                                                        file: file,
+                                                        maxSize: itemSize,
+                                                        isSelected: selectedIDs.contains(file.id),
+                                                        accentColor: accentColor,
+                                                        showBoxFileNames: settings.showBoxFileNames,
+                                                        fileNameSize: settings.boxFileNameSize,
+                                                        onRemove: { onRemove(file) },
+                                                        urlsForDrag: { urlsForDrag(file) },
+                                                        selectForDrag: { onSelectForDrag(file) },
+                                                        toggleSelection: { onToggleSelect(file) }
+                                                    )
+                                                }
+                                            }
+                                            .padding(.horizontal, padding)
+                                            .frame(minWidth: safeW, minHeight: max(1, safeH - 40), alignment: .center)
+                                        }
+                                        .clipped()
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    }
+                                } else { // Vertical
+                                    let fits = !isCollapsed && files.count <= Int(settings.boxSlimModeMaxViewSize)
+                                    
+                                    if fits {
+                                        VStack(spacing: spacing) {
+                                            ForEach(files) { file in
+                                                SafeCachedBoxItemView(
+                                                    file: file,
+                                                    maxSize: itemSize,
+                                                    isSelected: selectedIDs.contains(file.id),
+                                                    accentColor: accentColor,
+                                                    showBoxFileNames: settings.showBoxFileNames,
+                                                    fileNameSize: settings.boxFileNameSize,
+                                                    onRemove: { onRemove(file) },
+                                                    urlsForDrag: { urlsForDrag(file) },
+                                                    selectForDrag: { onSelectForDrag(file) },
+                                                    toggleSelection: { onToggleSelect(file) }
+                                                )
+                                            }
+                                        }
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                                    } else {
+                                        ScrollView(.vertical, showsIndicators: false) {
+                                            VStack(spacing: spacing) {
+                                                ForEach(files) { file in
+                                                    SafeCachedBoxItemView(
+                                                        file: file,
+                                                        maxSize: itemSize,
+                                                        isSelected: selectedIDs.contains(file.id),
+                                                        accentColor: accentColor,
+                                                        showBoxFileNames: settings.showBoxFileNames,
+                                                        fileNameSize: settings.boxFileNameSize,
+                                                        onRemove: { onRemove(file) },
+                                                        urlsForDrag: { urlsForDrag(file) },
+                                                        selectForDrag: { onSelectForDrag(file) },
+                                                        toggleSelection: { onToggleSelect(file) }
+                                                    )
+                                                }
+                                            }
+                                            .padding(.vertical, padding)
+                                            .frame(minWidth: safeW, minHeight: max(1, safeH - 40), alignment: .center)
+                                        }
+                                        .clipped()
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                        .frame(width: safeW, height: safeH)
+                    }
                     
-                    Text(isTargeted ? "Drop to Stash" : "Drag files here")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white.opacity(0.8))
-                    Spacer()
+                    if !files.isEmpty {
+                        HStack(spacing: 4) {
+                            Spacer()
+                            
+                            if showCollapseButton {
+                                let direction = settings.boxSlimModeExpandDirection // 0 = Horizontal, 1 = Vertical
+                                let iconName = direction == 0 
+                                    ? (isCollapsed ? "chevron.right" : "chevron.left")
+                                    : (isCollapsed ? "chevron.down" : "chevron.up")
+                                    
+                                Color.clear
+                                    .frame(width: 32, height: 32)
+                                    .contentShape(Rectangle())
+                                    .overlay {
+                                        Image(systemName: iconName)
+                                            .font(.system(size: 13, weight: .bold))
+                                            .foregroundColor(.white.opacity(0.65))
+                                    }
+                                    .highPriorityGesture(
+                                        TapGesture()
+                                            .onEnded {
+                                                onToggleCollapse()
+                                            }
+                                    )
+                                    .padding(.top, 4)
+                            }
+                            
+                            Color.clear
+                                .frame(width: 32, height: 32)
+                                .contentShape(Rectangle())
+                                .overlay {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(.white.opacity(0.65))
+                                    }
+                                .highPriorityGesture(
+                                    TapGesture()
+                                        .onEnded {
+                                            DispatchQueue.main.async {
+                                                if let delegate = NSApp.delegate as? AppDelegate {
+                                                    delegate.hideSlimBox()
+                                                }
+                                            }
+                                        }
+                                )
+                                .padding(.top, 4)
+                                .padding(.trailing, 4)
+                        }
+                        .frame(width: safeW)
+                    }
+                    
+                    if !files.isEmpty {
+                        VStack {
+                            Spacer()
+                            HStack {
+                                Spacer()
+                                BoxShareButton(files: files, selectedIDs: selectedIDs, accentColor: accentColor)
+                                    .padding(.bottom, 6)
+                                    .padding(.trailing, 6)
+                            }
+                        }
+                        .frame(width: safeW, height: safeH)
+                    }
                 }
-                .frame(width: safeW, height: safeH)
+                .frame(width: safeW, height: safeH, alignment: .top)
             } else {
-                Group {
+                VStack(spacing: 0) {
                     if files.isEmpty {
                         Image(systemName: "shippingbox.fill")
                             .font(.system(size: min(safeW, safeH) * 0.22, weight: .semibold))
@@ -107,26 +281,33 @@ struct BoxPageContent: View, Equatable {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     }
                 }
+                .frame(width: width, height: safeH, alignment: .top)
+                .overlay(alignment: .bottomTrailing) {
+                    if !files.isEmpty {
+                        BoxShareButton(files: files, selectedIDs: selectedIDs, accentColor: accentColor)
+                            .padding(.trailing, 4)
+                            .padding(.bottom, 2)
+                    }
+                }
             }
         }
-        .frame(width: width, height: safeH, alignment: .top)
         .onDrop(of: [.fileURL], isTargeted: Binding(get: { isTargeted }, set: { setIsTargeted($0) }), perform: handleDrop)
-        .overlay(alignment: .bottomTrailing) {
-            if !files.isEmpty && !isSlimMode {
-                BoxShareButton(files: files, selectedIDs: selectedIDs, accentColor: accentColor)
-                    .padding(.trailing, 12)
-                    .padding(.bottom, 2)
-            }
-        }
     }
 }
 
 extension UnifiedNotchContainer {
     // MARK: - Box Page
     func boxPage(contentAreaHeight: CGFloat) -> some View {
-        let activeWidth = model.boxSlimModeActive ? toastPanelWidth : scaledPanelWidth(for: settings)
+        let activeWidth: CGFloat
+        if model.boxSlimModeActive {
+            activeWidth = model.slimBoxWidth
+        } else {
+            activeWidth = scaledPanelWidth(for: settings)
+        }
+        let displayedFiles = settings.boxSlimModeKeepOpen ? model.boxFiles : []
+            
         return BoxPageContent(
-            files: model.boxFiles,
+            files: displayedFiles,
             selectedIDs: selectedBoxFileIDs,
             width: activeWidth,
             height: max(1, contentAreaHeight - pageTopContentInset),
@@ -136,6 +317,8 @@ extension UnifiedNotchContainer {
             nameSize: settings.boxFileNameSize,
             isTargeted: isBoxDropTargeted,
             isSlimMode: model.boxSlimModeActive,
+            isCollapsed: model.isSlimBoxCollapsed,
+            showCollapseButton: model.boxSlimModeActive && model.boxFiles.count > 1,
             onRemove: { file in
                 DispatchQueue.main.async {
                     withAnimation {
@@ -165,7 +348,17 @@ extension UnifiedNotchContainer {
                 return selectedURLs.isEmpty ? [file.url] : selectedURLs
             },
             handleDrop: handleBoxDrop,
-            setIsTargeted: { isBoxDropTargeted = $0 }
+            setIsTargeted: { isBoxDropTargeted = $0 },
+            onToggleCollapse: {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                    model.isSlimBoxCollapsed.toggle()
+                }
+                DispatchQueue.main.async {
+                    if let delegate = NSApp.delegate as? AppDelegate {
+                        delegate.updateSlimBoxWindowFrame()
+                    }
+                }
+            }
         )
         .equatable()
         .padding(.top, pageTopContentInset)
