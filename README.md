@@ -1,6 +1,6 @@
 # apollo
 
-An open-source island for your Macbook notch
+A fully customizable island for your Macbook notch.
 
 --
 
@@ -10,9 +10,13 @@ Clipboard Manager, "Clip".
 
 Write quick notes, "Jot".
 
-Hold any file to move/share it, "Box".
+Store any file to move/share it, "Box".
 
 Start a stopwatch or timer with HUD, "Chrono".
+
+Quickly open your favorite apps, "Launcher".
+
+Open a bookmarked website in your browser, "Bookmarks".
 
 --
 
@@ -41,3 +45,4 @@ Gone.
 --
 
 Created using Tahoe 26.5 on a Macbook. Untested on other Macos versions or devices. 
+Vibecoded, not perfect.
