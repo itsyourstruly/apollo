@@ -1,4 +1,5 @@
-<img width="1024" height="1024" alt="AppIcon1024" src="https://github.com/user-attachments/assets/b795b59c-d4e6-4d82-870a-9e61ee292a76" />
+<img width="512" height="512" alt="AppIcon512" src="https://github.com/user-attachments/assets/83212b16-645c-4598-ba17-7837f83bcd8f" />
+
 # apollo
 
 A fully customizable island for your Macbook notch.
@@ -11,13 +12,13 @@ Clipboard Manager, "Clip".
 
 Scroll through your clipboard history and choose to copy items directly, paste at your cursor position, or drag items out of it.
 
--
+--
 
 Write quick notes, "Jot".
 
 Quickly take down your ideas and export them as a .txt file.
 
--
+--
 
 Store any file to move/share it, "Box".
 
@@ -27,17 +28,17 @@ Enable the slim box mode to wiggle a file for a compact movable box.
 
 Share anything using the Macos share menu, or add your own apps to open them within the app.
 
--
+--
 
 Start a stopwatch or timer with HUD, "Chrono".
 
--
+--
 
 Quickly open your favorite apps, "Launcher".
 
 Choose any locally installed app to quickly open, and pin items to the "Peeker" at the bottom of your island for quick access. 
 
--
+--
 
 Open a bookmarked website in your browser, "Bookmarks".
 
@@ -45,13 +46,14 @@ Save your favorite websites to open them in your default browser or any other br
 
 Can also be pinned to the “Peeker”.
 
--
+--
 
 Connect your Calendar to view events, “Calendar”.
 
 Switch to a month or week view.  
 
--
+--
+
 Customization:
 
 Open the Island by hovering over the notch or by clicking on it.
@@ -69,6 +71,7 @@ Change the accent color, background color, title alignment, completely change th
 Change everything to your liking. It's yours.
 
 --
+
 Requirements: 
 
 Created and tested on Macos Tahoe 26.
