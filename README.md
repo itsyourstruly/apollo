@@ -124,11 +124,12 @@ Key: [I]-Idk [M]-Maybe [H]-Hopefully, if I figure it out. [P]-Probably [Y]-Yes
 
 [M]System monitoring to show the CPU/RAM/ENERGY/BATTERY/etc. usage.
 
+[H]Volume and Brightness slider. Hide default Macos ones. Boost Brightness and Volume range. 
+
 [P]Page to quickly open set folders (Maybe include searching for folders/files).
 
 [P]Implement Quick look to preview selected files.
 
-[H]Volume and Brightness slider. Hide default Macos ones. Boost Brightness and Volume range. 
 
 --
 
