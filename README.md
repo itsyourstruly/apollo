@@ -26,7 +26,7 @@ Go to the "Releases" page to download the latest release and select the .dmg fil
 
 Once downloaded, open it and install by dragging "Apollo" to the applications folder in the installer. 
 
-You'll need to attempt to open it, which it will then say it can't be opened. Head to your settings->privacy & security and scroll all the way to the bottom.
+You'll need to attempt to open it, which it will then say it can't be opened. Head to your settings->privacy & security and scroll all the way to the bottom. (This step is required as the app is not signed with an Apple Developer ID).
 
 It should say "Open Anyway" for Apollo. Click that. After authenticating, it should open right away.
 
@@ -45,5 +45,7 @@ Gone.
 --
 
 Created using Tahoe 26.5 on a Macbook. Untested on other Macos versions or devices and I cannot guarantee it will work. 
+
+App is not signed with an Apple Developer ID -- I just didnt pay for it and made this for personal use.
 
 Vibecoded, not perfect.
