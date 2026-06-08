@@ -941,6 +941,12 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var toastHideDelay: Double {
+        didSet {
+            enqueueDefaultSet(toastHideDelay, forKey: AppStorageKey.toastHideDelay)
+        }
+    }
+
     @Published var calendarViewOption: Int {
         didSet {
             enqueueDefaultSet(calendarViewOption, forKey: "calendarViewOption")
@@ -1724,6 +1730,12 @@ final class AppSettings: ObservableObject {
         }
 
         observedFolders = defaults.stringArray(forKey: AppStorageKey.observedFolders) ?? []
+
+        if defaults.object(forKey: AppStorageKey.toastHideDelay) == nil {
+            toastHideDelay = 5.0
+        } else {
+            toastHideDelay = defaults.double(forKey: AppStorageKey.toastHideDelay)
+        }
 
         calendarViewOption = defaults.integer(forKey: "calendarViewOption")
         customActionsLayoutOption = defaults.integer(forKey: "customActionsLayoutOption")

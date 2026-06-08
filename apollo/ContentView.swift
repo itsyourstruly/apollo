@@ -218,6 +218,7 @@ enum AppStorageKey {
     static let swipeAnimationResponse = "swipeAnimationResponse"
     static let swipeAnimationDamping = "swipeAnimationDamping"
     static let observedFolders = "observedFolders"
+    static let toastHideDelay = "toastHideDelay"
     static let proximitySensitivity = "proximitySensitivity"
     static let carouselSensitivity = "carouselSensitivity"
     static let closeSensitivity = "closeSensitivity"

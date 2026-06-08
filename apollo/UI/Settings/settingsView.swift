@@ -452,6 +452,16 @@ struct SettingsView: View {
                         } label: {
                             Label("Add folder", systemImage: "plus")
                         }
+
+                        Divider()
+                            .padding(.vertical, 4)
+
+                        HStack {
+                            Text("Auto-hide toast")
+                            Slider(value: $settings.toastHideDelay, in: 0...30, step: 1)
+                            Text(settings.toastHideDelay == 0 ? "Never" : "\(Int(settings.toastHideDelay))s")
+                                .frame(width: 48, alignment: .trailing)
+                        }
                     }
                 }
 

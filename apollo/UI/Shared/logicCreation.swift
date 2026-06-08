@@ -22,6 +22,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsCancellables = Set<AnyCancellable>()
     private var hoverCloseWorkItem: DispatchWorkItem?
     private var swipeCloseWorkItem: DispatchWorkItem?
+    private var toastHideWorkItem: DispatchWorkItem?
     private var lastCloseProgressEmission: CGFloat = 0
     private var lastCarouselOffsetEmission: CGFloat = 0
 
@@ -448,6 +449,21 @@ private func makeStatusMenu() -> NSMenu {
             self?.updateContentActiveState()
         }
         .store(in: &settingsCancellables)
+
+        settings.$boxSlimModeEnabled
+            .sink { [weak self] enabled in
+                guard let self = self else { return }
+                if enabled {
+                    self.startGlobalDragPolling()
+                } else {
+                    self.dragPollingTimer?.cancel()
+                    self.dragPollingTimer = nil
+                    self.stopFastDragTracking()
+                    self.resetDragTrackingState()
+                    self.hideSlimBox()
+                }
+            }
+            .store(in: &settingsCancellables)
     }
 
     private func updateContentActiveState() {
@@ -1358,7 +1374,7 @@ private func makeStatusMenu() -> NSMenu {
         guard let window = slimBoxWindow, cachedScreenFrame != .zero else { return }
         let screenRect = cachedScreenFrame
         
-        let count = settings.boxSlimModeKeepOpen ? (model.isSlimBoxCollapsed ? (model.boxFiles.isEmpty ? 0 : 1) : model.boxFiles.count) : 0
+        let count = model.isSlimBoxCollapsed ? (model.boxFiles.isEmpty ? 0 : 1) : model.boxFiles.count
         let direction = settings.boxSlimModeExpandDirection // 0 = Horizontal, 1 = Vertical
         
         let itemSize: CGFloat = min(CGFloat(settings.boxSlimModeItemWidth), CGFloat(settings.boxSlimModeItemHeight))
@@ -1843,6 +1859,10 @@ private func makeStatusMenu() -> NSMenu {
 
     private func evaluateMouseCoordinates(_ globalPoint: NSPoint, isFileDrag: Bool) {
         autoreleasepool {
+            if model.observedFileToast != nil, let frame = notchWindow?.frame, frame.contains(globalPoint) {
+                toastHideWorkItem?.cancel()
+                toastHideWorkItem = nil
+            }
             if model.boxSlimModeActive {
                 return
             }
@@ -2024,6 +2044,8 @@ private func makeStatusMenu() -> NSMenu {
 
         // Immediately size window frame when expanding/pinning to avoid layout deadlock and clipping
         if expanded || pinned {
+            toastHideWorkItem?.cancel()
+            toastHideWorkItem = nil
             let isFloatingPagerActive = settings.pagerStyle == 1 && settings.showPagers
             let floatingPagerHeightAdjustment: CGFloat = isFloatingPagerActive ? (8 + 54) : 0
             let expectedExpandedHeight = panelHeight + floatingPagerHeightAdjustment
@@ -2379,20 +2401,48 @@ private func makeStatusMenu() -> NSMenu {
         cancelIdleCompaction()
         pendingHideWorkItem?.cancel()
         pendingHideWorkItem = nil
+        toastHideWorkItem?.cancel()
+        toastHideWorkItem = nil
+
         model.isToastDismissing = false
         model.isExpanded = false
         model.isPinned = false
         model.expansionProgress = 0.0
+
+        // Immediately size window frame to host the toast view to prevent clipping/layout deadlock
+        let targetHeight = toastPanelHeight + settings.effectiveNotchHeight
+        updateNotchWindowFrame(heightOverride: targetHeight)
+
         window.alphaValue = 1.0
         window.ignoresMouseEvents = false
+        window.level = .statusBar + 2
         window.orderFrontRegardless()
+
         withAnimation(settings.notchOpenAnimation) {
             model.expansionProgress = 1.0
         }
         updateClipboardObservationMode(immediatePoll: true)
+
+        // Schedule auto-hide if configured (0 = never hide)
+        if settings.toastHideDelay > 0 {
+            let delay = settings.toastHideDelay
+            let workItem = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                withAnimation(self.settings.notchOpenAnimation) {
+                    self.model.expansionProgress = 0.0
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    self.dismissToastAndHideNotch()
+                }
+            }
+            toastHideWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+        }
     }
 
     func dismissToastAndHideNotch() {
+        toastHideWorkItem?.cancel()
+        toastHideWorkItem = nil
         scheduleIdleCompactionIfNeeded()
         pendingHideWorkItem?.cancel()
         pendingHideWorkItem = nil

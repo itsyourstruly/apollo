@@ -301,7 +301,7 @@ extension UnifiedNotchContainer {
         } else {
             activeWidth = scaledPanelWidth(for: settings)
         }
-        let displayedFiles = settings.boxSlimModeKeepOpen ? model.boxFiles : []
+        let displayedFiles = model.boxFiles
             
         return BoxPageContent(
             files: displayedFiles,
