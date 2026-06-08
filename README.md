@@ -44,5 +44,6 @@ Gone.
 
 --
 
-Created using Tahoe 26.5 on a Macbook. Untested on other Macos versions or devices. 
+Created using Tahoe 26.5 on a Macbook. Untested on other Macos versions or devices and I cannot guarantee it will work. 
+
 Vibecoded, not perfect.
