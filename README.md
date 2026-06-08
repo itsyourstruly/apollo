@@ -109,15 +109,25 @@ Gone.
 --
 
 Future Plans:
+
 Key: [I]-Idk [M]-Maybe [H]-Hopefully, if I figure it out. [P]-Probably [Y]-Yes
+
 [I]Mirror to view camera
+
 [I]Trash can next to the Box to quickly toss files.
+
 [I]Terminal
+
 [I]Potentially add an option to set a folder for the Jots, and they'll automatically save as .txt files and import other .txt files present in the folder.
+
 [M]Improve the Jot page to have the option to have it expanded and function like most notepads, ability to customize the text, font, etc.
+
 [M]System monitoring to show the CPU/RAM/ENERGY/BATTERY/etc. usage.
+
 [P]Page to quickly open set folders (Maybe include searching for folders/files).
+
 [P]Implement Quick look to preview selected files.
+
 [H]Volume and Brightness slider. Hide default Macos ones. Boost Brightness and Volume range. 
 
 --
