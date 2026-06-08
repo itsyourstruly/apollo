@@ -267,7 +267,7 @@ struct UnifiedNotchContainer: View {
                 let contentProgress = easedProgress.isFinite ? max(0, min(1, (easedProgress - 0.18) / 0.82)) : 0
                 let showToastOnly = (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded && !model.isPinned
                 let isFloatingPagerActive = settings.pagerStyle == 1 && settings.showPagers && !isSlimModeActive
-                let floatingPagerHeightAdjustment: CGFloat = isFloatingPagerActive ? (8 * easedProgress + 44 * easedProgress) : 0
+                let floatingPagerHeightAdjustment: CGFloat = isFloatingPagerActive ? (8 * easedProgress + 54 * easedProgress) : 0
                 let baseContainerHeight = isSlimModeActive ? currentSlimHeight : (showToastOnly ? max(panelHeight, toastPanelHeight) : panelHeight)
                 let containerHeight = safeDimension(baseContainerHeight + floatingPagerHeightAdjustment, fallback: panelHeight)
                 let toastWidth = toastPanelWidth
@@ -424,7 +424,7 @@ struct UnifiedNotchContainer: View {
                                 floatingPagerView(pages: activePages)
                                     .opacity(easedProgress)
                                     .scaleEffect(0.6 + 0.4 * easedProgress)
-                                    .frame(height: 44 * easedProgress)
+                                    .frame(height: 54 * easedProgress)
                             }
                         }
                         .background(GeometryReader { proxy in
@@ -644,6 +644,7 @@ struct UnifiedNotchContainer: View {
             }
         )
         .shadow(color: Color.black.opacity(0.25), radius: 8, x: 0, y: 4)
+        .padding(.bottom, 6)
     }
 
     @ViewBuilder

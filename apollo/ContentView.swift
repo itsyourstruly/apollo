@@ -612,6 +612,10 @@ final class IslandPanel: NSPanel {
 
     override var canBecomeKey: Bool { true }
 
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        return frameRect
+    }
+
     override func sendEvent(_ event: NSEvent) {
         // Intercept left mouse clicks in the close button region at the AppKit level
         // This bypasses SwiftUI's gesture system which doesn't work reliably in non-activating panels

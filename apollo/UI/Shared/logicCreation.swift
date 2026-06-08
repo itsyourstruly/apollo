@@ -232,7 +232,7 @@ private func makeStatusMenu() -> NSMenu {
     }
 
     private func calculateScreenNotchDimensions() {
-        let screen = NSScreen.screens.first
+        let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.screens.first
         cachedScreenFrame = screen?.frame ?? .zero
         let (x, width, height) = hardwareNotchDimensions(for: screen)
         settings.updateHardwareNotchDimensions(x: x, width: width, height: height)
@@ -1022,7 +1022,7 @@ private func makeStatusMenu() -> NSMenu {
         guard !model.isPinned else { return }
         // Issue 4b: Only suppress proximity if the cursor is currently over the notch zone.
         // Suppressing unconditionally blocks re-open when the cursor is already far away.
-        if let screen = NSScreen.screens.first {
+        if let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.screens.first {
             let pt = NSEvent.mouseLocation
             let zones = makeProximityZones(screenRect: screen.frame, point: pt, isFileDrag: false)
             suppressProximityUntilExit = zones.isInsideNotch || zones.isHoveringEdge

@@ -43,6 +43,10 @@ final class ProximityWakeWindow: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        return frameRect
+    }
+
     private var notchEdgeRect: CGRect = .zero
     private var approachRect: CGRect = .zero
 
