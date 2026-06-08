@@ -222,274 +222,279 @@ struct UnifiedNotchContainer: View {
     }
 
     var body: some View {
-        Group {
-            if !isSlimBoxInstance && !model.isContentActive {
-                Color.clear
-                    .frame(width: 1, height: 1)
-            } else {
-                let currentSlimWidth = model.slimBoxWidth
-                let currentSlimHeight = model.slimBoxHeight
+        VStack(spacing: 0) {
+            Group {
+                if !isSlimBoxInstance && !model.isContentActive {
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                } else {
+                    let currentSlimWidth = model.slimBoxWidth
+                    let currentSlimHeight = model.slimBoxHeight
 
-                let panelWidth = isSlimModeActive ? currentSlimWidth : scaledPanelWidth(for: settings)
-                let panelHeight = isSlimModeActive ? currentSlimHeight : scaledPanelHeight(for: settings)
+                    let panelWidth = isSlimModeActive ? currentSlimWidth : scaledPanelWidth(for: settings)
+                    let panelHeight = isSlimModeActive ? currentSlimHeight : scaledPanelHeight(for: settings)
 
-                let notchWidth = isSlimModeActive ? 0 : settings.effectiveNotchWidth
-                let notchHeight = isSlimModeActive ? 0 : settings.effectiveNotchHeight
-                let rawProgress = isSlimModeActive ? 1.0 : model.expansionProgress
-                let progress = rawProgress.isFinite ? max(0, min(1, rawProgress)) : 0
-                let easedProgress = progress * progress * (3 - 2 * progress)
-                
-                let showStopwatch = model.isStopwatchRunning
-                let showTimer = model.isTimerRunning
-                let targetLeftExt: CGFloat = showStopwatch ? 100 : 0
-                let targetRightExt: CGFloat = showTimer ? 100 : 0
-                let activeLeftExt = targetLeftExt * (1 - easedProgress)
-                let activeRightExt = targetRightExt * (1 - easedProgress)
+                    let notchWidth = isSlimModeActive ? 0 : settings.effectiveNotchWidth
+                    let notchHeight = isSlimModeActive ? 0 : settings.effectiveNotchHeight
+                    let rawProgress = isSlimModeActive ? 1.0 : model.expansionProgress
+                    let progress = rawProgress.isFinite ? max(0, min(1, rawProgress)) : 0
+                    let easedProgress = progress * progress * (3 - 2 * progress)
+                    
+                    let showStopwatch = model.isStopwatchRunning
+                    let showTimer = model.isTimerRunning
+                    let targetLeftExt: CGFloat = showStopwatch ? 100 : 0
+                    let targetRightExt: CGFloat = showTimer ? 100 : 0
+                    let activeLeftExt = targetLeftExt * (1 - easedProgress)
+                    let activeRightExt = targetRightExt * (1 - easedProgress)
 
-                let baseRawShellWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress)
-                let rawShellWidth = isSlimModeActive ? panelWidth : max(baseRawShellWidth, notchWidth + activeLeftExt + activeRightExt)
-                let rawShellHeight = notchHeight + ((panelHeight - notchHeight) * easedProgress)
-                let shellWidth = safeDimension(rawShellWidth, fallback: panelWidth)
-                let shellHeight = safeDimension(rawShellHeight, fallback: panelHeight)
-                let baseIslandWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress * 0.4)
-                let islandWidth = baseIslandWidth + activeLeftExt + activeRightExt
-                let targetIslandWidth = notchWidth + ((panelWidth - notchWidth) * 0.4)
-                let islandOffset = (activeRightExt - activeLeftExt) / 2
-                let islandHeight = notchHeight
-                let pagerRowHeight: CGFloat = (settings.showPagers && !isSlimModeActive) ? 14 : 0
-                let pagerBottomInset: CGFloat = (settings.showPagers && !isSlimModeActive) ? 8 : 0
-                let pagerReservedHeight = pagerRowHeight + pagerBottomInset
-                let isPeekerVisible = !isSlimModeActive && ((settings.showLauncherInPeeker && !model.launcherApps.isEmpty) ||
-                              (settings.showBookmarksInPeeker && !model.bookmarkItems.isEmpty))
-                let peekerHeight: CGFloat = isPeekerVisible ? 24 : 0
-                let contentAreaHeight = max(1, panelHeight - notchHeight - pagerReservedHeight - peekerHeight - (isSlimModeActive ? 0 : 2))
-                let cornerRadius = safeDimension(max(4, settings.cornerRadius * (0.6 + 0.4 * easedProgress)), fallback: 8)
-                let contentProgress = easedProgress.isFinite ? max(0, min(1, (easedProgress - 0.18) / 0.82)) : 0
-                let showToastOnly = (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded && !model.isPinned
-                let isFloatingPagerActive = settings.pagerStyle == 1 && settings.showPagers && !isSlimModeActive
-                let floatingPagerHeightAdjustment: CGFloat = isFloatingPagerActive ? (8 * easedProgress + 54 * easedProgress) : 0
-                let baseContainerHeight = isSlimModeActive ? currentSlimHeight : (showToastOnly ? max(panelHeight, toastPanelHeight) : panelHeight)
-                let containerHeight = safeDimension(baseContainerHeight + floatingPagerHeightAdjustment, fallback: panelHeight)
-                let toastWidth = toastPanelWidth
-                let containerWidth = isSlimModeActive ? currentSlimWidth : max(panelWidth, notchWidth + 240)
-                let closeProgress = max(0, min(1, model.closeGestureProgress))
-                let closeEase = closeProgress * closeProgress * (3 - 2 * closeProgress)
-                let closeOffset = -44 * closeEase
-                let closeScale = 1 - (0.14 * closeEase)
-                let shouldRenderExpandedContent = model.isExpanded || model.isPinned || isSlimModeActive
+                    let baseRawShellWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress)
+                    let rawShellWidth = isSlimModeActive ? panelWidth : max(baseRawShellWidth, notchWidth + activeLeftExt + activeRightExt)
+                    let rawShellHeight = notchHeight + ((panelHeight - notchHeight) * easedProgress)
+                    let shellWidth = safeDimension(rawShellWidth, fallback: panelWidth)
+                    let shellHeight = safeDimension(rawShellHeight, fallback: panelHeight)
+                    let baseIslandWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress * 0.4)
+                    let islandWidth = baseIslandWidth + activeLeftExt + activeRightExt
+                    let targetIslandWidth = notchWidth + ((panelWidth - notchWidth) * 0.4)
+                    let islandOffset = (activeRightExt - activeLeftExt) / 2
+                    let islandHeight = notchHeight
+                    let pagerRowHeight: CGFloat = (settings.showPagers && !isSlimModeActive) ? 14 : 0
+                    let pagerBottomInset: CGFloat = (settings.showPagers && !isSlimModeActive) ? 8 : 0
+                    let pagerReservedHeight = pagerRowHeight + pagerBottomInset
+                    let isPeekerVisible = !isSlimModeActive && ((settings.showLauncherInPeeker && !model.launcherApps.isEmpty) ||
+                                  (settings.showBookmarksInPeeker && !model.bookmarkItems.isEmpty))
+                    let peekerHeight: CGFloat = isPeekerVisible ? 24 : 0
+                    let contentAreaHeight = max(1, panelHeight - notchHeight - pagerReservedHeight - peekerHeight - (isSlimModeActive ? 0 : 2))
+                    let cornerRadius = safeDimension(max(4, settings.cornerRadius * (0.6 + 0.4 * easedProgress)), fallback: 8)
+                    let contentProgress = easedProgress.isFinite ? max(0, min(1, (easedProgress - 0.18) / 0.82)) : 0
+                    let showToastOnly = (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded && !model.isPinned
+                    let isFloatingPagerActive = settings.pagerStyle == 1 && settings.showPagers && !isSlimModeActive
+                    let floatingPagerHeightAdjustment: CGFloat = isFloatingPagerActive ? (8 * easedProgress + 54 * easedProgress) : 0
+                    let baseContainerHeight = isSlimModeActive ? currentSlimHeight : (showToastOnly ? max(panelHeight, toastPanelHeight) : panelHeight)
+                    let containerHeight = safeDimension(baseContainerHeight + floatingPagerHeightAdjustment, fallback: panelHeight)
+                    let toastWidth = toastPanelWidth
+                    let containerWidth = isSlimModeActive ? currentSlimWidth : max(panelWidth, notchWidth + 240)
+                    let closeProgress = max(0, min(1, model.closeGestureProgress))
+                    let closeEase = closeProgress * closeProgress * (3 - 2 * closeProgress)
+                    let closeOffset = -44 * closeEase
+                    let closeScale = 1 - (0.14 * closeEase)
+                    let shouldRenderExpandedContent = model.isExpanded || model.isPinned || isSlimModeActive
 
-                ZStack(alignment: .top) {
-                    // Overlay previews so they don't impact the measured height of the island body
-                    if settings.showHoverPreviews && !isSlimModeActive {
-                        settingsPreviewOverlay
-                            .zIndex(100)
-                    }
+                    ZStack(alignment: .top) {
+                        // Overlay previews so they don't impact the measured height of the island body
+                        if settings.showHoverPreviews && !isSlimModeActive {
+                            settingsPreviewOverlay
+                                .zIndex(100)
+                        }
 
-                    if let toast = model.observedFileToast {
-                        ObservedFileToastView(
-                            toast: toast,
-                            progress: easedProgress,
-                            onClose: {
-                                withAnimation(settings.notchOpenAnimation) {
-                                    model.expansionProgress = 0.0
-                                }
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                    if let delegate = NSApp.delegate as? AppDelegate {
-                                        delegate.dismissToastAndHideNotch()
-                                    } else {
-                                        model.observedFileToast = nil
+                        if let toast = model.observedFileToast {
+                            ObservedFileToastView(
+                                toast: toast,
+                                progress: easedProgress,
+                                onClose: {
+                                    withAnimation(settings.notchOpenAnimation) {
+                                        model.expansionProgress = 0.0
                                     }
-                                }
-                            },
-                            baseWidth: toastWidth,
-                            baseHeight: notchHeight,
-                            expandedHeight: toastPanelHeight,
-                            backgroundColor: Color(settings.backgroundColor),
-                            cornerRadius: settings.cornerRadius
-                        )
-                        .offset(y: baseNotchHeight - 2)
-                        .background(GeometryReader { proxy in
-                            Color.clear.preference(key: ShellHeightKey.self, value: proxy.size.height + (baseNotchHeight - 2))
-                        })
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                        .zIndex(2)
-                    }
-
-                    if !showToastOnly {
-                        VStack(spacing: 8 * easedProgress) {
-                            VStack(spacing: 0) {
-                                VStack(spacing: 0) {
-                                    // UNIFIED FIX: Pad internal layouts to offset default top window inset masking values
-                                    if !isSlimModeActive {
-                                        ZStack {
-                                            Capsule()
-                                                .fill(Color(nsColor: settings.backgroundColor.withAlphaComponent(1.0)))
-                                                .frame(width: islandWidth, height: islandHeight)
-
-                                            globalTitleOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
-                                                .opacity(shouldRenderExpandedContent ? contentProgress : 0)
-                                                .allowsHitTesting(shouldRenderExpandedContent)
-                                            globalControlsOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
-                                                .opacity(shouldRenderExpandedContent ? contentProgress : 0)
-                                                .allowsHitTesting(shouldRenderExpandedContent)
-
-                                            if !model.isExpanded && !model.isPinned {
-                                                closedIslandChronoWidgets(islandWidth: islandWidth, islandHeight: islandHeight, leftExt: activeLeftExt, rightExt: activeRightExt)
-                                            }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                        if let delegate = NSApp.delegate as? AppDelegate {
+                                            delegate.dismissToastAndHideNotch()
+                                        } else {
+                                            model.observedFileToast = nil
                                         }
-                                        .compositingGroup()
-                                        .frame(width: islandWidth, height: islandHeight)
-                                        .padding(.top, 0)
                                     }
+                                },
+                                baseWidth: toastWidth,
+                                baseHeight: notchHeight,
+                                expandedHeight: toastPanelHeight,
+                                backgroundColor: Color(settings.backgroundColor),
+                                cornerRadius: settings.cornerRadius
+                            )
+                            .offset(y: baseNotchHeight - 2)
+                            .background(GeometryReader { proxy in
+                                Color.clear.preference(key: ShellHeightKey.self, value: proxy.size.height + (baseNotchHeight - 2))
+                            })
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                            .zIndex(2)
+                        }
 
-                                    let pages = activePages
-                                    CarouselContainer(isSlimBoxInstance: isSlimBoxInstance, currentPage: model.currentPage, panelWidth: panelWidth) {
-                                        HStack(spacing: 0) {
-                                            ForEach(0..<pages.count, id: \.self) { index in
-                                                let resolvedCurrentPage = isSlimBoxInstance ? 0 : model.currentPage
-                                                if shouldRenderExpandedContent && (index == resolvedCurrentPage || index == animatingFromPage) {
-                                                    pageView(for: pages[index], contentAreaHeight: contentAreaHeight)
-                                                        .frame(width: panelWidth, height: contentAreaHeight, alignment: .top)
-                                                        .clipped()
-                                                } else {
-                                                    Color.clear
-                                                        .frame(width: panelWidth, height: contentAreaHeight, alignment: .top)
+                        if !showToastOnly {
+                            VStack(spacing: 8 * easedProgress) {
+                                VStack(spacing: 0) {
+                                    VStack(spacing: 0) {
+                                        // UNIFIED FIX: Pad internal layouts to offset default top window inset masking values
+                                        if !isSlimModeActive {
+                                            ZStack {
+                                                Capsule()
+                                                    .fill(Color(nsColor: settings.backgroundColor.withAlphaComponent(1.0)))
+                                                    .frame(width: islandWidth, height: islandHeight)
+
+                                                globalTitleOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
+                                                    .opacity(shouldRenderExpandedContent ? contentProgress : 0)
+                                                    .allowsHitTesting(shouldRenderExpandedContent)
+                                                globalControlsOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
+                                                    .opacity(shouldRenderExpandedContent ? contentProgress : 0)
+                                                    .allowsHitTesting(shouldRenderExpandedContent)
+
+                                                if !model.isExpanded && !model.isPinned {
+                                                    closedIslandChronoWidgets(islandWidth: islandWidth, islandHeight: islandHeight, leftExt: activeLeftExt, rightExt: activeRightExt)
                                                 }
                                             }
+                                            .compositingGroup()
+                                            .frame(width: islandWidth, height: islandHeight)
+                                            .padding(.top, 0)
                                         }
-                                        .frame(width: panelWidth, height: contentAreaHeight, alignment: .leading)
-                                    }
-                                    .padding(.top, 2)
-                                    .opacity(shouldRenderExpandedContent ? contentProgress : 0)
-                                    .allowsHitTesting(shouldRenderExpandedContent)
 
-                                    if isPeekerVisible && !isSlimModeActive {
-                                        PeekerWidgetView(
-                                            apps: model.launcherApps,
-                                            bookmarks: model.bookmarkItems,
-                                            showApps: settings.showLauncherInPeeker,
-                                            showBookmarks: settings.showBookmarksInPeeker,
-                                            accentColor: Color(settings.accentColor),
-                                            itemSize: settings.peekerSize
-                                        )
-                                        .frame(height: peekerHeight)
+                                        let pages = activePages
+                                        CarouselContainer(isSlimBoxInstance: isSlimBoxInstance, currentPage: model.currentPage, panelWidth: panelWidth) {
+                                            HStack(spacing: 0) {
+                                                ForEach(0..<pages.count, id: \.self) { index in
+                                                    let resolvedCurrentPage = isSlimBoxInstance ? 0 : model.currentPage
+                                                    if shouldRenderExpandedContent && (index == resolvedCurrentPage || index == animatingFromPage) {
+                                                        pageView(for: pages[index], contentAreaHeight: contentAreaHeight)
+                                                            .frame(width: panelWidth, height: contentAreaHeight, alignment: .top)
+                                                            .clipped()
+                                                    } else {
+                                                        Color.clear
+                                                            .frame(width: panelWidth, height: contentAreaHeight, alignment: .top)
+                                                    }
+                                                }
+                                            }
+                                            .frame(width: panelWidth, height: contentAreaHeight, alignment: .leading)
+                                        }
+                                        .padding(.top, 2)
                                         .opacity(shouldRenderExpandedContent ? contentProgress : 0)
                                         .allowsHitTesting(shouldRenderExpandedContent)
-                                        .padding(.bottom, 2)
-                                    }
 
-                                    if settings.showPagers && !isSlimModeActive && settings.pagerStyle == 0 {
-                                        HStack(spacing: 8) {
-                                            ForEach(0..<pages.count, id: \.self) { index in
-                                                Button {
-                                                    setPageFromCarousel(index)
-                                                } label: {
-                                                    Capsule(style: .continuous)
-                                                        .fill(model.currentPage == index ? Color.white : Color.white.opacity(0.28))
-                                                        .frame(width: model.currentPage == index ? 24 : 14, height: 4)
+                                        if isPeekerVisible && !isSlimModeActive {
+                                            PeekerWidgetView(
+                                                apps: model.launcherApps,
+                                                bookmarks: model.bookmarkItems,
+                                                showApps: settings.showLauncherInPeeker,
+                                                showBookmarks: settings.showBookmarksInPeeker,
+                                                accentColor: Color(settings.accentColor),
+                                                itemSize: settings.peekerSize
+                                            )
+                                            .frame(height: peekerHeight)
+                                            .opacity(shouldRenderExpandedContent ? contentProgress : 0)
+                                            .allowsHitTesting(shouldRenderExpandedContent)
+                                            .padding(.bottom, 2)
+                                        }
+
+                                        if settings.showPagers && !isSlimModeActive && settings.pagerStyle == 0 {
+                                            HStack(spacing: 8) {
+                                                ForEach(0..<pages.count, id: \.self) { index in
+                                                    Button {
+                                                        setPageFromCarousel(index)
+                                                    } label: {
+                                                        Capsule(style: .continuous)
+                                                            .fill(model.currentPage == index ? Color.white : Color.white.opacity(0.28))
+                                                            .frame(width: model.currentPage == index ? 24 : 14, height: 4)
+                                                    }
+                                                    .buttonStyle(.plain)
                                                 }
-                                                .buttonStyle(.plain)
+                                            }
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: pagerRowHeight)
+                                            .opacity(easedProgress)
+                                            .padding(.bottom, pagerBottomInset)
+                                            .offset(y: -(panelHeight - notchHeight - settings.clampedNotchEdgeThickness) * (1 - (model.isExpanded || model.isPinned ? easedProgress : 0)))
+                                            .allowsHitTesting(shouldRenderExpandedContent)
+                                        }
+                                    }
+                                    .frame(width: panelWidth, height: panelHeight, alignment: .top)
+                                    .frame(width: shellWidth, height: shellHeight, alignment: .top)
+                                    .conditionalClip(clipAll: isSlimModeActive, cornerRadius: cornerRadius)
+                                    .background(
+                                        Group {
+                                            if isSlimModeActive {
+                                                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                                    .fill(Color(settings.backgroundColor))
+                                                    .shadow(color: Color.black.opacity(shouldRenderExpandedContent ? 0.22 : 0),
+                                                            radius: shouldRenderExpandedContent ? 18 : 0, x: 0, y: shouldRenderExpandedContent ? 10 : 0)
+                                            } else {
+                                                BottomRoundedRectangle(cornerRadius: cornerRadius)
+                                                    .fill(Color(settings.backgroundColor))
+                                                    .shadow(color: Color.black.opacity(shouldRenderExpandedContent ? 0.22 : 0),
+                                                            radius: shouldRenderExpandedContent ? 18 : 0, x: 0, y: shouldRenderExpandedContent ? 10 : 0)
                                             }
                                         }
-                                        .frame(maxWidth: .infinity)
-                                        .frame(height: pagerRowHeight)
-                                        .opacity(easedProgress)
-                                        .padding(.bottom, pagerBottomInset)
-                                        .offset(y: -(panelHeight - notchHeight - settings.clampedNotchEdgeThickness) * (1 - (model.isExpanded || model.isPinned ? easedProgress : 0)))
-                                        .allowsHitTesting(shouldRenderExpandedContent)
-                                    }
+                                    )
+                                    .animation(settings.notchOpenAnimation, value: model.expansionProgress)
                                 }
-                                .frame(width: panelWidth, height: panelHeight, alignment: .top)
-                                .frame(width: shellWidth, height: shellHeight, alignment: .top)
-                                .conditionalClip(clipAll: isSlimModeActive, cornerRadius: cornerRadius)
-                                .background(
-                                    Group {
-                                        if isSlimModeActive {
-                                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                                .fill(Color(settings.backgroundColor))
-                                                .shadow(color: Color.black.opacity(shouldRenderExpandedContent ? 0.22 : 0),
-                                                        radius: shouldRenderExpandedContent ? 18 : 0, x: 0, y: shouldRenderExpandedContent ? 10 : 0)
-                                        } else {
-                                            BottomRoundedRectangle(cornerRadius: cornerRadius)
-                                                .fill(Color(settings.backgroundColor))
-                                                .shadow(color: Color.black.opacity(shouldRenderExpandedContent ? 0.22 : 0),
-                                                        radius: shouldRenderExpandedContent ? 18 : 0, x: 0, y: shouldRenderExpandedContent ? 10 : 0)
-                                        }
-                                    }
-                                )
-                                .animation(settings.notchOpenAnimation, value: model.expansionProgress)
-                            }
 
-                            if settings.pagerStyle == 1 && settings.showPagers && !isSlimModeActive {
-                                floatingPagerView(pages: activePages)
-                                    .opacity(easedProgress)
-                                    .scaleEffect(0.6 + 0.4 * easedProgress)
-                                    .frame(height: 54 * easedProgress)
+                                if settings.pagerStyle == 1 && settings.showPagers && !isSlimModeActive {
+                                    floatingPagerView(pages: activePages)
+                                        .opacity(easedProgress)
+                                        .scaleEffect(0.6 + 0.4 * easedProgress)
+                                        .frame(height: 54 * easedProgress)
+                                }
                             }
-                        }
-                        .background(GeometryReader { proxy in
-                            Color.clear.preference(key: ShellHeightKey.self, value: proxy.size.height)
-                        })
-                        .offset(x: islandOffset)
-                    } // End if !showToastOnly
-                } // End ZStack
-                .frame(width: containerWidth, height: containerHeight, alignment: .top)
-                .overlay(alignment: .topLeading) {
-                    if isSlimModeActive {
-                        if !model.boxFiles.isEmpty && settings.boxSlimModeKeepOpen {
-                            slimBoxMenuBarControls
+                            .background(GeometryReader { proxy in
+                                Color.clear.preference(key: ShellHeightKey.self, value: proxy.size.height)
+                            })
+                            .offset(x: islandOffset)
+                        } // End if !showToastOnly
+                    } // End ZStack
+                    .frame(width: containerWidth, height: containerHeight, alignment: .top)
+                    .overlay(alignment: .topLeading) {
+                        if isSlimModeActive {
+                            if !model.boxFiles.isEmpty && settings.boxSlimModeKeepOpen {
+                                slimBoxMenuBarControls
+                                    .zIndex(50)
+                            }
+                        } else {
+                            boxMenuBarControls
                                 .zIndex(50)
                         }
-                    } else {
-                        boxMenuBarControls
-                            .zIndex(50)
                     }
-                }
-                .scaleEffect(closeScale, anchor: .top)
-                .offset(y: closeOffset)
-                // Keep swipe paging, but don't preempt taps on pager buttons. Disable swipe gesture in slim mode so window background dragging works.
-                .simultaneousGesture(isSlimModeActive ? nil : horizontalPagingGesture)
-                .contextMenu {
-                    SettingsLink {
-                        Text("Settings")
+                    .scaleEffect(closeScale, anchor: .top)
+                    .offset(y: closeOffset)
+                    // Keep swipe paging, but don't preempt taps on pager buttons. Disable swipe gesture in slim mode so window background dragging works.
+                    .simultaneousGesture(isSlimModeActive ? nil : horizontalPagingGesture)
+                    .contextMenu {
+                        SettingsLink {
+                            Text("Settings")
+                        }
                     }
-                }
-                .onDrop(of: [.fileURL], isTargeted: $isNotchFileDropTargeted, perform: handleNotchFileDrop)
-                .onChange(of: isNotchFileDropTargeted) { _, targeted in
-                    if targeted {
+                    .onDrop(of: [.fileURL], isTargeted: $isNotchFileDropTargeted, perform: handleNotchFileDrop)
+                    .onChange(of: isNotchFileDropTargeted) { _, targeted in
+                        if targeted {
+                            if let delegate = NSApp.delegate as? AppDelegate {
+                                delegate.openBoxPage()
+                            }
+                        }
+                    }
+                    .onChange(of: isAddBookmarkPresented) { _, newValue in
+                        model.isAddSheetOpen = newValue
+                    }
+                    .onChange(of: isAddAppPresented) { _, newValue in
+                        model.isAddSheetOpen = newValue
+                    }
+                    .onChange(of: model.currentPage) { oldValue, newValue in
+                        animatingFromPage = oldValue
+                        // Issue 7: Reduce from 400ms to 220ms — the spring (response: 0.32) settles in ~240ms.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                            if animatingFromPage == oldValue {
+                                animatingFromPage = nil
+                            }
+                        }
+                    }
+                    .onReceive(model.$currentPage) { newValue in
                         if let delegate = NSApp.delegate as? AppDelegate {
-                            delegate.openBoxPage()
+                            delegate.updateObservationState(for: newValue)
                         }
+                        unloadInactivePageState(activePage: newValue)
                     }
-                }
-                .onChange(of: isAddBookmarkPresented) { _, newValue in
-                    model.isAddSheetOpen = newValue
-                }
-                .onChange(of: isAddAppPresented) { _, newValue in
-                    model.isAddSheetOpen = newValue
-                }
-                .onChange(of: model.currentPage) { oldValue, newValue in
-                    animatingFromPage = oldValue
-                    // Issue 7: Reduce from 400ms to 220ms — the spring (response: 0.32) settles in ~240ms.
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-                        if animatingFromPage == oldValue {
-                            animatingFromPage = nil
+                    .onReceive(model.$isExpanded) { expanded in
+                        if !expanded {
+                            unloadCollapsedPageState()
                         }
-                    }
-                }
-                .onReceive(model.$currentPage) { newValue in
-                    if let delegate = NSApp.delegate as? AppDelegate {
-                        delegate.updateObservationState(for: newValue)
-                    }
-                    unloadInactivePageState(activePage: newValue)
-                }
-                .onReceive(model.$isExpanded) { expanded in
-                    if !expanded {
-                        unloadCollapsedPageState()
                     }
                 }
             }
+            Spacer(minLength: 0)
         }
+        .frame(maxHeight: .infinity, alignment: .top)
+        .ignoresSafeArea()
     }
 
     @ViewBuilder

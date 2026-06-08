@@ -602,6 +602,7 @@ private func makeStatusMenu() -> NSMenu {
         let windowY = screenRect.maxY - windowHeight
 
         window.setFrame(NSRect(x: windowX, y: windowY, width: windowWidth, height: windowHeight), display: true)
+        window.level = .statusBar + 2
     }
 
     private func previewNotchResize() {
@@ -2462,6 +2463,7 @@ private func makeStatusMenu() -> NSMenu {
             return
         }
         window.setFrame(newFrame, display: false)
+        window.level = .statusBar + 2
     }
 
     private func scheduleWindowFrameUpdate(for newHeight: CGFloat) {
