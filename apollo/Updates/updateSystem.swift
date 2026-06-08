@@ -31,3 +31,10 @@ struct CheckForUpdatesView: View {
             .disabled(!checkForUpdatesViewModel.canCheckForUpdates)
     }
 }
+
+final class SparkleUserDriverDelegate: NSObject, SPUStandardUserDriverDelegate {
+    var supportsGentleScheduledUpdateReminders: Bool {
+        return true
+    }
+}
+

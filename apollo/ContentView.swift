@@ -16,12 +16,21 @@ public struct LauncherApp: Identifiable, Codable, Hashable {
     public var name: String
     public var path: String
     public var bundleIdentifier: String?
+    public var isPeekerPinned: Bool?
 
-    public init(id: UUID = UUID(), name: String, path: String, bundleIdentifier: String? = nil) {
+    public init(id: UUID = UUID(), name: String, path: String, bundleIdentifier: String? = nil, isPeekerPinned: Bool? = nil) {
         self.id = id
         self.name = name
         self.path = path
         self.bundleIdentifier = bundleIdentifier
+        self.isPeekerPinned = isPeekerPinned
+    }
+}
+
+extension LauncherApp {
+    public var isPinned: Bool {
+        get { isPeekerPinned ?? true }
+        set { isPeekerPinned = newValue }
     }
 }
 
@@ -31,13 +40,22 @@ public struct BookmarkItem: Identifiable, Codable, Hashable {
     public var urlString: String
     public var customBrowserPath: String?
     public var iconBase64: String?
+    public var isPeekerPinned: Bool?
 
-    public init(id: UUID = UUID(), name: String, urlString: String, customBrowserPath: String? = nil, iconBase64: String? = nil) {
+    public init(id: UUID = UUID(), name: String, urlString: String, customBrowserPath: String? = nil, iconBase64: String? = nil, isPeekerPinned: Bool? = nil) {
         self.id = id
         self.name = name
         self.urlString = urlString
         self.customBrowserPath = customBrowserPath
         self.iconBase64 = iconBase64
+        self.isPeekerPinned = isPeekerPinned
+    }
+}
+
+extension BookmarkItem {
+    public var isPinned: Bool {
+        get { isPeekerPinned ?? true }
+        set { isPeekerPinned = newValue }
     }
 }
 
@@ -428,12 +446,15 @@ struct ObservedFileToast: Identifiable, Hashable {
 struct ApolloApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     private let updaterController: SPUStandardUpdaterController
+    private let userDriverDelegate: SparkleUserDriverDelegate
 
     init() {
+            let delegate = SparkleUserDriverDelegate()
+            self.userDriverDelegate = delegate
             self.updaterController = SPUStandardUpdaterController(
                 startingUpdater: true,
                 updaterDelegate: nil,
-                userDriverDelegate: nil
+                userDriverDelegate: delegate
             )
     }
 
@@ -799,7 +820,7 @@ final class BoxIconCache {
         let queue = OperationQueue()
         queue.name = "apollo.box.preview-load"
         queue.qualityOfService = .utility
-        queue.maxConcurrentOperationCount = 1
+        queue.maxConcurrentOperationCount = min(4, ProcessInfo.processInfo.activeProcessorCount)
         return queue
     }()
     private let maintenanceQueue = DispatchQueue(label: "apollo.box.maintenance", qos: .utility)
@@ -3645,7 +3666,7 @@ private func makeStatusMenu() -> NSMenu {
             }
 
             if animate {
-                withAnimation(.easeOut(duration: 0.05)) {
+                withAnimation(self.settings.carouselAnimation) {
                     SwipeState.shared.carouselDragOffset = offset
                 }
             } else {
@@ -3676,8 +3697,8 @@ private func makeStatusMenu() -> NSMenu {
             guard let self else { return }
             let activePagesCount = self.activePages.count
             let next = clamp(self.model.currentPage + direction, min: 0, max: activePagesCount - 1)
-            SwipeState.shared.carouselDragOffset = 0
             withAnimation(self.settings.carouselAnimation) {
+                SwipeState.shared.carouselDragOffset = 0
                 self.model.currentPage = next
             }
         }
@@ -5647,8 +5668,7 @@ struct UnifiedNotchContainer: View {
         let pagerBottomInset: CGFloat = settings.showPagers ? 8 : 0
         let pagerReservedHeight = pagerRowHeight + pagerBottomInset
         let isPeekerVisible = (settings.showLauncherInPeeker && !model.launcherApps.isEmpty) ||
-                              (settings.showBookmarksInPeeker && !model.bookmarkItems.isEmpty) ||
-                              (settings.showCombinedInPeeker && (!model.launcherApps.isEmpty || !model.bookmarkItems.isEmpty))
+                              (settings.showBookmarksInPeeker && !model.bookmarkItems.isEmpty)
         let peekerHeight: CGFloat = isPeekerVisible ? 24 : 0
         let contentAreaHeight = max(1, panelHeight - notchHeight - pagerReservedHeight - peekerHeight - 2)
         let cornerRadius = safeDimension(max(4, settings.cornerRadius * (0.6 + 0.4 * easedProgress)), fallback: 8)
@@ -5748,8 +5768,8 @@ struct UnifiedNotchContainer: View {
                             PeekerWidgetView(
                                 apps: model.launcherApps,
                                 bookmarks: model.bookmarkItems,
-                                showApps: settings.showLauncherInPeeker || settings.showCombinedInPeeker,
-                                showBookmarks: settings.showBookmarksInPeeker || settings.showCombinedInPeeker,
+                                showApps: settings.showLauncherInPeeker,
+                                showBookmarks: settings.showBookmarksInPeeker,
                                 accentColor: Color(settings.accentColor)
                             )
                             .frame(height: 20)
@@ -6074,7 +6094,6 @@ struct UnifiedNotchContainer: View {
 
             if !urlsToInsert.isEmpty {
                 model.boxFiles.insert(contentsOf: urlsToInsert.reversed().map(BoxFile.init(url:)), at: 0)
-                BoxIconCache.shared.prewarmDisplayImages(for: Array(urlsToInsert.prefix(24)), targetSize: 220)
             }
 
             if openBoxPage {
@@ -6854,12 +6873,8 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                 
-                if settings.customActionsLayoutOption == 0 {
-                    Toggle("Show combined actions in Peeker", isOn: $settings.showCombinedInPeeker)
-                } else {
-                    Toggle("Show launcher apps in Peeker", isOn: $settings.showLauncherInPeeker)
-                    Toggle("Show bookmarks in Peeker", isOn: $settings.showBookmarksInPeeker)
-                }
+                Toggle("Show launcher apps in Peeker", isOn: $settings.showLauncherInPeeker)
+                Toggle("Show bookmarks in Peeker", isOn: $settings.showBookmarksInPeeker)
             }
 
             Section("Launcher Setup") {
@@ -6911,7 +6926,23 @@ struct SettingsView: View {
                             Spacer()
                             Button {
                                 if let idx = model.launcherApps.firstIndex(where: { $0.id == app.id }) {
+                                    var updated = model.launcherApps
+                                    updated[idx].isPinned.toggle()
+                                    model.launcherApps = updated
+                                    persistLauncherApps(updated)
+                                }
+                            } label: {
+                                Image(systemName: app.isPinned ? "pin.fill" : "pin")
+                                    .foregroundColor(app.isPinned ? Color(settings.accentColor) : .secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.trailing, 8)
+                            .help(app.isPinned ? "Unpin from Peeker" : "Pin to Peeker")
+
+                            Button {
+                                if let idx = model.launcherApps.firstIndex(where: { $0.id == app.id }) {
                                     model.launcherApps.remove(at: idx)
+                                    persistLauncherApps(model.launcherApps)
                                 }
                             } label: {
                                 Image(systemName: "trash")
@@ -6929,6 +6960,7 @@ struct SettingsView: View {
                 .popover(isPresented: $isSettingsAddAppPresented, arrowEdge: .bottom) {
                     AddAppSheet(isPresented: $isSettingsAddAppPresented, onAdd: { app in
                         model.launcherApps.append(app)
+                        persistLauncherApps(model.launcherApps)
                     })
                 }
             }
@@ -6991,7 +7023,23 @@ struct SettingsView: View {
                             Spacer()
                             Button {
                                 if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
+                                    var updated = model.bookmarkItems
+                                    updated[idx].isPinned.toggle()
+                                    model.bookmarkItems = updated
+                                    persistBookmarkItems(updated)
+                                }
+                            } label: {
+                                Image(systemName: bookmark.isPinned ? "pin.fill" : "pin")
+                                    .foregroundColor(bookmark.isPinned ? Color(settings.accentColor) : .secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.trailing, 8)
+                            .help(bookmark.isPinned ? "Unpin from Peeker" : "Pin to Peeker")
+
+                            Button {
+                                if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
                                     model.bookmarkItems.remove(at: idx)
+                                    persistBookmarkItems(model.bookmarkItems)
                                 }
                             } label: {
                                 Image(systemName: "trash")
@@ -7009,11 +7057,13 @@ struct SettingsView: View {
                 .popover(isPresented: $isSettingsAddBookmarkPresented, arrowEdge: .bottom) {
                     AddBookmarkSheet(isPresented: $isSettingsAddBookmarkPresented, onAdd: { bookmark in
                         model.bookmarkItems.append(bookmark)
+                        persistBookmarkItems(model.bookmarkItems)
                         fetchFaviconBase64(for: bookmark.urlString) { base64 in
                             if let base64 = base64 {
                                 DispatchQueue.main.async {
                                     if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
                                         model.bookmarkItems[idx].iconBase64 = base64
+                                        persistBookmarkItems(model.bookmarkItems)
                                     }
                                 }
                             }
@@ -8068,6 +8118,14 @@ extension UnifiedNotchContainer {
             onAdd: { app in
                 model.launcherApps.append(app)
                 persistLauncherApps(model.launcherApps)
+            },
+            onTogglePin: { app in
+                if let idx = model.launcherApps.firstIndex(where: { $0.id == app.id }) {
+                    var updated = model.launcherApps
+                    updated[idx].isPinned.toggle()
+                    model.launcherApps = updated
+                    persistLauncherApps(updated)
+                }
             }
         )
         .equatable()
@@ -8106,6 +8164,14 @@ extension UnifiedNotchContainer {
                         }
                     }
                 }
+            },
+            onTogglePin: { bookmark in
+                if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
+                    var updated = model.bookmarkItems
+                    updated[idx].isPinned.toggle()
+                    model.bookmarkItems = updated
+                    persistBookmarkItems(updated)
+                }
             }
         )
         .equatable()
@@ -8140,6 +8206,14 @@ extension UnifiedNotchContainer {
                 model.launcherApps.append(app)
                 persistLauncherApps(model.launcherApps)
             },
+            onTogglePinApp: { app in
+                if let idx = model.launcherApps.firstIndex(where: { $0.id == app.id }) {
+                    var updated = model.launcherApps
+                    updated[idx].isPinned.toggle()
+                    model.launcherApps = updated
+                    persistLauncherApps(updated)
+                }
+            },
             onRemoveBookmark: { bookmark in
                 if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
                     model.bookmarkItems.remove(at: idx)
@@ -8159,6 +8233,14 @@ extension UnifiedNotchContainer {
                             }
                         }
                     }
+                }
+            },
+            onTogglePinBookmark: { bookmark in
+                if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
+                    var updated = model.bookmarkItems
+                    updated[idx].isPinned.toggle()
+                    model.bookmarkItems = updated
+                    persistBookmarkItems(updated)
                 }
             }
         )

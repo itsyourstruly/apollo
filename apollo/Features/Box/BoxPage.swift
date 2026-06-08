@@ -114,7 +114,8 @@ struct BoxPageContent: View, Equatable {
         .overlay(alignment: .bottomTrailing) {
             if !files.isEmpty && !isSlimMode {
                 BoxShareButton(files: files, selectedIDs: selectedIDs, accentColor: accentColor)
-                    .padding([.bottom, .trailing], 16)
+                    .padding(.trailing, 12)
+                    .padding(.bottom, 2)
             }
         }
     }

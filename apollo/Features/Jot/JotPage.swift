@@ -71,7 +71,9 @@ struct JotPageContent: View, Equatable {
                 alignment: .top
             )
             .onAppear {
-                isJotEditorFocused.wrappedValue = true
+                DispatchQueue.main.async {
+                    isJotEditorFocused.wrappedValue = true
+                }
             }
         } else if notes.isEmpty {
             UnifiedNotchContainer.DismissableScrollView(

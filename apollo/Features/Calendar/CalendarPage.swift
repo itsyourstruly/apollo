@@ -3,6 +3,13 @@ import AppKit
 import EventKit
 import Combine
 
+extension EKEvent {
+    var occurrenceIdentifier: String {
+        let timeInterval = startDate?.timeIntervalSince1970 ?? 0
+        return "\(eventIdentifier ?? "no-id")-\(timeInterval)"
+    }
+}
+
 // MARK: - Calendar Manager
 final class CalendarManager: ObservableObject {
     static let shared = CalendarManager()
@@ -177,7 +184,7 @@ struct MonthGridView: View {
             
             // Weekday Headers
             HStack(spacing: 2) {
-                ForEach(weekdaySymbols, id: \.self) { symbol in
+                ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                     Text(symbol)
                         .font(.system(size: 8, weight: .semibold))
                         .foregroundColor(.white.opacity(0.4))
@@ -306,8 +313,12 @@ struct CalendarPageContent: View, Equatable {
     
     private var filteredEvents: [EKEvent] {
         let calendar = Calendar.current
-        return manager.events.filter { event in
+        let dailyEvents = manager.events.filter { event in
             calendar.isDate(event.startDate, inSameDayAs: selectedDate)
+        }
+        var seen = Set<String>()
+        return dailyEvents.filter { event in
+            seen.insert(event.occurrenceIdentifier).inserted
         }
     }
 
@@ -382,7 +393,7 @@ struct CalendarPageContent: View, Equatable {
                                 } else {
                                     ScrollView(.vertical, showsIndicators: false) {
                                         LazyVStack(spacing: 4) {
-                                            ForEach(filteredEvents, id: \.eventIdentifier) { event in
+                                            ForEach(filteredEvents, id: \.occurrenceIdentifier) { event in
                                                 EventRow(event: event, accentColor: accentColor)
                                             }
                                         }
@@ -422,7 +433,7 @@ struct CalendarPageContent: View, Equatable {
                             } else {
                                 ScrollView(.vertical, showsIndicators: false) {
                                     LazyVStack(spacing: 4) {
-                                        ForEach(filteredEvents, id: \.eventIdentifier) { event in
+                                        ForEach(filteredEvents, id: \.occurrenceIdentifier) { event in
                                             EventRow(event: event, accentColor: accentColor)
                                         }
                                     }
@@ -492,7 +503,7 @@ struct CalendarPageContent: View, Equatable {
                             } else {
                                 ScrollView(.vertical, showsIndicators: false) {
                                     LazyVStack(spacing: 4) {
-                                        ForEach(filteredEvents, id: \.eventIdentifier) { event in
+                                        ForEach(filteredEvents, id: \.occurrenceIdentifier) { event in
                                             EventRow(event: event, accentColor: accentColor)
                                         }
                                     }
@@ -564,7 +575,9 @@ struct CalendarPageContent: View, Equatable {
             )
             panel.setFrame(widgetFrame, display: true)
             panel.orderFrontRegardless()
-            self.floatingPanel = panel
+            DispatchQueue.main.async {
+                self.floatingPanel = panel
+            }
         }
     }
     
@@ -578,7 +591,9 @@ struct CalendarPageContent: View, Equatable {
     
     private func closeFloatingWidget() {
         floatingPanel?.orderOut(nil)
-        floatingPanel = nil
+        DispatchQueue.main.async {
+            floatingPanel = nil
+        }
     }
 }
 

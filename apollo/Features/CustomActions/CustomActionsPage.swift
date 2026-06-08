@@ -137,10 +137,18 @@ struct PeekerWidgetView: View {
     let showBookmarks: Bool
     let accentColor: Color
     
+    private var pinnedApps: [LauncherApp] {
+        apps.filter { $0.isPinned }
+    }
+    
+    private var pinnedBookmarks: [BookmarkItem] {
+        bookmarks.filter { $0.isPinned }
+    }
+    
     var body: some View {
         HStack(spacing: 8) {
             if showApps {
-                ForEach(apps.prefix(6)) { app in
+                ForEach(pinnedApps) { app in
                     Button {
                         launchApp(app)
                     } label: {
@@ -151,14 +159,14 @@ struct PeekerWidgetView: View {
                 }
             }
             
-            if showApps && showBookmarks && !apps.isEmpty && !bookmarks.isEmpty {
+            if showApps && showBookmarks && !pinnedApps.isEmpty && !pinnedBookmarks.isEmpty {
                 Divider()
                     .frame(height: 10)
                     .background(Color.white.opacity(0.18))
             }
             
             if showBookmarks {
-                ForEach(bookmarks.prefix(6)) { bookmark in
+                ForEach(pinnedBookmarks) { bookmark in
                     Button {
                         launchBookmark(bookmark)
                     } label: {
@@ -373,6 +381,7 @@ struct AddBookmarkSheet: View {
 }
 
 // MARK: - Launcher Page View
+// MARK: - Launcher Page View
 struct LauncherPageContent: View, Equatable {
     let apps: [LauncherApp]
     let displayMode: Int
@@ -387,6 +396,7 @@ struct LauncherPageContent: View, Equatable {
     
     let onRemove: (LauncherApp) -> Void
     let onAdd: (LauncherApp) -> Void
+    let onTogglePin: (LauncherApp) -> Void
     
     static func == (lhs: LauncherPageContent, rhs: LauncherPageContent) -> Bool {
         lhs.apps == rhs.apps &&
@@ -458,6 +468,10 @@ struct LauncherPageContent: View, Equatable {
                                 }
                                 .buttonStyle(.plain)
                                 .contextMenu {
+                                    Button(app.isPinned ? "Unpin from Peeker" : "Pin to Peeker") {
+                                        onTogglePin(app)
+                                    }
+                                    Divider()
                                     Button("Remove", role: .destructive) {
                                         onRemove(app)
                                     }
@@ -490,6 +504,15 @@ struct LauncherPageContent: View, Equatable {
                                     .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 4))
                                 }
                                 .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button(app.isPinned ? "Unpin from Peeker" : "Pin to Peeker") {
+                                        onTogglePin(app)
+                                    }
+                                    Divider()
+                                    Button("Remove", role: .destructive) {
+                                        onRemove(app)
+                                    }
+                                }
                             }
                         }
                         .padding(.horizontal, 6)
@@ -525,6 +548,7 @@ struct BookmarksPageContent: View, Equatable {
     
     let onRemove: (BookmarkItem) -> Void
     let onAdd: (BookmarkItem) -> Void
+    let onTogglePin: (BookmarkItem) -> Void
     
     static func == (lhs: BookmarksPageContent, rhs: BookmarksPageContent) -> Bool {
         lhs.bookmarks == rhs.bookmarks &&
@@ -596,6 +620,10 @@ struct BookmarksPageContent: View, Equatable {
                                 }
                                 .buttonStyle(.plain)
                                 .contextMenu {
+                                    Button(bookmark.isPinned ? "Unpin from Peeker" : "Pin to Peeker") {
+                                        onTogglePin(bookmark)
+                                    }
+                                    Divider()
                                     Button("Remove", role: .destructive) {
                                         onRemove(bookmark)
                                     }
@@ -628,6 +656,15 @@ struct BookmarksPageContent: View, Equatable {
                                     .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 4))
                                 }
                                 .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button(bookmark.isPinned ? "Unpin from Peeker" : "Pin to Peeker") {
+                                        onTogglePin(bookmark)
+                                    }
+                                    Divider()
+                                    Button("Remove", role: .destructive) {
+                                        onRemove(bookmark)
+                                    }
+                                }
                             }
                         }
                         .padding(.horizontal, 6)
@@ -669,8 +706,10 @@ struct CombinedActionsPageContent: View, Equatable {
     
     let onRemoveApp: (LauncherApp) -> Void
     let onAddApp: (LauncherApp) -> Void
+    let onTogglePinApp: (LauncherApp) -> Void
     let onRemoveBookmark: (BookmarkItem) -> Void
     let onAddBookmark: (BookmarkItem) -> Void
+    let onTogglePinBookmark: (BookmarkItem) -> Void
     
     static func == (lhs: CombinedActionsPageContent, rhs: CombinedActionsPageContent) -> Bool {
         lhs.apps == rhs.apps &&
@@ -706,7 +745,8 @@ struct CombinedActionsPageContent: View, Equatable {
                 accentColor: accentColor,
                 showHeader: false,
                 onRemove: onRemoveApp,
-                onAdd: onAddApp
+                onAdd: onAddApp,
+                onTogglePin: onTogglePinApp
             )
             .frame(width: halfWidth, height: height, alignment: .topLeading)
             
@@ -729,7 +769,8 @@ struct CombinedActionsPageContent: View, Equatable {
                 accentColor: accentColor,
                 showHeader: false,
                 onRemove: onRemoveBookmark,
-                onAdd: onAddBookmark
+                onAdd: onAddBookmark,
+                onTogglePin: onTogglePinBookmark
             )
             .frame(width: halfWidth, height: height, alignment: .topTrailing)
         }
