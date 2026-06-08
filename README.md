@@ -1,3 +1,4 @@
+<img width="1024" height="1024" alt="AppIcon1024" src="https://github.com/user-attachments/assets/b795b59c-d4e6-4d82-870a-9e61ee292a76" />
 # apollo
 
 A fully customizable island for your Macbook notch.
