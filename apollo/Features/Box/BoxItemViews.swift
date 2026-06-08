@@ -84,6 +84,12 @@ extension UnifiedNotchContainer {
             private var didStartDrag = false
             private var didSelectOnMouseDown = false
 
+            override func viewDidMoveToWindow() {
+                super.viewDidMoveToWindow()
+                self.setAccessibilityElement(false)
+                self.setAccessibilityRole(.none)
+            }
+
             override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
                 return true
             }
@@ -139,7 +145,7 @@ extension UnifiedNotchContainer {
 
                 let draggingItems: [NSDraggingItem] = urls.map { url in
                     let draggingItem = NSDraggingItem(pasteboardWriter: url as NSURL)
-                    let icon = NSWorkspace.shared.icon(forFile: url.path)
+                    let icon = BoxIconCache.shared.icon(for: url)
                     icon.size = NSSize(width: 32, height: 32)
                     draggingItem.setDraggingFrame(NSRect(x: 0, y: 0, width: 32, height: 32), contents: icon)
                     return draggingItem
@@ -335,9 +341,11 @@ fileprivate struct BoxAppIconView: View {
 
     var body: some View {
         if FileManager.default.fileExists(atPath: appPath) {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: appPath))
-                .resizable()
-                .frame(width: size, height: size)
+            if let icon = AppIconCache.shared.icon(forPath: appPath) {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: size, height: size)
+            }
         } else {
             Image(systemName: "app.fill")
                 .resizable()

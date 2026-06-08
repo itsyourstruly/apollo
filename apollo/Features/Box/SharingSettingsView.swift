@@ -8,9 +8,11 @@ struct AppIconView: View {
 
     var body: some View {
         if FileManager.default.fileExists(atPath: appPath) {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: appPath))
-                .resizable()
-                .frame(width: size, height: size)
+            if let icon = AppIconCache.shared.icon(forPath: appPath) {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: size, height: size)
+            }
         } else {
             Image(systemName: "app.fill")
                 .resizable()

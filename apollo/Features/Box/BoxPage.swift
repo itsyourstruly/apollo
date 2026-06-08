@@ -2,9 +2,6 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
-private let toastPanelWidth: CGFloat = 180
-private let toastPanelHeight: CGFloat = 260
-
 struct BoxPageContent: View, Equatable {
     let files: [BoxFile]
     let selectedIDs: Set<UUID>
@@ -299,7 +296,7 @@ extension UnifiedNotchContainer {
     // MARK: - Box Page
     func boxPage(contentAreaHeight: CGFloat) -> some View {
         let activeWidth: CGFloat
-        if model.boxSlimModeActive {
+        if isSlimModeActive {
             activeWidth = model.slimBoxWidth
         } else {
             activeWidth = scaledPanelWidth(for: settings)
@@ -311,14 +308,14 @@ extension UnifiedNotchContainer {
             selectedIDs: selectedBoxFileIDs,
             width: activeWidth,
             height: max(1, contentAreaHeight - pageTopContentInset),
-            columnCount: model.boxSlimModeActive ? 1 : settings.boxColumns,
+            columnCount: isSlimModeActive ? 1 : settings.boxColumns,
             accentColor: settings.accentColor,
-            showNames: model.boxSlimModeActive ? false : settings.showBoxFileNames,
+            showNames: isSlimModeActive ? false : settings.showBoxFileNames,
             nameSize: settings.boxFileNameSize,
             isTargeted: isBoxDropTargeted,
-            isSlimMode: model.boxSlimModeActive,
+            isSlimMode: isSlimModeActive,
             isCollapsed: model.isSlimBoxCollapsed,
-            showCollapseButton: model.boxSlimModeActive && model.boxFiles.count > 1,
+            showCollapseButton: isSlimModeActive && model.boxFiles.count > 1,
             onRemove: { file in
                 DispatchQueue.main.async {
                     withAnimation {

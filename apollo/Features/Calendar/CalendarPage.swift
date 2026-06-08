@@ -19,15 +19,22 @@ final class CalendarManager: ObservableObject {
     @Published var permissionChecked = false
     @Published var events: [EKEvent] = []
     private var lastFetchTime: Date?
+    private var activationObserver: NSObjectProtocol?
     
     init() {
         checkPermission()
-        NotificationCenter.default.addObserver(
+        activationObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
             self?.checkPermission()
+        }
+    }
+
+    deinit {
+        if let observer = activationObserver {
+            NotificationCenter.default.removeObserver(observer)
         }
     }
     

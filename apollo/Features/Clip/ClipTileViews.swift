@@ -310,6 +310,12 @@ extension UnifiedNotchContainer {
             private var mouseDownActive = false
             private var didStartDrag = false
 
+            override func viewDidMoveToWindow() {
+                super.viewDidMoveToWindow()
+                self.setAccessibilityElement(false)
+                self.setAccessibilityRole(.none)
+            }
+
             override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
                 return true
             }
@@ -348,7 +354,7 @@ extension UnifiedNotchContainer {
                 if entry.hasFiles {
                     draggingItems = entry.fileURLs.map { url in
                         let draggingItem = NSDraggingItem(pasteboardWriter: url as NSURL)
-                        let icon = NSWorkspace.shared.icon(forFile: url.path)
+                        let icon = BoxIconCache.shared.icon(for: url)
                         icon.size = NSSize(width: 32, height: 32)
                         draggingItem.setDraggingFrame(NSRect(x: 0, y: 0, width: 32, height: 32), contents: icon)
                         return draggingItem

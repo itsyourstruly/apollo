@@ -1,0 +1,1099 @@
+
+import SwiftUI
+import UniformTypeIdentifiers
+
+// MARK: - Master Container Structural Layout
+struct UnifiedNotchContainer: View {
+    @ObservedObject var model: NotchMenuModel
+    @ObservedObject var settings: AppSettings
+    var isSlimBoxInstance: Bool = false
+
+    @State var isJotEditorFocused: Bool = false
+
+    @State var highlightedClipboardID: UUID?
+    @State var clipboardTapFeedbackProgress: CGFloat = 0
+    @State var isNotchFileDropTargeted = false
+    @State var isBoxDropTargeted = false
+    @State var selectedBoxFileIDs = Set<UUID>()
+    @State private var isAddAppPresented = false
+    @State private var isAddBookmarkPresented = false
+    @State private var animatingFromPage: Int? = nil
+    
+    var isSlimModeActive: Bool {
+        isSlimBoxInstance
+    }
+    
+    var activePages: [IslandPage] {
+        if isSlimModeActive {
+            return [.box]
+        }
+        var pages: [IslandPage] = []
+        for pageInt in settings.pageOrder {
+            guard let basePage = IslandPage(rawValue: pageInt) else { continue }
+            switch basePage {
+            case .clipboard:
+                if settings.clipEnabled { pages.append(.clipboard) }
+            case .jot:
+                if settings.jotEnabled { pages.append(.jot) }
+            case .box:
+                if settings.boxEnabled { pages.append(.box) }
+            case .chrono:
+                if settings.chronoEnabled { pages.append(.chrono) }
+            case .calendar:
+                if settings.calendarEnabled { pages.append(.calendar) }
+            case .launcher:
+                if settings.launcherEnabled {
+                    if settings.customActionsLayoutOption == 0 {
+                        if !pages.contains(.customCombined) {
+                            pages.append(.customCombined)
+                        }
+                    } else {
+                        pages.append(.launcher)
+                    }
+                }
+            case .bookmarks:
+                if settings.bookmarksEnabled {
+                    if settings.customActionsLayoutOption == 0 {
+                        if !pages.contains(.customCombined) {
+                            pages.append(.customCombined)
+                        }
+                    } else {
+                        pages.append(.bookmarks)
+                    }
+                }
+            default:
+                break
+            }
+        }
+        if pages.isEmpty {
+            pages = [.clipboard]
+        }
+        return pages
+    }
+
+
+    let pageTopContentInset: CGFloat = 2
+
+    // This preference key is used to report the animated height of the island back to the AppDelegate.
+    struct ShellHeightKey: PreferenceKey {
+        static var defaultValue: CGFloat = 0
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = nextValue()
+        }
+    }
+
+    func updateCloseProgress(_ progress: CGFloat, animate: Bool) {
+        let clamped = max(0, min(1, progress))
+        if clamped >= 1, model.isExpanded, !model.isPinned {
+            DispatchQueue.main.async {
+                closeNotchFromSwipe()
+            }
+        }
+        if animate {
+            if clamped == 0 {
+                withAnimation(.easeOut(duration: 0.05)) {
+                    model.closeGestureProgress = clamped
+                }
+            } else {
+                withAnimation(settings.swipeAnimation) {
+                    model.closeGestureProgress = clamped
+                }
+            }
+        } else {
+            model.closeGestureProgress = clamped
+        }
+    }
+
+    func closeNotchFromSwipe() {
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.closeNotchFromSwipe()
+        }
+    }
+
+    private func previewBadge(_ text: String, accent: Color) -> some View {
+        Text(text)
+            .font(.caption)
+            .foregroundColor(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(accent.opacity(0.35)))
+            .overlay(Capsule().stroke(accent.opacity(0.7), lineWidth: 1))
+    }
+
+    private func previewTitleSample(page: IslandPage, width: CGFloat) -> some View {
+        let size = settings.titleSize(for: page)
+        let color = Color(settings.titleColor(for: page))
+        let alignment = settings.titleAlignment(for: page).alignment
+        return Text("Title")
+            .font(.system(size: size, weight: .semibold))
+            .foregroundColor(color)
+            .frame(width: width, alignment: alignment)
+    }
+
+    private var boxMenuBarControls: some View {
+        let isBoxPage = activePages.indices.contains(model.currentPage) && activePages[model.currentPage] == .box
+        let showControls = model.isExpanded && isBoxPage && !model.boxFiles.isEmpty && !isSlimModeActive
+        return GeometryReader { geo in
+            let edgeNotchWidth = settings.effectiveNotchWidth
+            let notchRight = (geo.size.width + edgeNotchWidth) / 2
+            let controlWidth: CGFloat = 180
+            let xOffset = notchRight + 10
+
+            HStack(spacing: 10) {
+                Button {
+                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                        if selectedBoxFileIDs.count == model.boxFiles.count {
+                            selectedBoxFileIDs.removeAll()
+                        } else {
+                            selectedBoxFileIDs = Set(model.boxFiles.map { $0.id })
+                        }
+                    }
+                } label: {
+                    Text(selectedBoxFileIDs.count == model.boxFiles.count ? "Deselect" : "Select All")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.85))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    withAnimation {
+                        if selectedBoxFileIDs.isEmpty {
+                            model.boxFiles.removeAll()
+                            selectedBoxFileIDs.removeAll()
+                        } else {
+                            model.boxFiles.removeAll { selectedBoxFileIDs.contains($0.id) }
+                            selectedBoxFileIDs.removeAll()
+                        }
+                    }
+                } label: {
+                    Text(selectedBoxFileIDs.isEmpty ? "Clear" : "Clear Selected")
+                        .font(.caption)
+                        .foregroundColor(.red.opacity(0.9))
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(width: controlWidth, alignment: .leading)
+            .offset(x: xOffset, y: 6)
+            .opacity(showControls ? 1.0 : 0.0)
+            .zIndex(5)
+        }
+    }
+
+    private var slimBoxMenuBarControls: some View {
+        HStack(spacing: 8) {
+            Button {
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                    if selectedBoxFileIDs.count == model.boxFiles.count {
+                        selectedBoxFileIDs.removeAll()
+                    } else {
+                        selectedBoxFileIDs = Set(model.boxFiles.map { $0.id })
+                    }
+                }
+            } label: {
+                Image(systemName: selectedBoxFileIDs.count == model.boxFiles.count ? "bookmark.slash.fill" : "checkmark.circle.fill")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.white.opacity(0.85))
+            }
+            .buttonStyle(.plain)
+            .help(selectedBoxFileIDs.count == model.boxFiles.count ? "Deselect All" : "Select All")
+
+            Button {
+                withAnimation {
+                    if selectedBoxFileIDs.isEmpty {
+                        model.boxFiles.removeAll()
+                        selectedBoxFileIDs.removeAll()
+                    } else {
+                        model.boxFiles.removeAll { selectedBoxFileIDs.contains($0.id) }
+                        selectedBoxFileIDs.removeAll()
+                    }
+                }
+            } label: {
+                Image(systemName: "trash.fill")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.red.opacity(0.9))
+            }
+            .buttonStyle(.plain)
+            .help(selectedBoxFileIDs.isEmpty ? "Clear All" : "Clear Selected")
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(Capsule().fill(Color.black.opacity(0.5)))
+        .padding(6)
+    }
+
+    var body: some View {
+        Group {
+            if !isSlimBoxInstance && !model.isContentActive {
+                Color.clear
+                    .frame(width: 1, height: 1)
+            } else {
+                let currentSlimWidth = model.slimBoxWidth
+                let currentSlimHeight = model.slimBoxHeight
+
+                let panelWidth = isSlimModeActive ? currentSlimWidth : scaledPanelWidth(for: settings)
+                let panelHeight = isSlimModeActive ? currentSlimHeight : scaledPanelHeight(for: settings)
+
+                let notchWidth = isSlimModeActive ? 0 : settings.effectiveNotchWidth
+                let notchHeight = isSlimModeActive ? 0 : settings.effectiveNotchHeight
+                let rawProgress = isSlimModeActive ? 1.0 : model.expansionProgress
+                let progress = rawProgress.isFinite ? max(0, min(1, rawProgress)) : 0
+                let easedProgress = progress * progress * (3 - 2 * progress)
+                
+                let showStopwatch = model.isStopwatchRunning
+                let showTimer = model.isTimerRunning
+                let targetLeftExt: CGFloat = showStopwatch ? 100 : 0
+                let targetRightExt: CGFloat = showTimer ? 100 : 0
+                let activeLeftExt = targetLeftExt * (1 - easedProgress)
+                let activeRightExt = targetRightExt * (1 - easedProgress)
+
+                let baseRawShellWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress)
+                let rawShellWidth = isSlimModeActive ? panelWidth : max(baseRawShellWidth, notchWidth + activeLeftExt + activeRightExt)
+                let rawShellHeight = notchHeight + ((panelHeight - notchHeight) * easedProgress)
+                let shellWidth = safeDimension(rawShellWidth, fallback: panelWidth)
+                let shellHeight = safeDimension(rawShellHeight, fallback: panelHeight)
+                let baseIslandWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress * 0.4)
+                let islandWidth = baseIslandWidth + activeLeftExt + activeRightExt
+                let targetIslandWidth = notchWidth + ((panelWidth - notchWidth) * 0.4)
+                let islandOffset = (activeRightExt - activeLeftExt) / 2
+                let islandHeight = notchHeight
+                let pagerRowHeight: CGFloat = (settings.showPagers && !isSlimModeActive) ? 14 : 0
+                let pagerBottomInset: CGFloat = (settings.showPagers && !isSlimModeActive) ? 8 : 0
+                let pagerReservedHeight = pagerRowHeight + pagerBottomInset
+                let isPeekerVisible = !isSlimModeActive && ((settings.showLauncherInPeeker && !model.launcherApps.isEmpty) ||
+                              (settings.showBookmarksInPeeker && !model.bookmarkItems.isEmpty))
+                let peekerHeight: CGFloat = isPeekerVisible ? 24 : 0
+                let contentAreaHeight = max(1, panelHeight - notchHeight - pagerReservedHeight - peekerHeight - (isSlimModeActive ? 0 : 2))
+                let cornerRadius = safeDimension(max(4, settings.cornerRadius * (0.6 + 0.4 * easedProgress)), fallback: 8)
+                let contentProgress = easedProgress.isFinite ? max(0, min(1, (easedProgress - 0.18) / 0.82)) : 0
+                let showToastOnly = (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded && !model.isPinned
+                let isFloatingPagerActive = settings.pagerStyle == 1 && settings.showPagers && !isSlimModeActive
+                let floatingPagerHeightAdjustment: CGFloat = isFloatingPagerActive ? (8 * easedProgress + 44 * easedProgress) : 0
+                let baseContainerHeight = isSlimModeActive ? currentSlimHeight : (showToastOnly ? max(panelHeight, toastPanelHeight) : panelHeight)
+                let containerHeight = safeDimension(baseContainerHeight + floatingPagerHeightAdjustment, fallback: panelHeight)
+                let toastWidth = toastPanelWidth
+                let containerWidth = isSlimModeActive ? currentSlimWidth : max(panelWidth, notchWidth + 240)
+                let closeProgress = max(0, min(1, model.closeGestureProgress))
+                let closeEase = closeProgress * closeProgress * (3 - 2 * closeProgress)
+                let closeOffset = -44 * closeEase
+                let closeScale = 1 - (0.14 * closeEase)
+                let shouldRenderExpandedContent = model.isExpanded || model.isPinned || isSlimModeActive
+
+                ZStack(alignment: .top) {
+                    // Overlay previews so they don't impact the measured height of the island body
+                    if settings.showHoverPreviews && !isSlimModeActive {
+                        settingsPreviewOverlay
+                            .zIndex(100)
+                    }
+
+                    if let toast = model.observedFileToast {
+                        ObservedFileToastView(
+                            toast: toast,
+                            progress: easedProgress,
+                            onClose: {
+                                withAnimation(settings.notchOpenAnimation) {
+                                    model.expansionProgress = 0.0
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                    if let delegate = NSApp.delegate as? AppDelegate {
+                                        delegate.dismissToastAndHideNotch()
+                                    } else {
+                                        model.observedFileToast = nil
+                                    }
+                                }
+                            },
+                            baseWidth: toastWidth,
+                            baseHeight: notchHeight,
+                            expandedHeight: toastPanelHeight,
+                            backgroundColor: Color(settings.backgroundColor),
+                            cornerRadius: settings.cornerRadius
+                        )
+                        .offset(y: baseNotchHeight - 2)
+                        .background(GeometryReader { proxy in
+                            Color.clear.preference(key: ShellHeightKey.self, value: proxy.size.height + (baseNotchHeight - 2))
+                        })
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .zIndex(2)
+                    }
+
+                    if !showToastOnly {
+                        VStack(spacing: 8 * easedProgress) {
+                            VStack(spacing: 0) {
+                                VStack(spacing: 0) {
+                                    // UNIFIED FIX: Pad internal layouts to offset default top window inset masking values
+                                    if !isSlimModeActive {
+                                        ZStack {
+                                            Capsule()
+                                                .fill(Color(nsColor: settings.backgroundColor.withAlphaComponent(1.0)))
+                                                .frame(width: islandWidth, height: islandHeight)
+
+                                            globalTitleOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
+                                                .opacity(shouldRenderExpandedContent ? contentProgress : 0)
+                                                .allowsHitTesting(shouldRenderExpandedContent)
+                                            globalControlsOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
+                                                .opacity(shouldRenderExpandedContent ? contentProgress : 0)
+                                                .allowsHitTesting(shouldRenderExpandedContent)
+
+                                            if !model.isExpanded && !model.isPinned {
+                                                closedIslandChronoWidgets(islandWidth: islandWidth, islandHeight: islandHeight, leftExt: activeLeftExt, rightExt: activeRightExt)
+                                            }
+                                        }
+                                        .compositingGroup()
+                                        .frame(width: islandWidth, height: islandHeight)
+                                        .padding(.top, 0)
+                                    }
+
+                                    let pages = activePages
+                                    CarouselContainer(isSlimBoxInstance: isSlimBoxInstance, currentPage: model.currentPage, panelWidth: panelWidth) {
+                                        HStack(spacing: 0) {
+                                            ForEach(0..<pages.count, id: \.self) { index in
+                                                let resolvedCurrentPage = isSlimBoxInstance ? 0 : model.currentPage
+                                                if shouldRenderExpandedContent && (index == resolvedCurrentPage || index == animatingFromPage) {
+                                                    pageView(for: pages[index], contentAreaHeight: contentAreaHeight)
+                                                        .frame(width: panelWidth, height: contentAreaHeight, alignment: .top)
+                                                        .clipped()
+                                                } else {
+                                                    Color.clear
+                                                        .frame(width: panelWidth, height: contentAreaHeight, alignment: .top)
+                                                }
+                                            }
+                                        }
+                                        .frame(width: panelWidth, height: contentAreaHeight, alignment: .leading)
+                                    }
+                                    .padding(.top, 2)
+                                    .opacity(shouldRenderExpandedContent ? contentProgress : 0)
+                                    .allowsHitTesting(shouldRenderExpandedContent)
+
+                                    if isPeekerVisible && !isSlimModeActive {
+                                        PeekerWidgetView(
+                                            apps: model.launcherApps,
+                                            bookmarks: model.bookmarkItems,
+                                            showApps: settings.showLauncherInPeeker,
+                                            showBookmarks: settings.showBookmarksInPeeker,
+                                            accentColor: Color(settings.accentColor),
+                                            itemSize: settings.peekerSize
+                                        )
+                                        .frame(height: peekerHeight)
+                                        .opacity(shouldRenderExpandedContent ? contentProgress : 0)
+                                        .allowsHitTesting(shouldRenderExpandedContent)
+                                        .padding(.bottom, 2)
+                                    }
+
+                                    if settings.showPagers && !isSlimModeActive && settings.pagerStyle == 0 {
+                                        HStack(spacing: 8) {
+                                            ForEach(0..<pages.count, id: \.self) { index in
+                                                Button {
+                                                    setPageFromCarousel(index)
+                                                } label: {
+                                                    Capsule(style: .continuous)
+                                                        .fill(model.currentPage == index ? Color.white : Color.white.opacity(0.28))
+                                                        .frame(width: model.currentPage == index ? 24 : 14, height: 4)
+                                                }
+                                                .buttonStyle(.plain)
+                                            }
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: pagerRowHeight)
+                                        .opacity(easedProgress)
+                                        .padding(.bottom, pagerBottomInset)
+                                        .offset(y: -(panelHeight - notchHeight - settings.clampedNotchEdgeThickness) * (1 - (model.isExpanded || model.isPinned ? easedProgress : 0)))
+                                        .allowsHitTesting(shouldRenderExpandedContent)
+                                    }
+                                }
+                                .frame(width: panelWidth, height: panelHeight, alignment: .top)
+                                .frame(width: shellWidth, height: shellHeight, alignment: .top)
+                                .conditionalClip(clipAll: isSlimModeActive, cornerRadius: cornerRadius)
+                                .background(
+                                    Group {
+                                        if isSlimModeActive {
+                                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                                .fill(Color(settings.backgroundColor))
+                                                .shadow(color: Color.black.opacity(shouldRenderExpandedContent ? 0.22 : 0),
+                                                        radius: shouldRenderExpandedContent ? 18 : 0, x: 0, y: shouldRenderExpandedContent ? 10 : 0)
+                                        } else {
+                                            BottomRoundedRectangle(cornerRadius: cornerRadius)
+                                                .fill(Color(settings.backgroundColor))
+                                                .shadow(color: Color.black.opacity(shouldRenderExpandedContent ? 0.22 : 0),
+                                                        radius: shouldRenderExpandedContent ? 18 : 0, x: 0, y: shouldRenderExpandedContent ? 10 : 0)
+                                        }
+                                    }
+                                )
+                                .animation(settings.notchOpenAnimation, value: model.expansionProgress)
+                            }
+
+                            if settings.pagerStyle == 1 && settings.showPagers && !isSlimModeActive {
+                                floatingPagerView(pages: activePages)
+                                    .opacity(easedProgress)
+                                    .scaleEffect(0.6 + 0.4 * easedProgress)
+                                    .frame(height: 44 * easedProgress)
+                            }
+                        }
+                        .background(GeometryReader { proxy in
+                            Color.clear.preference(key: ShellHeightKey.self, value: proxy.size.height)
+                        })
+                        .offset(x: islandOffset)
+                    } // End if !showToastOnly
+                } // End ZStack
+                .frame(width: containerWidth, height: containerHeight, alignment: .top)
+                .overlay(alignment: .topLeading) {
+                    if isSlimModeActive {
+                        if !model.boxFiles.isEmpty && settings.boxSlimModeKeepOpen {
+                            slimBoxMenuBarControls
+                                .zIndex(50)
+                        }
+                    } else {
+                        boxMenuBarControls
+                            .zIndex(50)
+                    }
+                }
+                .scaleEffect(closeScale, anchor: .top)
+                .offset(y: closeOffset)
+                // Keep swipe paging, but don't preempt taps on pager buttons. Disable swipe gesture in slim mode so window background dragging works.
+                .simultaneousGesture(isSlimModeActive ? nil : horizontalPagingGesture)
+                .contextMenu {
+                    SettingsLink {
+                        Text("Settings")
+                    }
+                }
+                .onDrop(of: [.fileURL], isTargeted: $isNotchFileDropTargeted, perform: handleNotchFileDrop)
+                .onChange(of: isNotchFileDropTargeted) { _, targeted in
+                    if targeted {
+                        if let delegate = NSApp.delegate as? AppDelegate {
+                            delegate.openBoxPage()
+                        }
+                    }
+                }
+                .onChange(of: isAddBookmarkPresented) { _, newValue in
+                    model.isAddSheetOpen = newValue
+                }
+                .onChange(of: isAddAppPresented) { _, newValue in
+                    model.isAddSheetOpen = newValue
+                }
+                .onChange(of: model.currentPage) { oldValue, newValue in
+                    animatingFromPage = oldValue
+                    // Issue 7: Reduce from 400ms to 220ms — the spring (response: 0.32) settles in ~240ms.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                        if animatingFromPage == oldValue {
+                            animatingFromPage = nil
+                        }
+                    }
+                }
+                .onReceive(model.$currentPage) { newValue in
+                    if let delegate = NSApp.delegate as? AppDelegate {
+                        delegate.updateObservationState(for: newValue)
+                    }
+                    unloadInactivePageState(activePage: newValue)
+                }
+                .onReceive(model.$isExpanded) { expanded in
+                    if !expanded {
+                        unloadCollapsedPageState()
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var settingsPreviewOverlay: some View {
+        GeometryReader { geo in
+            let edgeNotchWidth = settings.effectiveNotchWidth
+            let edgeNotchHeight = settings.effectiveNotchHeight
+            let edge = settings.clampedNotchEdgeThickness
+            let approachWidth = settings.clampedApproachWidth
+            let approachHeight = settings.clampedApproachHeight
+            let focus = settings.hoverPreviewFocus
+            let accent = Color(settings.accentColor)
+            let edgeNotchX = (geo.size.width - edgeNotchWidth) / 2
+            let edgeNotchRect = CGRect(x: edgeNotchX, y: 0, width: edgeNotchWidth, height: edgeNotchHeight)
+            let edgeInset = max(0, edge)
+            let outerRect = edgeNotchRect.insetBy(dx: -edgeInset, dy: -edgeInset)
+            let approachRect = CGRect(
+                x: edgeNotchRect.minX - edgeInset - approachWidth,
+                y: edgeNotchRect.maxY + edgeInset,
+                width: edgeNotchRect.width + (edgeInset * 2) + approachWidth * 2,
+                height: approachHeight
+            )
+            let clipboardLimitText = settings.clampedRememberClips == 0 ? "Unlimited" : "\(settings.clampedRememberClips)"
+            let previewY = edgeNotchRect.maxY + 28
+            let innerRadius = settings.cornerRadius * 0.6
+
+            ZStack(alignment: .topLeading) {
+                Group {
+                    switch focus {
+                    case .all:
+                        if approachHeight > 0 || approachWidth > 0 {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color.white.opacity(0.75), style: StrokeStyle(lineWidth: 2, dash: [6, 6]))
+                                .frame(width: approachRect.width, height: approachRect.height)
+                                .position(x: approachRect.midX, y: approachRect.midY)
+                        }
+                        if edgeInset > 0 {
+                            BottomRoundedRectangle(cornerRadius: innerRadius + edgeInset)
+                                .fill(accent.opacity(0.45))
+                                .frame(width: outerRect.width, height: outerRect.height)
+                                .position(x: outerRect.midX, y: outerRect.midY)
+                        }
+                        BottomRoundedRectangle(cornerRadius: innerRadius)
+                            .fill(Color(settings.backgroundColor))
+                            .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
+                            .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
+                        BottomRoundedRectangle(cornerRadius: innerRadius)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
+                            .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
+                    case .islandSize:
+                        EmptyView()
+                    case .notchEdge:
+                        if edgeInset > 0 {
+                            BottomRoundedRectangle(cornerRadius: innerRadius + edgeInset)
+                                .fill(accent.opacity(0.55))
+                                .frame(width: outerRect.width, height: outerRect.height)
+                                .position(x: outerRect.midX, y: outerRect.midY)
+                        }
+                        BottomRoundedRectangle(cornerRadius: innerRadius)
+                            .fill(Color(settings.backgroundColor))
+                            .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
+                            .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
+                        BottomRoundedRectangle(cornerRadius: innerRadius)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
+                            .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
+                    case .approach:
+                        if approachHeight > 0 || approachWidth > 0 {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color.white.opacity(0.75), style: StrokeStyle(lineWidth: 2, dash: [6, 6]))
+                                .frame(width: approachRect.width, height: approachRect.height)
+                                .position(x: approachRect.midX, y: approachRect.midY)
+                        }
+                    case .clipboardLimit:
+                        previewBadge("Clip limit \(clipboardLimitText)", accent: accent)
+                            .position(x: edgeNotchRect.midX, y: previewY)
+                    case .titleSize:
+                        previewTitleSample(page: settings.hoverPreviewTitlePage, width: edgeNotchRect.width)
+                            .position(x: edgeNotchRect.midX, y: previewY)
+                    case .cornerRadius:
+                        RoundedRectangle(cornerRadius: settings.cornerRadius, style: .continuous)
+                            .stroke(Color.white.opacity(0.7), lineWidth: 2)
+                            .frame(width: 140, height: 52)
+                            .position(x: edgeNotchRect.midX, y: previewY)
+                    case .sensitivityCarousel:
+                        previewBadge("Carousel sensitivity \(String(format: "%.2f", settings.carouselSensitivity))", accent: accent)
+                            .position(x: edgeNotchRect.midX, y: previewY)
+                    default:
+                        EmptyView()
+                    }
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        .opacity(0.8)
+        .padding(.top, 4)
+    }
+
+    private func symbolForPage(_ page: IslandPage) -> String {
+        switch page {
+        case .clipboard: return "doc.on.clipboard"
+        case .jot: return "note.text"
+        case .box: return "shippingbox.fill"
+        case .chrono: return "timer"
+        case .calendar: return "calendar"
+        case .launcher: return "app.fill"
+        case .bookmarks: return "globe"
+        case .customCombined: return "square.grid.2x2.fill"
+        }
+    }
+
+    private func floatingPagerView(pages: [IslandPage]) -> some View {
+        HStack(spacing: 12) {
+            ForEach(0..<pages.count, id: \.self) { index in
+                let page = pages[index]
+                let isSelected = model.currentPage == index
+                
+                Button {
+                    setPageFromCarousel(index)
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(isSelected ? Color.white : Color.white.opacity(0.15))
+                            .frame(width: isSelected ? 30 : 24, height: isSelected ? 30 : 24)
+                            .shadow(color: Color.black.opacity(isSelected ? 0.15 : 0), radius: 3)
+                        
+                        Image(systemName: symbolForPage(page))
+                            .font(.system(size: isSelected ? 12 : 10, weight: isSelected ? .bold : .medium))
+                            .foregroundColor(isSelected ? Color.black : Color.white.opacity(0.8))
+                    }
+                    .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+                .scaleEffect(isSelected ? 1.15 : 1.0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: model.currentPage)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Group {
+                if settings.pagerStyle2BackgroundEnabled {
+                    Capsule()
+                        .fill(Color.black.opacity(0.4))
+                        .background(VisualEffectView(material: .hudWindow, blendingMode: .behindWindow).clipShape(Capsule()))
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                        )
+                }
+            }
+        )
+        .shadow(color: Color.black.opacity(0.25), radius: 8, x: 0, y: 4)
+    }
+
+    @ViewBuilder
+    private func pageView(for page: IslandPage, contentAreaHeight: CGFloat) -> some View {
+        switch page {
+        case .clipboard:
+            clipboardPage(contentAreaHeight: contentAreaHeight)
+        case .jot:
+            sidebarPage(contentAreaHeight: contentAreaHeight)
+        case .box:
+            boxPage(contentAreaHeight: contentAreaHeight)
+        case .chrono:
+            chronoPage(contentAreaHeight: contentAreaHeight)
+        case .calendar:
+            calendarPage(contentAreaHeight: contentAreaHeight)
+        case .launcher:
+            launcherPage(contentAreaHeight: contentAreaHeight)
+        case .bookmarks:
+            bookmarksPage(contentAreaHeight: contentAreaHeight)
+        case .customCombined:
+            customCombinedPage(contentAreaHeight: contentAreaHeight)
+        }
+    }
+
+    private var horizontalPagingGesture: some Gesture {
+        let pagesCount = activePages.count
+        return DragGesture(minimumDistance: 14, coordinateSpace: .local)
+            .onEnded { value in
+                guard abs(value.translation.width) > abs(value.translation.height), abs(value.translation.width) > 40 else { return }
+                let nextPage = value.translation.width < 0
+                    ? min(pagesCount - 1, model.currentPage + 1)
+                    : max(0, model.currentPage - 1)
+                setPageFromCarousel(nextPage)
+            }
+    }
+
+    private func setPageFromCarousel(_ page: Int) {
+        let pagesCount = activePages.count
+        let nextPage = clamp(page, min: 0, max: pagesCount - 1)
+        SwipeState.shared.carouselDragOffset = 0
+        withAnimation(settings.carouselAnimation) {
+            model.currentPage = nextPage
+        }
+    }
+
+    private func unloadInactivePageState(activePage: Int) {
+        let pages = activePages
+        guard pages.indices.contains(activePage) else { return }
+        let resolvedPage = pages[activePage]
+
+        // Clipboard-only transient UI should reset when the clipboard page is inactive.
+        if resolvedPage != .clipboard {
+            highlightedClipboardID = nil
+            clipboardTapFeedbackProgress = 0
+        }
+
+        // Cancel box preview work only when the Box page is inactive.
+        // We deliberately do NOT trim the shared NSCache here — it has its own
+        // count/cost limits and a memory-pressure handler.
+        if resolvedPage != .box {
+            BoxIconCache.shared.cancelQueuedPreviewLoads()
+            selectedBoxFileIDs.removeAll()
+        }
+
+        if resolvedPage != .jot {
+            isJotEditorFocused = false
+        }
+    }
+
+    private func unloadCollapsedPageState() {
+        unloadInactivePageState(activePage: -1)
+        BoxIconCache.shared.cancelQueuedPreviewLoads()
+    }
+
+    func emptyDismissableScrollView<Content: View>(
+        onMetricsChange: @escaping (CGFloat, CGFloat, CGFloat) -> Void,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        DismissableScrollView(
+            closeSensitivity: settings.clampedCloseSensitivity,
+            onOverscrollProgress: { progress, animate in
+                updateCloseProgress(progress, animate: animate)
+            },
+            onBottomOverscroll: { closeNotchFromSwipe() },
+            onMetricsChange: { offset, contentHeight, viewportHeight in
+                onMetricsChange(offset, contentHeight, viewportHeight)
+            }
+        ) {
+            content()
+        }
+    }
+
+    // MARK: - Drop Handling
+    func handleNotchFileDrop(providers: [NSItemProvider]) -> Bool {
+        handleFileDrop(providers: providers, openBoxPage: true)
+    }
+
+    func handleBoxDrop(providers: [NSItemProvider]) -> Bool {
+        handleFileDrop(providers: providers, openBoxPage: false)
+    }
+
+    func handleFileDrop(providers: [NSItemProvider], openBoxPage: Bool) -> Bool {
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.slimBoxDidReceiveDropThisSession = true
+        }
+        let acceptedProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
+        guard !acceptedProviders.isEmpty else { return false }
+
+        let loadGroup = DispatchGroup()
+        let resultLock = NSLock()
+        var droppedURLs: [URL] = []
+
+        for provider in acceptedProviders {
+            loadGroup.enter()
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                defer { loadGroup.leave() }
+                guard let fileUrl = url else { return }
+                resultLock.lock()
+                droppedURLs.append(fileUrl)
+                resultLock.unlock()
+            }
+        }
+
+        loadGroup.notify(queue: .main) {
+            let existing = Set(model.boxFiles.map(\.url))
+            var seen = Set<URL>()
+            var urlsToInsert: [URL] = []
+
+            for url in droppedURLs where !existing.contains(url) {
+                if seen.insert(url).inserted {
+                    urlsToInsert.append(url)
+                }
+            }
+
+            if !urlsToInsert.isEmpty {
+                model.boxFiles.insert(contentsOf: urlsToInsert.reversed().map(BoxFile.init(url:)), at: 0)
+            }
+
+            if model.boxSlimModeActive {
+                if !settings.boxSlimModeKeepOpen {
+                    if let delegate = NSApp.delegate as? AppDelegate {
+                        delegate.hidePanel()
+                    }
+                } else {
+                    NSApp.activate(ignoringOtherApps: true)
+                    if let delegate = NSApp.delegate as? AppDelegate {
+                        delegate.slimBoxWindow?.makeKeyAndOrderFront(nil)
+                    }
+                }
+            } else if openBoxPage {
+                if let idx = activePages.firstIndex(of: .box) {
+                    model.currentPage = idx
+                }
+                model.isExpanded = true
+                model.expansionProgress = 1.0
+            }
+        }
+
+        return true
+    }
+
+    // MARK: - Shared UI
+    @ViewBuilder
+    private func headerControls<Content: View>(@ViewBuilder trailing: () -> Content) -> some View {
+        HStack {
+            Spacer()
+            trailing()
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+
+    private func globalControlsOverlay(islandWidth: CGFloat, islandHeight: CGFloat) -> some View {
+        let page = activePages.indices.contains(model.currentPage) ? activePages[model.currentPage] : .clipboard
+        let edgeNotchWidth = settings.effectiveNotchWidth
+        let alignmentOption = settings.titleAlignment(for: page)
+
+        return Color.clear
+            .overlay(alignment: .topLeading) {
+                GeometryReader { geo in
+                    let notchLeft = (geo.size.width - edgeNotchWidth) / 2
+                    let notchRight = (geo.size.width + edgeNotchWidth) / 2
+                    
+                    if page == .customCombined {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label(settings.titleText(for: .bookmarks), systemImage: settings.titleSymbol(for: .bookmarks, fallback: "globe"))
+                                .conditionalLabelStyle(showIcon: settings.showTitleIcon(for: .bookmarks))
+                                .font(.system(size: settings.titleSize(for: .bookmarks), weight: .bold))
+                                .foregroundColor(Color(settings.titleColor(for: .bookmarks)))
+                            
+                            if settings.showAddBookmarkButton {
+                                Button {
+                                    model.isAddSheetOpen = true
+                                    isAddBookmarkPresented = true
+                                } label: {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                                .buttonStyle(.plain)
+                                .popover(isPresented: $isAddBookmarkPresented, arrowEdge: .bottom) {
+                                    AddBookmarkSheet(isPresented: Binding(
+                                        get: { self.isAddBookmarkPresented },
+                                        set: { newValue in
+                                            self.isAddBookmarkPresented = newValue
+                                            if !newValue { self.model.isAddSheetOpen = false }
+                                        }
+                                    ), onAdd: { bookmark in
+                                        model.bookmarkItems.append(bookmark)
+                                        persistBookmarkItems(model.bookmarkItems)
+                                        
+                                        fetchFaviconBase64(for: bookmark.urlString) { base64 in
+                                            if let base64 = base64 {
+                                                DispatchQueue.main.async {
+                                                    if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
+                                                        model.bookmarkItems[idx].iconBase64 = base64
+                                                        persistBookmarkItems(model.bookmarkItems)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    })
+                                }
+                            }
+                        }
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .offset(x: notchRight + 12, y: 2)
+                    } else {
+                        let controls = HStack {
+                            switch page {
+                            case .clipboard:
+                                if !model.clipboardItems.isEmpty {
+                                    Button {
+                                        clearClipboardHistory()
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .foregroundColor(.white.opacity(0.7))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            case .jot:
+                                HStack(spacing: 12) {
+                                    Button {
+                                        if model.activeJotID == nil {
+                                            createJot()
+                                        } else {
+                                            closeActiveJot()
+                                        }
+                                    } label: {
+                                        Image(systemName: model.activeJotID == nil ? "plus" : "chevron.left")
+                                            .foregroundColor(.white)
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    if model.activeJotID != nil {
+                                        Button {
+                                            exportActiveJot()
+                                        } label: {
+                                            Image(systemName: "square.and.arrow.down")
+                                                .foregroundColor(.white)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            case .box:
+                                EmptyView()
+                            case .chrono:
+                                EmptyView()
+                            case .launcher:
+                                if settings.showAddAppButton {
+                                    Button {
+                                        model.isAddSheetOpen = true
+                                        isAddAppPresented = true
+                                    } label: {
+                                        Image(systemName: "plus")
+                                            .foregroundColor(.white)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .popover(isPresented: $isAddAppPresented, arrowEdge: .bottom) {
+                                        AddAppSheet(isPresented: Binding(
+                                            get: { self.isAddAppPresented },
+                                            set: { newValue in
+                                                self.isAddAppPresented = newValue
+                                                if !newValue { self.model.isAddSheetOpen = false }
+                                            }
+                                        ), onAdd: { app in
+                                            model.launcherApps.append(app)
+                                            persistLauncherApps(model.launcherApps)
+                                        })
+                                    }
+                                }
+                            case .bookmarks:
+                                if settings.showAddBookmarkButton {
+                                    Button {
+                                        model.isAddSheetOpen = true
+                                        isAddBookmarkPresented = true
+                                    } label: {
+                                        Image(systemName: "plus")
+                                            .foregroundColor(.white)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .popover(isPresented: $isAddBookmarkPresented, arrowEdge: .bottom) {
+                                        AddBookmarkSheet(isPresented: Binding(
+                                            get: { self.isAddBookmarkPresented },
+                                            set: { newValue in
+                                                self.isAddBookmarkPresented = newValue
+                                                if !newValue { self.model.isAddSheetOpen = false }
+                                            }
+                                        ), onAdd: { bookmark in
+                                            model.bookmarkItems.append(bookmark)
+                                            persistBookmarkItems(model.bookmarkItems)
+                                            
+                                            fetchFaviconBase64(for: bookmark.urlString) { base64 in
+                                                if let base64 = base64 {
+                                                    DispatchQueue.main.async {
+                                                        if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
+                                                            model.bookmarkItems[idx].iconBase64 = base64
+                                                            persistBookmarkItems(model.bookmarkItems)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        })
+                                    }
+                                }
+                            default:
+                                EmptyView()
+                            }
+                        }
+                        .fixedSize(horizontal: true, vertical: false)
+
+                        if alignmentOption == .left {
+                            controls
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .offset(x: notchRight + 12, y: 2)
+                        } else {
+                            controls
+                                .frame(width: max(0, notchLeft - 12), alignment: .trailing)
+                                .offset(y: 2)
+                        }
+                    }
+                }
+            }
+            .frame(width: islandWidth, height: islandHeight)
+    }
+
+    private func globalTitleOverlay(islandWidth: CGFloat, islandHeight: CGFloat) -> some View {
+        let page = activePages.indices.contains(model.currentPage) ? activePages[model.currentPage] : .clipboard
+        let edgeNotchWidth = settings.effectiveNotchWidth
+        let alignmentOption = settings.titleAlignment(for: page)
+        let title: String
+        let symbol: String
+
+        switch page {
+        case .clipboard:
+            title = "Clip"
+            symbol = "doc.on.clipboard"
+        case .jot:
+            title = "Jot"
+            symbol = "note.text"
+        case .box:
+            title = "Box"
+            symbol = "shippingbox.fill"
+        case .chrono:
+            title = "Chrono"
+            symbol = "timer"
+        case .calendar:
+            title = "Calendar"
+            symbol = "calendar"
+        case .launcher:
+            title = "Launcher"
+            symbol = "app.fill"
+        case .bookmarks:
+            title = "Bookmarks"
+            symbol = "globe"
+        default:
+            title = ""
+            symbol = "empty"
+        }
+
+        return Color.clear
+            .overlay(alignment: .topLeading) {
+                GeometryReader { geo in
+                    let notchLeft = (geo.size.width - edgeNotchWidth) / 2
+                    let notchRight = (geo.size.width + edgeNotchWidth) / 2
+                    
+                    if page == .customCombined {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Label(settings.titleText(for: .launcher), systemImage: settings.titleSymbol(for: .launcher, fallback: "app.fill"))
+                                .conditionalLabelStyle(showIcon: settings.showTitleIcon(for: .launcher))
+                                .font(.system(size: settings.titleSize(for: .launcher), weight: .bold))
+                                .foregroundColor(Color(settings.titleColor(for: .launcher)))
+                            
+                            if settings.showAddAppButton {
+                                Button {
+                                    model.isAddSheetOpen = true
+                                    isAddAppPresented = true
+                                } label: {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                                .buttonStyle(.plain)
+                                .popover(isPresented: $isAddAppPresented, arrowEdge: .bottom) {
+                                    AddAppSheet(isPresented: Binding(
+                                        get: { self.isAddAppPresented },
+                                        set: { newValue in
+                                            self.isAddAppPresented = newValue
+                                            if !newValue { self.model.isAddSheetOpen = false }
+                                        }
+                                    ), onAdd: { app in
+                                        model.launcherApps.append(app)
+                                        persistLauncherApps(model.launcherApps)
+                                    })
+                                }
+                            }
+                        }
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(width: max(0, notchLeft - 12), alignment: .trailing)
+                        .offset(y: 2)
+                    } else {
+                        if symbol != "empty" {
+                            let titleView = header(title: title, symbol: symbol, page: page)
+                                .fixedSize(horizontal: true, vertical: false)
+                            
+                            if alignmentOption == .left {
+                                titleView
+                                    .frame(width: max(0, notchLeft - 12), alignment: .trailing)
+                                    .offset(y: 2)
+                            } else {
+                                titleView
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .offset(x: notchRight + 12, y: 2)
+                            }
+                        }
+                    }
+                }
+            }
+            .frame(width: islandWidth, height: islandHeight)
+    }
+
+    private func header(title: String, symbol: String, page: IslandPage) -> some View {
+        let displaySymbol = settings.titleSymbol(for: page, fallback: symbol)
+        return Label(settings.titleText(for: page), systemImage: displaySymbol)
+            .conditionalLabelStyle(showIcon: settings.showTitleIcon(for: page))
+            .font(.system(size: settings.titleSize(for: page), weight: .bold))
+            .foregroundColor(Color(settings.titleColor(for: page)))
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .minimumScaleFactor(0.8)
+            .allowsTightening(true)
+    }
+}

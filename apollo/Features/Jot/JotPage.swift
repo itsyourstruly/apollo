@@ -171,7 +171,11 @@ extension UnifiedNotchContainer {
         notes.insert(note, at: 0)
         model.jotNotes = notes
         model.activeJotID = note.id
-        isJotEditorFocused = true
+        // Delay focus so SwiftUI has time to install the new editor
+        // view into the window before makeFirstResponder is called.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            isJotEditorFocused = true
+        }
     }
 
     func closeActiveJot() {

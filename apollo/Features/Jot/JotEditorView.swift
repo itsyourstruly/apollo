@@ -117,7 +117,7 @@ extension UnifiedNotchContainer {
 
             let currentFocus = isFocused.wrappedValue
             if currentFocus {
-                if let window = scrollView.window {
+                if let window = scrollView.window, window.isVisible {
                     if window.firstResponder !== textView {
                         window.makeFirstResponder(textView)
                     }
@@ -125,6 +125,18 @@ extension UnifiedNotchContainer {
                         window.makeKey()
                     }
                     NSApp.activate(ignoringOtherApps: true)
+                } else if scrollView.window == nil || scrollView.window?.isVisible == false {
+                    // Window not yet on-screen — retry once the run loop settles.
+                    let weakScroll = scrollView
+                    let weakView = textView
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        guard let window = weakScroll.window, window.isVisible else { return }
+                        if window.firstResponder !== weakView {
+                            window.makeFirstResponder(weakView)
+                        }
+                        if !window.isKeyWindow { window.makeKey() }
+                        NSApp.activate(ignoringOtherApps: true)
+                    }
                 }
             } else {
                 if let window = scrollView.window, window.firstResponder === textView {

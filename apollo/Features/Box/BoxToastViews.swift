@@ -35,7 +35,7 @@ extension UnifiedNotchContainer {
             let targetHeight = min(max(baseHeight, measuredHeight), expandedHeight)
             let contentScale = measuredHeight > expandedHeight ? expandedHeight / measuredHeight : 1
             let panelHeight = baseHeight + (targetHeight - baseHeight) * easedProgress
-            let icon = NSImage(contentsOf: toast.fileURL) ?? NSWorkspace.shared.icon(forFile: toast.fileURL.path)
+            let icon = BoxIconCache.shared.displayImage(for: toast.fileURL, targetSize: 72)
             ZStack(alignment: .bottomTrailing) {
                 VStack(spacing: 10) {
                     VStack(spacing: 8) {
@@ -140,6 +140,12 @@ extension UnifiedNotchContainer {
             private var mouseDownPoint: NSPoint = .zero
             private var didStartDrag = false
 
+            override func viewDidMoveToWindow() {
+                super.viewDidMoveToWindow()
+                self.setAccessibilityElement(false)
+                self.setAccessibilityRole(.none)
+            }
+
             override func mouseDown(with event: NSEvent) {
                 mouseDownPoint = convert(event.locationInWindow, from: nil)
                 didStartDrag = false
@@ -167,7 +173,7 @@ extension UnifiedNotchContainer {
 
             private func beginDrag(url: URL, event: NSEvent) {
                 let draggingItem = NSDraggingItem(pasteboardWriter: url as NSURL)
-                let icon = NSWorkspace.shared.icon(forFile: url.path)
+                let icon = BoxIconCache.shared.icon(for: url)
                 icon.size = NSSize(width: 48, height: 48)
                 draggingItem.setDraggingFrame(NSRect(x: 0, y: 0, width: 48, height: 48), contents: icon)
                 beginDraggingSession(with: [draggingItem], event: event, source: self)
