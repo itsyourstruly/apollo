@@ -1121,7 +1121,7 @@ private func makeStatusMenu() -> NSMenu {
         guard shouldWakeTrackCursor else {
             resetApproachProgressSampling()
             wake.orderOut(nil)
-            if !model.isExpanded && !model.isPinned {
+            if !model.isExpanded && !model.isPinned, let window = notchWindow, window.alphaValue < 0.05 {
                 updateNotchWindowFrame(heightOverride: settings.effectiveNotchHeight)
             }
             return
@@ -2021,6 +2021,18 @@ private func makeStatusMenu() -> NSMenu {
     private func showPanel(expanded: Bool, pinned: Bool, preferredPage: Int? = nil) {
         guard let window = islandWindow else { return }
 
+        // Immediately size window frame when expanding/pinning to avoid layout deadlock and clipping
+        if expanded || pinned {
+            let isFloatingPagerActive = settings.pagerStyle == 1 && settings.showPagers
+            let floatingPagerHeightAdjustment: CGFloat = isFloatingPagerActive ? (8 + 54) : 0
+            let expectedExpandedHeight = panelHeight + floatingPagerHeightAdjustment
+            updateNotchWindowFrame(heightOverride: expectedExpandedHeight)
+            
+            // Re-assert level and ordering to guarantee we stay on top of the menu bar/notch
+            window.level = .statusBar + 2
+            window.orderFrontRegardless()
+        }
+
         if expanded {
             panelVisibilityEpoch &+= 1
         }
@@ -2420,9 +2432,19 @@ private func makeStatusMenu() -> NSMenu {
 
         guard newHeight.isFinite, newHeight > 1 else { return }
 
+        var targetHeight = newHeight
+        if model.isExpanded || model.isPinned {
+            let isFloatingPagerActive = settings.pagerStyle == 1 && settings.showPagers
+            let floatingPagerHeightAdjustment: CGFloat = isFloatingPagerActive ? (8 + 54) : 0
+            let expectedExpandedHeight = panelHeight + floatingPagerHeightAdjustment
+            if targetHeight < expectedExpandedHeight {
+                targetHeight = expectedExpandedHeight
+            }
+        }
+
         // Keep the window width fixed at the maximum possible panel width to avoid clipping content during animation.
         let windowWidth = max(self.panelWidth, self.notchWidth + 240)
-        let windowHeight = newHeight
+        let windowHeight = targetHeight
 
         // Correct window positioning: Center the window's midpoint on the hardware notch's midpoint
         let notchX = settings.hardwareNotchX
