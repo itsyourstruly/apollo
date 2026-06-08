@@ -452,7 +452,9 @@ private func makeStatusMenu() -> NSMenu {
             .sink { [weak self] enabled in
                 guard let self = self else { return }
                 if enabled {
-                    self.startGlobalDragPolling()
+                    // Pass `enabled` directly – @Published fires during willSet so the
+                    // property itself still holds the old value at this point.
+                    self.startGlobalDragPolling(forceEnabled: true)
                 } else {
                     self.dragPollingTimer?.cancel()
                     self.dragPollingTimer = nil
@@ -1519,9 +1521,12 @@ private func makeStatusMenu() -> NSMenu {
         window.orderOut(nil)
     }
 
-    private func startGlobalDragPolling() {
+    private func startGlobalDragPolling(forceEnabled: Bool? = nil) {
         dragPollingTimer?.cancel()
-        guard settings.boxSlimModeEnabled else { return }
+        // Use the caller-supplied value when available (avoids @Published willSet race);
+        // otherwise fall back to reading the setting directly (e.g. at launch).
+        let isEnabled = forceEnabled ?? settings.boxSlimModeEnabled
+        guard isEnabled else { return }
         
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now(), repeating: .milliseconds(500))
