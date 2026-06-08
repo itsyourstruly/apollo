@@ -54,6 +54,10 @@ Switch to a month or week view.
 
 --
 
+Updates using Sparkle. Check for updates in the settings or set up automatic updates.
+
+--
+
 Customization:
 
 Open the Island by hovering over the notch or by clicking on it.
