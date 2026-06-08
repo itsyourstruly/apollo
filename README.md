@@ -1,6 +1,6 @@
-<img width="512" height="512" alt="AppIcon512" src="https://github.com/user-attachments/assets/83212b16-645c-4598-ba17-7837f83bcd8f" />
-
 # apollo
+
+<img width="512" height="512" alt="AppIcon512" src="https://github.com/user-attachments/assets/83212b16-645c-4598-ba17-7837f83bcd8f" />
 
 A fully customizable island for your Macbook notch.
 
