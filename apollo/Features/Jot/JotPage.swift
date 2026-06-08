@@ -19,7 +19,7 @@ struct JotPageContent: View, Equatable {
     let jotBinding: (UUID) -> Binding<String>
     let onCloseNotchFromSwipe: () -> Void
     let onUpdateCloseProgress: (CGFloat, Bool) -> Void
-    var isJotEditorFocused: FocusState<Bool>.Binding
+    var isJotEditorFocused: Binding<Bool>
 
     static func == (lhs: JotPageContent, rhs: JotPageContent) -> Bool {
         lhs.notes == rhs.notes &&

@@ -6117,7 +6117,7 @@ struct UnifiedNotchContainer: View {
     @ObservedObject var settings: AppSettings
     var isSlimBoxInstance: Bool = false
 
-    @FocusState var isJotEditorFocused: Bool
+    @State var isJotEditorFocused: Bool = false
 
     @State var highlightedClipboardID: UUID?
     @State var clipboardTapFeedbackProgress: CGFloat = 0

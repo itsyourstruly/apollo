@@ -4,16 +4,29 @@ import AppKit
 // MARK: - Jot Editor View
 
 extension UnifiedNotchContainer {
+
+    final class JotNSTextView: NSTextView {
+        override func mouseDown(with event: NSEvent) {
+            super.mouseDown(with: event)
+            if let window = self.window {
+                if !window.isKeyWindow {
+                    window.makeKey()
+                }
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
+    }
+
     struct JotTextEditorView: NSViewRepresentable {
         @Binding var text: String
-        var isFocused: FocusState<Bool>.Binding
+        var isFocused: Binding<Bool>
         let textSize: CGFloat
         let closeSensitivity: CGFloat
         let onOverscrollProgressLegacy: (CGFloat, Bool) -> Void
         let onBottomOverscroll: () -> Void
         let onScrollMetricsChange: (CGFloat, CGFloat, CGFloat) -> Void
 
-        init(text: Binding<String>, isFocused: FocusState<Bool>.Binding, textSize: CGFloat, closeSensitivity: CGFloat, onOverscrollProgress: @escaping (CGFloat, Bool) -> Void, onBottomOverscroll: @escaping () -> Void, onScrollMetricsChange: @escaping (CGFloat, CGFloat, CGFloat) -> Void) {
+        init(text: Binding<String>, isFocused: Binding<Bool>, textSize: CGFloat, closeSensitivity: CGFloat, onOverscrollProgress: @escaping (CGFloat, Bool) -> Void, onBottomOverscroll: @escaping () -> Void, onScrollMetricsChange: @escaping (CGFloat, CGFloat, CGFloat) -> Void) {
             self._text = text
             self.isFocused = isFocused
             self.textSize = textSize
@@ -40,7 +53,7 @@ extension UnifiedNotchContainer {
             scrollView.onBottomOverscroll = onBottomOverscroll
             scrollView.closeSensitivity = closeSensitivity
 
-            let textView = NSTextView()
+            let textView = JotNSTextView()
             textView.delegate = context.coordinator
             textView.string = text
             textView.drawsBackground = false
@@ -56,6 +69,9 @@ extension UnifiedNotchContainer {
             textView.textColor = .white
             textView.insertionPointColor = .white
             textView.font = .systemFont(ofSize: max(11, textSize))
+            
+            // Set minSize to match scroll view viewport height so the entire area is clickable from the start
+            textView.minSize = NSSize(width: 0.0, height: scrollView.contentSize.height)
 
             if let textContainer = textView.textContainer {
                 textContainer.widthTracksTextView = true
@@ -93,17 +109,26 @@ extension UnifiedNotchContainer {
                 textContainer.containerSize = NSSize(width: scrollView.contentSize.width, height: .greatestFiniteMagnitude)
             }
 
+            // Keep minSize in sync with the viewport height so clicks anywhere in the scroll area hit the text view
+            let viewportHeight = scrollView.contentSize.height
+            if textView.minSize.height != viewportHeight {
+                textView.minSize = NSSize(width: 0.0, height: viewportHeight)
+            }
+
             let currentFocus = isFocused.wrappedValue
-            if currentFocus != context.coordinator.wasFocused {
-                context.coordinator.wasFocused = currentFocus
-                if currentFocus {
-                    if let window = scrollView.window, window.firstResponder !== textView {
+            if currentFocus {
+                if let window = scrollView.window {
+                    if window.firstResponder !== textView {
                         window.makeFirstResponder(textView)
                     }
-                } else {
-                    if let window = scrollView.window, window.firstResponder === textView {
-                        window.makeFirstResponder(nil)
+                    if !window.isKeyWindow {
+                        window.makeKey()
                     }
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            } else {
+                if let window = scrollView.window, window.firstResponder === textView {
+                    window.makeFirstResponder(nil)
                 }
             }
 
@@ -114,17 +139,15 @@ extension UnifiedNotchContainer {
 
         final class Coordinator: NSObject, NSTextViewDelegate {
             @Binding var text: String
-            var isFocused: FocusState<Bool>.Binding
+            var isFocused: Binding<Bool>
             var onScrollMetricsChange: (CGFloat, CGFloat, CGFloat) -> Void
             weak var textView: NSTextView?
             weak var scrollView: NSScrollView?
-            var wasFocused: Bool = false
 
-            init(text: Binding<String>, isFocused: FocusState<Bool>.Binding, onScrollMetricsChange: @escaping (CGFloat, CGFloat, CGFloat) -> Void) {
+            init(text: Binding<String>, isFocused: Binding<Bool>, onScrollMetricsChange: @escaping (CGFloat, CGFloat, CGFloat) -> Void) {
                 _text = text
                 self.isFocused = isFocused
                 self.onScrollMetricsChange = onScrollMetricsChange
-                self.wasFocused = isFocused.wrappedValue
             }
 
             func attach(textView: NSTextView, scrollView: NSScrollView) {
