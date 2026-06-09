@@ -165,11 +165,11 @@ extension UnifiedNotchContainer {
             scrollView.onMetricsChange = onMetricsChange
             scrollView.closeSensitivity = closeSensitivity
 
-            let hostingView = NSHostingView(rootView: content)
+        let hostingView = NSHostingView(rootView: content)
             hostingView.translatesAutoresizingMaskIntoConstraints = true
             hostingView.autoresizingMask = [.width]
             scrollView.documentView = hostingView
-            scheduleHostingViewFrameUpdate(hostingView, in: scrollView)
+        scheduleHostingViewFrameUpdate(hostingView, in: scrollView)
 
             return scrollView
         }
@@ -179,24 +179,24 @@ extension UnifiedNotchContainer {
             nsView.onBottomOverscroll = onBottomOverscroll
             nsView.onOverscrollProgress = onOverscrollProgress
             nsView.onMetricsChange = onMetricsChange
-            if let hostingView = nsView.documentView as? NSHostingView<Content> {
-                hostingView.rootView = content
-                scheduleHostingViewFrameUpdate(hostingView, in: nsView)
-            }
+        if let hostingView = nsView.documentView as? NSHostingView<Content> {
+            hostingView.rootView = content
+            scheduleHostingViewFrameUpdate(hostingView, in: nsView)
         }
+    }
 
-        private func scheduleHostingViewFrameUpdate(_ hostingView: NSHostingView<Content>, in scrollView: NSScrollView) {
-            DispatchQueue.main.async {
-                let hostingWidth = safeDimension(scrollView.contentSize.width, fallback: 1)
-                let intrinsicHeight = hostingView.intrinsicContentSize.height
-                let hostingHeight = safeDimension(intrinsicHeight, fallback: max(1, scrollView.contentSize.height))
-                let currentSize = hostingView.frame.size
-                if abs(currentSize.width - hostingWidth) < 0.5,
-                   abs(currentSize.height - hostingHeight) < 0.5 {
-                    return
-                }
-                hostingView.frame = NSRect(x: 0, y: 0, width: hostingWidth, height: hostingHeight)
+    private func scheduleHostingViewFrameUpdate(_ hostingView: NSHostingView<Content>, in scrollView: NSScrollView) {
+        DispatchQueue.main.async {
+            let hostingWidth = safeDimension(scrollView.contentSize.width, fallback: 1)
+            let intrinsicHeight = hostingView.intrinsicContentSize.height
+            let hostingHeight = safeDimension(intrinsicHeight, fallback: max(1, scrollView.contentSize.height))
+            let currentSize = hostingView.frame.size
+            if abs(currentSize.width - hostingWidth) < 0.5,
+               abs(currentSize.height - hostingHeight) < 0.5 {
+                return
             }
+            hostingView.frame = NSRect(x: 0, y: 0, width: hostingWidth, height: hostingHeight)
+        }
         }
     }
 

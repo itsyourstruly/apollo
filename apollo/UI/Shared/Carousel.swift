@@ -33,4 +33,3 @@ struct CarouselContainer<Content: View>: View {
             .modifier(CarouselTranslationEffect(offsetX: -CGFloat(isSlimBoxInstance ? 0 : currentPage) * panelWidth + swipeState.carouselDragOffset))
     }
 }
-

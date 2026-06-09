@@ -263,7 +263,9 @@ public class DevicePopupManager: ObservableObject {
             guard volumeURL.path != "/" && volumeURL.path.hasPrefix("/Volumes/") else { return }
             
             let device = DeviceDetails(name: volumeName, sfSymbol: "externaldrive.fill", deviceType: .externalStorage, fileURL: volumeURL)
-            self?.presentPopup(for: device)
+            Task { @MainActor [weak self] in
+                self?.presentPopup(for: device)
+            }
         }
     }
     
@@ -444,7 +446,9 @@ public class DevicePopupManager: ObservableObject {
         var name: CFString?
         var dataSize = UInt32(MemoryLayout<CFString?>.size)
         var propertyAddress = AudioObjectPropertyAddress(mSelector: kAudioObjectPropertyName, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
-        let status = AudioObjectGetPropertyData(deviceID, &propertyAddress, 0, nil, &dataSize, &name)
+        let status = withUnsafeMutablePointer(to: &name) { ptr in
+            AudioObjectGetPropertyData(deviceID, &propertyAddress, 0, nil, &dataSize, ptr)
+        }
         if status == noErr, let validName = name {
             return validName as String
         }

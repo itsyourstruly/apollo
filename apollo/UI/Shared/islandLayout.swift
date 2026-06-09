@@ -227,58 +227,69 @@ struct UnifiedNotchContainer: View {
                 Color.clear
                 
                 if isSlimBoxInstance || model.isContentActive {
-                    let currentSlimWidth = model.slimBoxWidth
-                    let currentSlimHeight = model.slimBoxHeight
+                    activeIslandContent
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .ignoresSafeArea()
+    }
 
-                    let panelWidth = isSlimModeActive ? currentSlimWidth : scaledPanelWidth(for: settings)
-                    let panelHeight = isSlimModeActive ? currentSlimHeight : scaledPanelHeight(for: settings)
+    @ViewBuilder
+    private var activeIslandContent: some View {
+        let currentSlimWidth: CGFloat = model.slimBoxWidth
+        let currentSlimHeight: CGFloat = model.slimBoxHeight
 
-                    let notchWidth = isSlimModeActive ? 0 : settings.effectiveNotchWidth
-                    let notchHeight = isSlimModeActive ? 0 : settings.effectiveNotchHeight
-                    let rawProgress = isSlimModeActive ? 1.0 : model.expansionProgress
-                    let progress = rawProgress.isFinite ? max(0, min(1, rawProgress)) : 0
-                    let easedProgress = progress * progress * (3 - 2 * progress)
-                    
-                    let showStopwatch = model.isStopwatchRunning
-                    let showTimer = model.isTimerRunning
-                    let targetLeftExt: CGFloat = showStopwatch ? 100 : 0
-                    let targetRightExt: CGFloat = showTimer ? 100 : 0
-                    let activeLeftExt = targetLeftExt * (1 - easedProgress)
-                    let activeRightExt = targetRightExt * (1 - easedProgress)
+        let panelWidth: CGFloat = isSlimModeActive ? currentSlimWidth : scaledPanelWidth(for: settings)
+        let panelHeight: CGFloat = isSlimModeActive ? currentSlimHeight : scaledPanelHeight(for: settings)
 
-                    let baseRawShellWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress)
-                    let rawShellWidth = isSlimModeActive ? panelWidth : max(baseRawShellWidth, notchWidth + activeLeftExt + activeRightExt)
-                    let rawShellHeight = notchHeight + ((panelHeight - notchHeight) * easedProgress)
-                    let shellWidth = safeDimension(rawShellWidth, fallback: panelWidth)
-                    let shellHeight = safeDimension(rawShellHeight, fallback: panelHeight)
-                    let baseIslandWidth = notchWidth + ((panelWidth - notchWidth) * easedProgress * 0.4)
-                    let islandWidth = baseIslandWidth + activeLeftExt + activeRightExt
-                    let targetIslandWidth = notchWidth + ((panelWidth - notchWidth) * 0.4)
-                    let islandOffset = (activeRightExt - activeLeftExt) / 2
-                    let islandHeight = notchHeight
-                    let pagerRowHeight: CGFloat = (settings.showPagers && !isSlimModeActive) ? 14 : 0
-                    let pagerBottomInset: CGFloat = (settings.showPagers && !isSlimModeActive) ? 8 : 0
-                    let pagerReservedHeight = pagerRowHeight + pagerBottomInset
-                    let isPeekerVisible = !isSlimModeActive && ((settings.showLauncherInPeeker && !model.launcherApps.isEmpty) ||
-                                  (settings.showBookmarksInPeeker && !model.bookmarkItems.isEmpty))
-                    let peekerHeight: CGFloat = isPeekerVisible ? 24 : 0
-                    let contentAreaHeight = max(1, panelHeight - notchHeight - pagerReservedHeight - peekerHeight - (isSlimModeActive ? 0 : 2))
-                    let cornerRadius = safeDimension(max(4, settings.cornerRadius * (0.6 + 0.4 * easedProgress)), fallback: 8)
-                    let contentProgress = easedProgress.isFinite ? max(0, min(1, (easedProgress - 0.18) / 0.82)) : 0
-                    let showToastOnly = (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded && !model.isPinned
-                    let isFloatingPagerActive = settings.pagerStyle == 1 && settings.showPagers && !isSlimModeActive
-                    let floatingPagerHeightAdjustment: CGFloat = isFloatingPagerActive ? (8 * easedProgress + 54 * easedProgress) : 0
-                    let baseContainerHeight = isSlimModeActive ? currentSlimHeight : (showToastOnly ? max(panelHeight, toastPanelHeight) : panelHeight)
-                    let containerHeight = safeDimension(baseContainerHeight + floatingPagerHeightAdjustment, fallback: panelHeight)
-                    let toastWidth = toastPanelWidth
-                    let containerWidth = isSlimModeActive ? currentSlimWidth : max(panelWidth, notchWidth + 240)
-                    let closeProgress = max(0, min(1, model.closeGestureProgress))
-                    let closeEase = closeProgress * closeProgress * (3 - 2 * closeProgress)
-                    let closeOffset = -44 * closeEase
-                    let closeScale = 1 - (0.14 * closeEase)
-                    let shouldRenderExpandedContent = model.isExpanded || model.isPinned || isSlimModeActive
+        let notchWidth: CGFloat = isSlimModeActive ? 0 : settings.effectiveNotchWidth
+        let notchHeight: CGFloat = isSlimModeActive ? 0 : settings.effectiveNotchHeight
+        let rawProgress: CGFloat = isSlimModeActive ? 1.0 : model.expansionProgress
+        let progress: CGFloat = rawProgress.isFinite ? max(0, min(1, rawProgress)) : 0
+        let easedProgress: CGFloat = progress * progress * (3 - 2 * progress)
+        
+        let showStopwatch: Bool = model.isStopwatchRunning
+        let showTimer: Bool = model.isTimerRunning
+        let targetLeftExt: CGFloat = showStopwatch ? 100 : 0
+        let targetRightExt: CGFloat = showTimer ? 100 : 0
+        let activeLeftExt: CGFloat = targetLeftExt * (1 - easedProgress)
+        let activeRightExt: CGFloat = targetRightExt * (1 - easedProgress)
 
-                    ZStack(alignment: .top) {
+        let baseRawShellWidth: CGFloat = notchWidth + ((panelWidth - notchWidth) * easedProgress)
+        let rawShellWidth: CGFloat = isSlimModeActive ? panelWidth : max(baseRawShellWidth, notchWidth + activeLeftExt + activeRightExt)
+        let rawShellHeight: CGFloat = notchHeight + ((panelHeight - notchHeight) * easedProgress)
+        let shellWidth: CGFloat = safeDimension(rawShellWidth, fallback: panelWidth)
+        let shellHeight: CGFloat = safeDimension(rawShellHeight, fallback: panelHeight)
+        let baseIslandWidth: CGFloat = notchWidth + ((panelWidth - notchWidth) * easedProgress * 0.4)
+        let islandWidth: CGFloat = baseIslandWidth + activeLeftExt + activeRightExt
+        let targetIslandWidth: CGFloat = notchWidth + ((panelWidth - notchWidth) * 0.4)
+        let islandOffset: CGFloat = (activeRightExt - activeLeftExt) / 2
+        let islandHeight: CGFloat = notchHeight
+        let pagerRowHeight: CGFloat = (settings.showPagers && !isSlimModeActive) ? 14 : 0
+        let pagerBottomInset: CGFloat = (settings.showPagers && !isSlimModeActive) ? 8 : 0
+        let pagerReservedHeight: CGFloat = pagerRowHeight + pagerBottomInset
+        let isPeekerVisible: Bool = !isSlimModeActive && ((settings.showLauncherInPeeker && !model.launcherApps.isEmpty) ||
+                      (settings.showBookmarksInPeeker && !model.bookmarkItems.isEmpty))
+        let peekerHeight: CGFloat = isPeekerVisible ? 24 : 0
+        let contentAreaHeight: CGFloat = max(1, panelHeight - notchHeight - pagerReservedHeight - peekerHeight - (isSlimModeActive ? 0 : 2))
+        let cornerRadius: CGFloat = safeDimension(max(4, settings.cornerRadius * (0.6 + 0.4 * easedProgress)), fallback: 8)
+        let contentProgress: CGFloat = easedProgress.isFinite ? max(0, min(1, (easedProgress - 0.18) / 0.82)) : 0
+        let showToastOnly: Bool = (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded && !model.isPinned
+        let isFloatingPagerActive: Bool = settings.pagerStyle == 1 && settings.showPagers && !isSlimModeActive
+        let floatingPagerHeightAdjustment: CGFloat = isFloatingPagerActive ? (8 * easedProgress + 54 * easedProgress) : 0
+        let baseContainerHeight: CGFloat = isSlimModeActive ? currentSlimHeight : (showToastOnly ? max(panelHeight, toastPanelHeight) : panelHeight)
+        let containerHeight: CGFloat = safeDimension(baseContainerHeight + floatingPagerHeightAdjustment, fallback: panelHeight)
+        let toastWidth: CGFloat = toastPanelWidth
+        let containerWidth: CGFloat = isSlimModeActive ? currentSlimWidth : max(panelWidth, notchWidth + 240)
+        let closeProgress: CGFloat = max(0, min(1, model.closeGestureProgress))
+        let closeEase: CGFloat = closeProgress * closeProgress * (3 - 2 * closeProgress)
+        let closeOffset: CGFloat = -44 * closeEase
+        let closeScale: CGFloat = 1 - (0.14 * closeEase)
+        let shouldRenderExpandedContent: Bool = model.isExpanded || model.isPinned || isSlimModeActive
+
+        ZStack(alignment: .top) {
                         // Overlay previews so they don't impact the measured height of the island body
                         if settings.showHoverPreviews && !isSlimModeActive {
                             settingsPreviewOverlay
@@ -488,12 +499,6 @@ struct UnifiedNotchContainer: View {
                             unloadCollapsedPageState()
                         }
                     }
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .ignoresSafeArea()
     }
 
     @ViewBuilder

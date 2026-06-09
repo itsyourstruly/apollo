@@ -135,14 +135,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func refreshChunkedClipboard() {
         let items = model.clipboardItems
         let columns = max(1, settings.clipboardColumns)
-        Task.detached(priority: .userInitiated) { [weak self] in
-            var chunked: [[ClipboardEntry]] = []
+        Task.detached(priority: .userInitiated) {
+            var chunkedRows: [[ClipboardEntry]] = []
             for i in stride(from: 0, to: items.count, by: columns) {
                 let end = min(i + columns, items.count)
-                chunked.append(Array(items[i..<end]))
+                chunkedRows.append(Array(items[i..<end]))
             }
-            await MainActor.run {
-                self?.model.chunkedClipboardRows = chunked
+            let finalChunked = chunkedRows
+            await MainActor.run { [weak self] in
+                self?.model.chunkedClipboardRows = finalChunked
             }
         }
     }
@@ -453,8 +454,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     // property itself still holds the old value at this point.
                     self.startGlobalDragPolling(forceEnabled: true)
                 } else {
-                    self.dragPollingTimer?.cancel()
-                    self.dragPollingTimer = nil
+                self.dragPollingTimer?.cancel()
+                self.dragPollingTimer = nil
                     self.stopFastDragTracking()
                     self.resetDragTrackingState()
                     self.hideSlimBox()
@@ -614,7 +615,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let windowX = notchX - (windowWidth - notchWidth) / 2
         let windowY = screenRect.maxY - windowHeight
         
-        window.setFrame(NSRect(x: windowX, y: windowY, width: windowWidth, height: windowHeight), display: true)
+        let newFrame = NSRect(x: windowX, y: windowY, width: windowWidth, height: windowHeight)
+        let current = window.frame
+        if abs(current.origin.x - newFrame.origin.x) < 1.0,
+           abs(current.origin.y - newFrame.origin.y) < 1.0,
+           abs(current.size.width - newFrame.size.width) < 1.0,
+           abs(current.size.height - newFrame.size.height) < 1.0 {
+            window.level = .statusBar + 2
+            return
+        }
+        window.setFrame(newFrame, display: true)
         window.level = .statusBar + 2
     }
     
@@ -931,11 +941,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 } else {
                     if isNewChange && currentChangeCount != lastRetryChangeCount {
                         lastRetryChangeCount = currentChangeCount
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) { [weak self] in
-                        self?.pollClipboardFromPasteboard(force: true)
+                        Task { @MainActor [weak self] in
+                            try? await Task.sleep(nanoseconds: 100_000_000)
+                            self?.pollClipboardFromPasteboard(force: true)
                         }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-                        self?.pollClipboardFromPasteboard(force: true)
+                        Task { @MainActor [weak self] in
+                            try? await Task.sleep(nanoseconds: 250_000_000)
+                            self?.pollClipboardFromPasteboard(force: true)
                         }
                     }
                     if !isNewChange {

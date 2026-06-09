@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var showAdvancedAnimation = false
     @State private var launcherApps: [LauncherApp] = []
     @State private var bookmarkItems: [BookmarkItem] = []
+    @State private var isWindowVisible = true
 
     private static let numberFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
@@ -25,47 +26,54 @@ struct SettingsView: View {
 
     var body: some View {
         let accent = Color(settings.accentColor)
-        HSplitView {
-            List(SettingsSection.allCases, selection: $selection) { section in
-                Label(section.rawValue, systemImage: section.symbolName)
-                    .tag(section)
-            }
-            .listStyle(.sidebar)
-            .frame(minWidth: 140, idealWidth: 210, maxWidth: 250)
+        Group {
+            if isWindowVisible {
+                HSplitView {
+                    List(SettingsSection.allCases, selection: $selection) { section in
+                        Label(section.rawValue, systemImage: section.symbolName)
+                            .tag(section)
+                    }
+                    .listStyle(.sidebar)
+                    .frame(minWidth: 140, idealWidth: 210, maxWidth: 250)
 
-            Group {
-                switch selection ?? .general {
-                case .general:
-                    generalSettings
-                case .appearance:
-                    appearanceSettings
-                case .clip:
-                    clipSettings
-                case .jot:
-                    jotSettings
-                case .box:
-                    boxSettings
-                case .chrono:
-                    chronoSettings
-                case .calendar:
-                    calendarSettings
-                case .launcherBookmarks:
-                    launcherBookmarksSettings
-                case .sharing:
-                    SharingSettingsView()
-                case .advanced:
-                    advancedSettings
-                case .updates:
-                    updatesSettings
+                    Group {
+                        switch selection ?? .general {
+                        case .general:
+                            generalSettings
+                        case .appearance:
+                            appearanceSettings
+                        case .clip:
+                            clipSettings
+                        case .jot:
+                            jotSettings
+                        case .box:
+                            boxSettings
+                        case .chrono:
+                            chronoSettings
+                        case .calendar:
+                            calendarSettings
+                        case .launcherBookmarks:
+                            launcherBookmarksSettings
+                        case .sharing:
+                            SharingSettingsView()
+                        case .advanced:
+                            advancedSettings
+                        case .updates:
+                            updatesSettings
+                        }
+                    }
+                    .frame(minWidth: 320, idealWidth: 560, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .ignoresSafeArea(.container, edges: .top)
                 }
+                .frame(minWidth: 520, minHeight: 420)
+                .tint(accent)
+                .controlSize(.regular)
+                .toggleStyle(.switch)
+            } else {
+                Color.clear
+                    .frame(minWidth: 520, minHeight: 420)
             }
-            .frame(minWidth: 320, idealWidth: 560, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .ignoresSafeArea(.container, edges: .top)
         }
-        .frame(minWidth: 520, minHeight: 420)
-        .tint(accent)
-        .controlSize(.regular)
-        .toggleStyle(.switch)
         .background(SettingsWindowChromeConfigurator())
         .toolbarBackground(.hidden, for: .windowToolbar)
         .onAppear {
@@ -78,6 +86,22 @@ struct SettingsView: View {
             // Instantly clear memory when Settings is closed to prevent RAM creep
             AppIconCache.shared.clear()
             BookmarkIconCache.shared.clear()
+            launcherApps.removeAll()
+            bookmarkItems.removeAll()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("apolloSettingsClosed"))) { _ in
+            settings.showHoverPreviews = false
+            AppIconCache.shared.clear()
+            BookmarkIconCache.shared.clear()
+            launcherApps.removeAll()
+            bookmarkItems.removeAll()
+            isWindowVisible = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("apolloSettingsOpened"))) { _ in
+            isWindowVisible = true
+            settings.showHoverPreviews = true
+            launcherApps = loadLauncherApps()
+            bookmarkItems = loadBookmarkItems()
         }
     }
 

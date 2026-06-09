@@ -9,9 +9,7 @@ struct BatteryNotchView: View {
     @State private var animatedLevel: Double = 1.0
 
     var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let h = geo.size.height
+        GeometryReader { _ in
             let t = settings.batteryBarThickness
             let padding: CGFloat = 24
             let notchWidth = settings.effectiveNotchWidth
