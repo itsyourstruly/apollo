@@ -1109,6 +1109,148 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var devicePopupEnabled: Bool {
+        didSet {
+            enqueueDefaultSet(devicePopupEnabled, forKey: AppStorageKey.devicePopupEnabled)
+        }
+    }
+
+    @Published var devicePopupDelay: Double {
+        didSet {
+            enqueueDefaultSet(devicePopupDelay, forKey: AppStorageKey.devicePopupDelay)
+        }
+    }
+
+    @Published var devicePopupStorageEnabled: Bool {
+        didSet {
+            enqueueDefaultSet(devicePopupStorageEnabled, forKey: AppStorageKey.devicePopupStorageEnabled)
+        }
+    }
+
+    @Published var devicePopupBluetoothEnabled: Bool {
+        didSet {
+            enqueueDefaultSet(devicePopupBluetoothEnabled, forKey: AppStorageKey.devicePopupBluetoothEnabled)
+        }
+    }
+
+    @Published var devicePopupWiredEnabled: Bool {
+        didSet {
+            enqueueDefaultSet(devicePopupWiredEnabled, forKey: AppStorageKey.devicePopupWiredEnabled)
+        }
+    }
+
+    @Published var batteryIndicatorEnabled: Bool {
+        didSet {
+            enqueueDefaultSet(batteryIndicatorEnabled, forKey: AppStorageKey.batteryIndicatorEnabled)
+        }
+    }
+
+    @Published var batteryBarThickness: CGFloat {
+        didSet {
+            let clampedValue = clamp(batteryBarThickness, min: 1, max: 12)
+            if clampedValue != batteryBarThickness {
+                batteryBarThickness = clampedValue
+            }
+            enqueueDefaultSet(Double(batteryBarThickness), forKey: AppStorageKey.batteryBarThickness)
+        }
+    }
+    
+    @Published var batteryBarShowGhostTrack: Bool {
+        didSet {
+            enqueueDefaultSet(batteryBarShowGhostTrack, forKey: AppStorageKey.batteryBarShowGhostTrack)
+        }
+    }
+
+    @Published var batteryBarUseAccent: Bool {
+        didSet {
+            enqueueDefaultSet(batteryBarUseAccent, forKey: AppStorageKey.batteryBarUseAccent)
+        }
+    }
+
+    @Published var batteryBarColor: NSColor {
+        didSet {
+            persistColor(
+                batteryBarColor,
+                redKey: AppStorageKey.batteryBarRed,
+                greenKey: AppStorageKey.batteryBarGreen,
+                blueKey: AppStorageKey.batteryBarBlue,
+                alphaKey: AppStorageKey.batteryBarAlpha
+            )
+        }
+    }
+
+    @Published var batteryBarColorMode: Int {
+        didSet {
+            enqueueDefaultSet(batteryBarColorMode, forKey: AppStorageKey.batteryBarColorMode)
+        }
+    }
+
+    @Published var batteryBarMatchLowPowerMode: Bool {
+        didSet {
+            enqueueDefaultSet(batteryBarMatchLowPowerMode, forKey: AppStorageKey.batteryBarMatchLowPowerMode)
+        }
+    }
+
+    @Published var batteryBarColorCharging: NSColor {
+        didSet {
+            persistColor(
+                batteryBarColorCharging,
+                redKey: AppStorageKey.batteryBarChargingRed,
+                greenKey: AppStorageKey.batteryBarChargingGreen,
+                blueKey: AppStorageKey.batteryBarChargingBlue,
+                alphaKey: AppStorageKey.batteryBarChargingAlpha
+            )
+        }
+    }
+
+    @Published var batteryBarColor0to20: NSColor {
+        didSet {
+            persistColor(
+                batteryBarColor0to20,
+                redKey: AppStorageKey.batteryBar0to20Red,
+                greenKey: AppStorageKey.batteryBar0to20Green,
+                blueKey: AppStorageKey.batteryBar0to20Blue,
+                alphaKey: AppStorageKey.batteryBar0to20Alpha
+            )
+        }
+    }
+
+    @Published var batteryBarColor20to50: NSColor {
+        didSet {
+            persistColor(
+                batteryBarColor20to50,
+                redKey: AppStorageKey.batteryBar20to50Red,
+                greenKey: AppStorageKey.batteryBar20to50Green,
+                blueKey: AppStorageKey.batteryBar20to50Blue,
+                alphaKey: AppStorageKey.batteryBar20to50Alpha
+            )
+        }
+    }
+
+    @Published var batteryBarColor50to75: NSColor {
+        didSet {
+            persistColor(
+                batteryBarColor50to75,
+                redKey: AppStorageKey.batteryBar50to75Red,
+                greenKey: AppStorageKey.batteryBar50to75Green,
+                blueKey: AppStorageKey.batteryBar50to75Blue,
+                alphaKey: AppStorageKey.batteryBar50to75Alpha
+            )
+        }
+    }
+
+    @Published var batteryBarColor75to100: NSColor {
+        didSet {
+            persistColor(
+                batteryBarColor75to100,
+                redKey: AppStorageKey.batteryBar75to100Red,
+                greenKey: AppStorageKey.batteryBar75to100Green,
+                blueKey: AppStorageKey.batteryBar75to100Blue,
+                alphaKey: AppStorageKey.batteryBar75to100Alpha
+            )
+        }
+    }
+
     @Published var hardwareNotchX: CGFloat = 0
     @Published var hardwareNotchWidth: CGFloat = 210
     @Published var hardwareNotchHeight: CGFloat = 32
@@ -1857,6 +1999,126 @@ final class AppSettings: ObservableObject {
         } else {
             boxSlimModeHeight = defaults.double(forKey: "boxSlimModeHeight")
         }
+        
+        if defaults.object(forKey: AppStorageKey.devicePopupEnabled) == nil {
+            devicePopupEnabled = false
+        } else {
+            devicePopupEnabled = defaults.bool(forKey: AppStorageKey.devicePopupEnabled)
+        }
+
+        if defaults.object(forKey: AppStorageKey.devicePopupDelay) == nil {
+            devicePopupDelay = 5.0
+        } else {
+            devicePopupDelay = defaults.double(forKey: AppStorageKey.devicePopupDelay)
+        }
+
+        if defaults.object(forKey: AppStorageKey.devicePopupStorageEnabled) == nil {
+            devicePopupStorageEnabled = true
+        } else {
+            devicePopupStorageEnabled = defaults.bool(forKey: AppStorageKey.devicePopupStorageEnabled)
+        }
+
+        if defaults.object(forKey: AppStorageKey.devicePopupBluetoothEnabled) == nil {
+            devicePopupBluetoothEnabled = false // Default false to prevent instant crash without Info.plist key
+        } else {
+            devicePopupBluetoothEnabled = defaults.bool(forKey: AppStorageKey.devicePopupBluetoothEnabled)
+        }
+
+        if defaults.object(forKey: AppStorageKey.devicePopupWiredEnabled) == nil {
+            devicePopupWiredEnabled = true
+        } else {
+            devicePopupWiredEnabled = defaults.bool(forKey: AppStorageKey.devicePopupWiredEnabled)
+        }
+
+        if defaults.object(forKey: AppStorageKey.batteryIndicatorEnabled) == nil {
+            batteryIndicatorEnabled = false
+        } else {
+            batteryIndicatorEnabled = defaults.bool(forKey: AppStorageKey.batteryIndicatorEnabled)
+        }
+
+        if let storedThickness = defaults.object(forKey: AppStorageKey.batteryBarThickness) as? Double {
+            batteryBarThickness = clamp(CGFloat(storedThickness), min: 1, max: 12)
+        } else {
+            batteryBarThickness = 3.0
+        }
+        
+        if defaults.object(forKey: AppStorageKey.batteryBarShowGhostTrack) == nil {
+            batteryBarShowGhostTrack = true
+        } else {
+            batteryBarShowGhostTrack = defaults.bool(forKey: AppStorageKey.batteryBarShowGhostTrack)
+        }
+
+        if defaults.object(forKey: AppStorageKey.batteryBarUseAccent) == nil {
+            batteryBarUseAccent = true
+        } else {
+            batteryBarUseAccent = defaults.bool(forKey: AppStorageKey.batteryBarUseAccent)
+        }
+
+        batteryBarColor = AppSettings.loadColor(
+            defaults: defaults,
+            redKey: AppStorageKey.batteryBarRed,
+            greenKey: AppStorageKey.batteryBarGreen,
+            blueKey: AppStorageKey.batteryBarBlue,
+            alphaKey: AppStorageKey.batteryBarAlpha,
+            fallback: .systemGreen
+        )
+
+        if defaults.object(forKey: AppStorageKey.batteryBarColorMode) == nil {
+            batteryBarColorMode = defaults.bool(forKey: AppStorageKey.batteryBarUseAccent) ? 0 : 1
+        } else {
+            batteryBarColorMode = defaults.integer(forKey: AppStorageKey.batteryBarColorMode)
+        }
+        
+        if defaults.object(forKey: AppStorageKey.batteryBarMatchLowPowerMode) == nil {
+            batteryBarMatchLowPowerMode = true
+        } else {
+            batteryBarMatchLowPowerMode = defaults.bool(forKey: AppStorageKey.batteryBarMatchLowPowerMode)
+        }
+
+        batteryBarColorCharging = AppSettings.loadColor(
+            defaults: defaults,
+            redKey: AppStorageKey.batteryBarChargingRed,
+            greenKey: AppStorageKey.batteryBarChargingGreen,
+            blueKey: AppStorageKey.batteryBarChargingBlue,
+            alphaKey: AppStorageKey.batteryBarChargingAlpha,
+            fallback: .systemGreen
+        )
+
+        batteryBarColor0to20 = AppSettings.loadColor(
+            defaults: defaults,
+            redKey: AppStorageKey.batteryBar0to20Red,
+            greenKey: AppStorageKey.batteryBar0to20Green,
+            blueKey: AppStorageKey.batteryBar0to20Blue,
+            alphaKey: AppStorageKey.batteryBar0to20Alpha,
+            fallback: .systemRed
+        )
+
+        batteryBarColor20to50 = AppSettings.loadColor(
+            defaults: defaults,
+            redKey: AppStorageKey.batteryBar20to50Red,
+            greenKey: AppStorageKey.batteryBar20to50Green,
+            blueKey: AppStorageKey.batteryBar20to50Blue,
+            alphaKey: AppStorageKey.batteryBar20to50Alpha,
+            fallback: .systemOrange
+        )
+
+        batteryBarColor50to75 = AppSettings.loadColor(
+            defaults: defaults,
+            redKey: AppStorageKey.batteryBar50to75Red,
+            greenKey: AppStorageKey.batteryBar50to75Green,
+            blueKey: AppStorageKey.batteryBar50to75Blue,
+            alphaKey: AppStorageKey.batteryBar50to75Alpha,
+            fallback: .systemYellow
+        )
+
+        batteryBarColor75to100 = AppSettings.loadColor(
+            defaults: defaults,
+            redKey: AppStorageKey.batteryBar75to100Red,
+            greenKey: AppStorageKey.batteryBar75to100Green,
+            blueKey: AppStorageKey.batteryBar75to100Blue,
+            alphaKey: AppStorageKey.batteryBar75to100Alpha,
+            fallback: .systemGreen
+        )
 
         // Custom Titles
         clipboardCustomTitle = defaults.string(forKey: AppStorageKey.clipboardCustomTitle)

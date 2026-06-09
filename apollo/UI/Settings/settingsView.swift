@@ -3,7 +3,6 @@ import SwiftUI
 import Sparkle
 
 struct SettingsView: View {
-    let model: NotchMenuModel
     @ObservedObject private var settings = AppSettings.shared
     let updater: SPUUpdater
 
@@ -13,9 +12,8 @@ struct SettingsView: View {
     @State private var isSettingsAddBookmarkPresented = false
     @State private var showTitleOverrides = false
     @State private var showAdvancedAnimation = false
-
-    @State private var localLauncherApps: [LauncherApp] = []
-    @State private var localBookmarkItems: [BookmarkItem] = []
+    @State private var launcherApps: [LauncherApp] = []
+    @State private var bookmarkItems: [BookmarkItem] = []
 
     private static let numberFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
@@ -63,12 +61,6 @@ struct SettingsView: View {
             }
             .frame(minWidth: 320, idealWidth: 560, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .ignoresSafeArea(.container, edges: .top)
-        .onReceive(model.$launcherApps) { apps in
-            localLauncherApps = apps
-        }
-        .onReceive(model.$bookmarkItems) { items in
-            localBookmarkItems = items
-        }
         }
         .frame(minWidth: 520, minHeight: 420)
         .tint(accent)
@@ -78,12 +70,25 @@ struct SettingsView: View {
         .toolbarBackground(.hidden, for: .windowToolbar)
         .onAppear {
             settings.showHoverPreviews = true
-        localLauncherApps = model.launcherApps
-        localBookmarkItems = model.bookmarkItems
+            launcherApps = loadLauncherApps()
+            bookmarkItems = loadBookmarkItems()
         }
         .onDisappear {
             settings.showHoverPreviews = false
+            // Instantly clear memory when Settings is closed to prevent RAM creep
+            AppIconCache.shared.clear()
+            BookmarkIconCache.shared.clear()
         }
+    }
+
+    private func saveApps() {
+        persistLauncherApps(launcherApps)
+        NotificationCenter.default.post(name: NSNotification.Name("apolloDataChanged"), object: nil)
+    }
+
+    private func saveBookmarks() {
+        persistBookmarkItems(bookmarkItems)
+        NotificationCenter.default.post(name: NSNotification.Name("apolloDataChanged"), object: nil)
     }
 
     @ViewBuilder
@@ -199,7 +204,7 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
                 
-                Text(settings.openMethod == 0 ? "Hover over the notch to expand the island." : "Hovering expands the notch slightly; tapping opens the island.")
+                Text(settings.openMethod == 0 ? "Hover over the notch to expand the island." : "Tapping the notch opens the island.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -220,6 +225,85 @@ struct SettingsView: View {
                 }
 
                 Toggle("Show pagers", isOn: $settings.showPagers)
+            }
+
+            Section("Device Connection Popup") {
+                Toggle("New device connection popup", isOn: $settings.devicePopupEnabled)
+                
+                if settings.devicePopupEnabled {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Toggle("External storage drives", isOn: $settings.devicePopupStorageEnabled)
+                        Toggle("Bluetooth devices (Requires Info.plist permission)", isOn: $settings.devicePopupBluetoothEnabled)
+                        Toggle("Other wired devices (Earbuds, etc.)", isOn: $settings.devicePopupWiredEnabled)
+                    }
+                    .padding(.leading, 8)
+                    .padding(.vertical, 4)
+
+                    HStack {
+                        Text("Popup close delay")
+                        Slider(value: $settings.devicePopupDelay, in: 0...30, step: 1)
+                        Text(settings.devicePopupDelay == 0 ? "Never" : "\(Int(settings.devicePopupDelay))s")
+                            .frame(width: 48, alignment: .trailing)
+                    }
+                }
+            }
+
+            Section("Battery Indicator") {
+                Toggle("Show battery level around notch", isOn: $settings.batteryIndicatorEnabled)
+                
+                if settings.batteryIndicatorEnabled {
+                    HStack {
+                        Text("Bar thickness")
+                        Slider(value: $settings.batteryBarThickness, in: 1...12)
+                        Text("\(Int(settings.batteryBarThickness)) pt")
+                            .frame(width: 40, alignment: .trailing)
+                    }
+                    
+                    Toggle("Show unfilled battery track", isOn: $settings.batteryBarShowGhostTrack)
+                    
+                    Picker("Color Mode", selection: $settings.batteryBarColorMode) {
+                        Text("Accent Color").tag(0)
+                        Text("Single Color").tag(1)
+                        Text("Dynamic Levels").tag(2)
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    if settings.batteryBarColorMode == 1 {
+                        ColorPicker("Bar color", selection: Binding(
+                            get: { Color(settings.batteryBarColor) },
+                            set: { settings.batteryBarColor = NSColor($0) }
+                        ))
+                    } else if settings.batteryBarColorMode == 2 {
+                        VStack(spacing: 8) {
+                            ColorPicker("< 20%", selection: Binding(
+                                get: { Color(settings.batteryBarColor0to20) },
+                                set: { settings.batteryBarColor0to20 = NSColor($0) }
+                            ))
+                            ColorPicker("20% - 50%", selection: Binding(
+                                get: { Color(settings.batteryBarColor20to50) },
+                                set: { settings.batteryBarColor20to50 = NSColor($0) }
+                            ))
+                            ColorPicker("50% - 75%", selection: Binding(
+                                get: { Color(settings.batteryBarColor50to75) },
+                                set: { settings.batteryBarColor50to75 = NSColor($0) }
+                            ))
+                            ColorPicker("75% - 100%", selection: Binding(
+                                get: { Color(settings.batteryBarColor75to100) },
+                                set: { settings.batteryBarColor75to100 = NSColor($0) }
+                            ))
+                        }
+                        .padding(.leading, 8)
+                        .padding(.vertical, 4)
+                    }
+                    
+                    ColorPicker("Color while charging", selection: Binding(get: { Color(settings.batteryBarColorCharging) }, set: { settings.batteryBarColorCharging = NSColor($0) }))
+                    
+                    Toggle("Match Low Power Mode (Yellow)", isOn: $settings.batteryBarMatchLowPowerMode)
+                    
+                    Text("The bar wraps around the notch: down the left edge, across the bottom, and up the right edge.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .nativeSettingsFormStyle()
@@ -584,18 +668,18 @@ struct SettingsView: View {
 
             Section("Manage Applications") {
                 List {
-                    ForEach(localLauncherApps) { app in
+                    ForEach(launcherApps) { app in
                         HStack {
                             CustomAppIconView(appPath: app.path, size: 20)
                             Text(app.name)
                                 .font(.body)
                             Spacer()
                             Button {
-                                if let idx = model.launcherApps.firstIndex(where: { $0.id == app.id }) {
-                                    var updated = model.launcherApps
+                                if let idx = launcherApps.firstIndex(where: { $0.id == app.id }) {
+                                    var updated = launcherApps
                                     updated[idx].isPinned.toggle()
-                                    model.launcherApps = updated
-                                    persistLauncherApps(updated)
+                                    launcherApps = updated
+                                    saveApps()
                                 }
                             } label: {
                                 Image(systemName: app.isPinned ? "pin.fill" : "pin")
@@ -606,9 +690,9 @@ struct SettingsView: View {
                             .help(app.isPinned ? "Unpin from Peeker" : "Pin to Peeker")
 
                             Button {
-                                if let idx = model.launcherApps.firstIndex(where: { $0.id == app.id }) {
-                                    model.launcherApps.remove(at: idx)
-                                    persistLauncherApps(model.launcherApps)
+                                if let idx = launcherApps.firstIndex(where: { $0.id == app.id }) {
+                                    launcherApps.remove(at: idx)
+                                    saveApps()
                                 }
                             } label: {
                                 Image(systemName: "trash")
@@ -625,8 +709,8 @@ struct SettingsView: View {
                 }
                 .popover(isPresented: $isSettingsAddAppPresented, arrowEdge: .bottom) {
                     AddAppSheet(isPresented: $isSettingsAddAppPresented, onAdd: { app in
-                        model.launcherApps.append(app)
-                        persistLauncherApps(model.launcherApps)
+                        launcherApps.append(app)
+                        saveApps()
                     })
                 }
             }
@@ -676,7 +760,7 @@ struct SettingsView: View {
 
             Section("Manage Bookmarks") {
                 List {
-                    ForEach(localBookmarkItems) { bookmark in
+                    ForEach(bookmarkItems) { bookmark in
                         HStack {
                             BookmarkIconView(bookmark: bookmark, size: 20, accentColor: Color(settings.accentColor))
                             VStack(alignment: .leading, spacing: 2) {
@@ -688,11 +772,11 @@ struct SettingsView: View {
                             }
                             Spacer()
                             Button {
-                                if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
-                                    var updated = model.bookmarkItems
+                                if let idx = bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
+                                    var updated = bookmarkItems
                                     updated[idx].isPinned.toggle()
-                                    model.bookmarkItems = updated
-                                    persistBookmarkItems(updated)
+                                    bookmarkItems = updated
+                                    saveBookmarks()
                                 }
                             } label: {
                                 Image(systemName: bookmark.isPinned ? "pin.fill" : "pin")
@@ -703,9 +787,9 @@ struct SettingsView: View {
                             .help(bookmark.isPinned ? "Unpin from Peeker" : "Pin to Peeker")
 
                             Button {
-                                if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
-                                    model.bookmarkItems.remove(at: idx)
-                                    persistBookmarkItems(model.bookmarkItems)
+                                if let idx = bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
+                                    bookmarkItems.remove(at: idx)
+                                    saveBookmarks()
                                 }
                             } label: {
                                 Image(systemName: "trash")
@@ -722,14 +806,14 @@ struct SettingsView: View {
                 }
                 .popover(isPresented: $isSettingsAddBookmarkPresented, arrowEdge: .bottom) {
                     AddBookmarkSheet(isPresented: $isSettingsAddBookmarkPresented, onAdd: { bookmark in
-                        model.bookmarkItems.append(bookmark)
-                        persistBookmarkItems(model.bookmarkItems)
+                        bookmarkItems.append(bookmark)
+                        saveBookmarks()
                         fetchFaviconBase64(for: bookmark.urlString) { base64 in
                             if let base64 = base64 {
                                 DispatchQueue.main.async {
-                                    if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
-                                        model.bookmarkItems[idx].iconBase64 = base64
-                                        persistBookmarkItems(model.bookmarkItems)
+                                    if let idx = bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
+                                        bookmarkItems[idx].iconBase64 = base64
+                                        saveBookmarks()
                                     }
                                 }
                             }

@@ -98,7 +98,7 @@ struct ApolloApp: App {
 
     var body: some Scene {
         Settings {
-            SettingsView(model: appDelegate.model, updater: updaterController.updater)
+            SettingsView(updater: updaterController.updater)
         }
         .commands {
             CommandGroup(after: .appInfo) {
@@ -230,6 +230,50 @@ enum AppStorageKey {
     static let notchEdgeThickness = "notchEdgeThickness"
     static let approachWidth = "approachWidth"
     static let approachHeight = "approachHeight"
+
+    static let devicePopupEnabled = "devicePopupEnabled"
+    static let devicePopupDelay = "devicePopupDelay"
+    static let devicePopupStorageEnabled = "devicePopupStorageEnabled"
+    static let devicePopupBluetoothEnabled = "devicePopupBluetoothEnabled"
+    static let devicePopupWiredEnabled = "devicePopupWiredEnabled"
+    
+
+    static let batteryIndicatorEnabled = "batteryIndicatorEnabled"
+    static let batteryBarThickness = "batteryBarThickness"
+    static let batteryBarUseAccent = "batteryBarUseAccent"
+    static let batteryBarRed = "batteryBarRed"
+    static let batteryBarGreen = "batteryBarGreen"
+    static let batteryBarBlue = "batteryBarBlue"
+    static let batteryBarAlpha = "batteryBarAlpha"
+    static let batteryBarShowGhostTrack = "batteryBarShowGhostTrack"
+    
+    static let batteryBarColorMode = "batteryBarColorMode"
+    static let batteryBarMatchLowPowerMode = "batteryBarMatchLowPowerMode"
+
+    static let batteryBarChargingRed = "batteryBarChargingRed"
+    static let batteryBarChargingGreen = "batteryBarChargingGreen"
+    static let batteryBarChargingBlue = "batteryBarChargingBlue"
+    static let batteryBarChargingAlpha = "batteryBarChargingAlpha"
+
+    static let batteryBar0to20Red = "batteryBar0to20Red"
+    static let batteryBar0to20Green = "batteryBar0to20Green"
+    static let batteryBar0to20Blue = "batteryBar0to20Blue"
+    static let batteryBar0to20Alpha = "batteryBar0to20Alpha"
+
+    static let batteryBar20to50Red = "batteryBar20to50Red"
+    static let batteryBar20to50Green = "batteryBar20to50Green"
+    static let batteryBar20to50Blue = "batteryBar20to50Blue"
+    static let batteryBar20to50Alpha = "batteryBar20to50Alpha"
+
+    static let batteryBar50to75Red = "batteryBar50to75Red"
+    static let batteryBar50to75Green = "batteryBar50to75Green"
+    static let batteryBar50to75Blue = "batteryBar50to75Blue"
+    static let batteryBar50to75Alpha = "batteryBar50to75Alpha"
+
+    static let batteryBar75to100Red = "batteryBar75to100Red"
+    static let batteryBar75to100Green = "batteryBar75to100Green"
+    static let batteryBar75to100Blue = "batteryBar75to100Blue"
+    static let batteryBar75to100Alpha = "batteryBar75to100Alpha"
 
     // Custom Titles (String)
     static let clipboardCustomTitle = "clipboardCustomTitle"

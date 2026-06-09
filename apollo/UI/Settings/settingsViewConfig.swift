@@ -2,24 +2,23 @@
 import SwiftUI
 
 struct SettingsWindowChromeConfigurator: NSViewRepresentable {
-    private static var focusedWindowNumbers = Set<Int>()
-
     func makeNSView(context: Context) -> NSView {
         let view = NSView(frame: .zero)
-        DispatchQueue.main.async {
-            configureWindowIfAvailable(from: view)
-        }
         return view
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            configureWindowIfAvailable(from: nsView)
+        if nsView.window?.titleVisibility != .hidden {
+            DispatchQueue.main.async {
+                configureWindowIfAvailable(from: nsView)
+            }
         }
     }
 
     private func configureWindowIfAvailable(from view: NSView) {
         guard let window = view.window else { return }
+        guard window.titleVisibility != .hidden else { return }
+        
         let standardWindowMask: NSWindow.StyleMask = [
             .titled,
             .closable,
@@ -41,11 +40,8 @@ struct SettingsWindowChromeConfigurator: NSViewRepresentable {
         if #available(macOS 11.0, *) {
             window.titlebarSeparatorStyle = .none
         }
-
-        if !Self.focusedWindowNumbers.contains(window.windowNumber) {
-            Self.focusedWindowNumbers.insert(window.windowNumber)
-            NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
-        }
+        
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
     }
 }

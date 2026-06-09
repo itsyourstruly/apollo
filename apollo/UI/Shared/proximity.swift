@@ -37,8 +37,12 @@ final class ProximityWakeWindow: NSPanel {
     var onDraggingUpdated: ((NSPoint) -> Void)?
     var onDraggingExited: (() -> Void)?
 
-    var onTapToOpen: (() -> Void)?
-    var isTapToOpenEnabled: (() -> Bool)?
+    var onTapToOpen: (() -> Void)? {
+        didSet { (contentView as? TrackingHostView)?.onTapToOpen = onTapToOpen }
+    }
+    var isTapToOpenEnabled: (() -> Bool)? {
+        didSet { (contentView as? TrackingHostView)?.isTapToOpenEnabled = isTapToOpenEnabled }
+    }
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
@@ -124,11 +128,14 @@ final class ProximityWakeWindow: NSPanel {
         var onDraggingEntered: (() -> Void)?
         var onDraggingUpdated: ((NSPoint) -> Void)?
         var onDraggingExited: (() -> Void)?
+        var onTapToOpen: (() -> Void)?
+        var isTapToOpenEnabled: (() -> Bool)?
         private var notchEdgeTrackingArea: NSTrackingArea?
         private var approachTrackingArea: NSTrackingArea?
         private var notchEdgeRect: CGRect = .zero
         private var approachRect: CGRect = .zero
         private var activeZones = Set<ZoneID>()
+        private var lastMouseMoveTime: TimeInterval = 0
 
         override init(frame frameRect: NSRect) {
             super.init(frame: frameRect)
@@ -205,6 +212,11 @@ final class ProximityWakeWindow: NSPanel {
         }
 
         override func mouseMoved(with event: NSEvent) {
+            // Hard limit tracking to 60fps max to eliminate aggressive CPU wakes 
+            let now = ProcessInfo.processInfo.systemUptime
+            guard now - lastMouseMoveTime > 0.016 else { return }
+            lastMouseMoveTime = now
+            
             let localPoint = convert(event.locationInWindow, from: nil)
             // Use event metadata to avoid 120Hz WindowServer IPC queries to NSEvent.mouseLocation
             let globalPoint = event.window?.convertPoint(toScreen: event.locationInWindow) ?? NSEvent.mouseLocation
@@ -245,6 +257,20 @@ final class ProximityWakeWindow: NSPanel {
             onDraggingExited?()
         }
 
-        override func hitTest(_ point: NSPoint) -> NSView? { nil } // never intercept clicks
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            if isTapToOpenEnabled?() == true && notchEdgeRect.contains(point) {
+                return self
+            }
+            return nil
+        }
+        
+        override func mouseDown(with event: NSEvent) {
+            let localPoint = convert(event.locationInWindow, from: nil)
+            if isTapToOpenEnabled?() == true && notchEdgeRect.contains(localPoint) {
+                onTapToOpen?()
+            } else {
+                super.mouseDown(with: event)
+            }
+        }
     }
 }

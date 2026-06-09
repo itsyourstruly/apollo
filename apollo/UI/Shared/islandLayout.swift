@@ -223,11 +223,10 @@ struct UnifiedNotchContainer: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Group {
-                if !isSlimBoxInstance && !model.isContentActive {
-                    Color.clear
-                        .frame(width: 1, height: 1)
-                } else {
+            ZStack(alignment: .top) {
+                Color.clear
+                
+                if isSlimBoxInstance || model.isContentActive {
                     let currentSlimWidth = model.slimBoxWidth
                     let currentSlimHeight = model.slimBoxHeight
 
@@ -493,7 +492,7 @@ struct UnifiedNotchContainer: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .ignoresSafeArea()
     }
 
@@ -592,6 +591,7 @@ struct UnifiedNotchContainer: View {
         .allowsHitTesting(false)
         .opacity(0.8)
         .padding(.top, 4)
+        .drawingGroup()
     }
 
     private func symbolForPage(_ page: IslandPage) -> String {

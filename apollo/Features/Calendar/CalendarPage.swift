@@ -569,6 +569,10 @@ struct CalendarPageContent: View, Equatable {
         )
         
         let hosting = NSHostingView(rootView: gridView)
+        hosting.sizingOptions = []
+        if #available(macOS 11.0, *) {
+            hosting.safeAreaRegions = []
+        }
         let panel = CalendarWidgetPanel(contentView: hosting)
         
         // Align to left of notch window

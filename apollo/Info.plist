@@ -6,9 +6,5 @@
 	<string>https://itsyourstruly.github.io/apollo/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>8vw86bFWwPrPG2NERblya5qbUwuJGotKrO2ogsYqDa0=</string>
-	<key>NSCalendarsUsageDescription</key>
-	<string>Apollo needs access to your calendar to display your upcoming events.</string>
-	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Apollo needs access to your calendar to display your upcoming events in the notch island.</string>
 </dict>
 </plist>

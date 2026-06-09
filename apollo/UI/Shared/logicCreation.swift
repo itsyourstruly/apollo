@@ -25,6 +25,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var toastHideWorkItem: DispatchWorkItem?
     private var lastCloseProgressEmission: CGFloat = 0
     private var lastCarouselOffsetEmission: CGFloat = 0
+    private var batteryWindow: NSPanel?
 
     private var notchPreviewWorkItem: DispatchWorkItem?
     private var lastClipboardChangeCount = NSPasteboard.general.changeCount
@@ -75,7 +76,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let exactTriggerPadding: CGFloat = 20
     private let approachProgressUpdateInterval: TimeInterval = 1.0 / 30.0
     private let approachProgressDeltaThreshold: CGFloat = 0.02
-    private let idleCompactionDelay: TimeInterval = 4.0
+    private let idleCompactionDelay: TimeInterval = 1.5 // Lowered to immediately dump memory after Island closes
     private let clipboardActivePollingInterval: TimeInterval = 3.0
     private let clipboardWorkspaceActivationPollDebounce: TimeInterval = 0.7
     private let clipboardImmediatePollDebounce: TimeInterval = 0.25
@@ -94,12 +95,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let initialPage = IslandPage(rawValue: initialRaw) ?? .clipboard
         model.currentPage = activePages.firstIndex(of: initialPage) ?? 0
         setupNotchWindow()
+        setupBatteryWindow()
         setupStatusItem()
         observeSettings()
         startMemoryPressureMonitoring()
         startGlobalProximityTracking()
         startGlobalDragPolling()
         startBackgroundStateTracking()
+        DevicePopupManager.shared.start()
         model.clipboardItems = loadClipboardHistory()
         model.jotNotes = loadJotNotes()
         model.launcherApps = loadLauncherApps()
@@ -112,6 +115,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         persistLauncherApps(model.launcherApps)
         persistBookmarkItems(model.bookmarkItems)
         refreshNativeState()
+        
+        // Bind back decoupled settings data events
+        NotificationCenter.default.addObserver(forName: NSNotification.Name("apolloDataChanged"), object: nil, queue: .main) { [weak self] _ in
+            self?.model.launcherApps = loadLauncherApps()
+            self?.model.bookmarkItems = loadBookmarkItems()
+        }
     }
 
     private func acquireSingleInstanceLock() -> Bool {
@@ -238,6 +247,7 @@ private func makeStatusMenu() -> NSMenu {
         let (x, width, height) = hardwareNotchDimensions(for: screen)
         settings.updateHardwareNotchDimensions(x: x, width: width, height: height)
         applySettingsNotchSize()
+        updateBatteryWindowFrame()
     }
 
     private func applySettingsNotchSize() {
@@ -780,6 +790,10 @@ private func makeStatusMenu() -> NSMenu {
             }
 
         let hostingView = IslandHostingView(rootView: rootHubView)
+        hostingView.sizingOptions = []
+        if #available(macOS 11.0, *) {
+            hostingView.safeAreaRegions = []
+        }
         hostingView.isPointInteractive = { [weak self] point in
             guard let self = self else { return true }
             if self.model.isExpanded || self.model.isPinned {
@@ -1158,8 +1172,9 @@ private func makeStatusMenu() -> NSMenu {
         ).insetBy(dx: -edge, dy: -edge)
 
         let approachScale: CGFloat = settings.alwaysUseApproachWhenDraggingFile ? 2.0 : 1.0
-        let approachWidth = settings.disableApproach ? 0 : settings.clampedApproachWidth * approachScale
-        let approachHeight = settings.disableApproach ? 0 : settings.clampedApproachHeight * approachScale
+        let isApproachDisabled = settings.disableApproach || settings.openMethod == 1
+        let approachWidth = isApproachDisabled ? 0 : settings.clampedApproachWidth * approachScale
+        let approachHeight = isApproachDisabled ? 0 : settings.clampedApproachHeight * approachScale
 
         let cushion: CGFloat = 6
         let approachRect = CGRect(
@@ -1367,7 +1382,12 @@ private func makeStatusMenu() -> NSMenu {
         }
         
         let containerView = UnifiedNotchContainer(model: model, settings: settings, isSlimBoxInstance: true)
-        window.contentView = IslandHostingView(rootView: containerView)
+        let hostingView = IslandHostingView(rootView: containerView)
+        hostingView.sizingOptions = []
+        if #available(macOS 11.0, *) {
+            hostingView.safeAreaRegions = []
+        }
+        window.contentView = hostingView
         
         slimBoxWindow = window
     }
@@ -1728,7 +1748,7 @@ private func makeStatusMenu() -> NSMenu {
     private func makeProximityZones(screenRect: CGRect, point: NSPoint, isFileDrag: Bool) -> ProximityZones {
         let edge = settings.clampedNotchEdgeThickness
         let forceApproachForDrag = isFileDrag && settings.alwaysUseApproachWhenDraggingFile
-        let disableApproachForCurrentInput = settings.disableApproach && !forceApproachForDrag
+        let disableApproachForCurrentInput = (settings.disableApproach || settings.openMethod == 1) && !forceApproachForDrag
         let approachScale: CGFloat = forceApproachForDrag ? 2.0 : 1.0
         let approachWidth = disableApproachForCurrentInput ? 0 : settings.clampedApproachWidth * approachScale
         let approachHeight = disableApproachForCurrentInput ? 0 : settings.clampedApproachHeight * approachScale
@@ -1888,30 +1908,7 @@ private func makeStatusMenu() -> NSMenu {
                 if isDirectHoverOverNotch {
                     hoverCloseWorkItem?.cancel()
                     hoverCloseWorkItem = nil
-                    
-                    if abs(model.expansionProgress - 0.15) > 0.01 {
-                        withAnimation(.easeOut(duration: 0.15)) {
-                            model.expansionProgress = 0.15
-                        }
-                    }
-                    if notchWindow?.alphaValue != 1.0 {
-                        notchWindow?.alphaValue = 1.0
-                    }
-                    if notchWindow?.isVisible == false {
-                        notchWindow?.orderFrontRegardless()
-                    }
-                    if notchWindow?.ignoresMouseEvents != false {
-                        notchWindow?.ignoresMouseEvents = false
-                    }
                 } else {
-                    if model.expansionProgress > 0 {
-                        withAnimation(.easeOut(duration: 0.15)) {
-                            model.expansionProgress = 0.0
-                        }
-                    }
-                    if notchWindow?.ignoresMouseEvents == false {
-                        notchWindow?.ignoresMouseEvents = true
-                    }
                     scheduleHoverCloseIfNeeded()
                 }
                 return
@@ -2189,6 +2186,70 @@ private func makeStatusMenu() -> NSMenu {
         } else {
             stopIslandOpenMousePolling()
         }
+    }
+
+    private func setupBatteryWindow() {
+        settings.$batteryIndicatorEnabled
+            .combineLatest(settings.$accentColor.map { Color($0) })
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] enabled, _ in
+                if enabled {
+                    self?.showBatteryWindow()
+                } else {
+                    self?.hideBatteryWindow()
+                }
+            }
+            .store(in: &settingsCancellables)
+        
+        if settings.batteryIndicatorEnabled {
+            showBatteryWindow()
+        }
+    }
+
+    private func showBatteryWindow() {
+        guard cachedScreenFrame != .zero else { return }
+        let padding: CGFloat = 24
+        let rect = NSRect(
+            x: settings.hardwareNotchX - padding,
+            y: cachedScreenFrame.maxY - settings.effectiveNotchHeight - padding,
+            width: settings.effectiveNotchWidth + (padding * 2),
+            height: settings.effectiveNotchHeight + padding
+        )
+        if batteryWindow == nil {
+            let panel = NSPanel(contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            panel.backgroundColor = .clear
+            panel.isOpaque = false
+            panel.hasShadow = false
+            panel.ignoresMouseEvents = true
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            panel.level = .statusBar + 3
+            let batteryHostingView = NSHostingView(rootView: BatteryNotchView().environmentObject(BatteryMonitor.shared))
+            batteryHostingView.sizingOptions = []
+            if #available(macOS 11.0, *) {
+                batteryHostingView.safeAreaRegions = []
+            }
+            panel.contentView = batteryHostingView
+            batteryWindow = panel
+        } else {
+            batteryWindow?.setFrame(rect, display: true)
+        }
+        batteryWindow?.orderFrontRegardless()
+    }
+
+    private func hideBatteryWindow() {
+        batteryWindow?.orderOut(nil)
+    }
+
+    private func updateBatteryWindowFrame() {
+        guard let window = batteryWindow, cachedScreenFrame != .zero else { return }
+        let padding: CGFloat = 24
+        let rect = NSRect(
+            x: settings.hardwareNotchX - padding,
+            y: cachedScreenFrame.maxY - settings.effectiveNotchHeight - padding,
+            width: settings.effectiveNotchWidth + (padding * 2),
+            height: settings.effectiveNotchHeight + padding
+        )
+        window.setFrame(rect, display: true)
     }
 
     func hidePanel(preserveCloseProgress: Bool = false) {
@@ -2498,6 +2559,13 @@ private func makeStatusMenu() -> NSMenu {
             let expectedExpandedHeight = panelHeight + floatingPagerHeightAdjustment
             if targetHeight < expectedExpandedHeight {
                 targetHeight = expectedExpandedHeight
+            }
+        } else if model.expansionProgress > 0 {
+            let targetProgress = model.expansionProgress
+            let easedProgress = targetProgress * targetProgress * (3 - 2 * targetProgress)
+            let expectedPeekHeight = settings.effectiveNotchHeight + ((panelHeight - settings.effectiveNotchHeight) * easedProgress)
+            if targetHeight < expectedPeekHeight {
+                targetHeight = expectedPeekHeight
             }
         }
 
