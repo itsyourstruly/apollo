@@ -54,6 +54,14 @@ Switch to a month or week view.
 
 --
 
+Toggle the Battery Indicator to outline your notch with your battery percentage.
+
+-
+
+You can enable the New Device Popup to show when a new Storage, Bluetooth, or another wired device is connected and quickly switch to it.
+
+-
+
 Updates using Sparkle. Check for updates in the settings or set up automatic updates.
 
 --
@@ -108,7 +116,7 @@ Gone.
 
 --
 
-Future Plans:
+Potential Future Plans:
 
 Key: [I]-Idk [M]-Maybe [H]-Hopefully, if I figure it out. [P]-Probably [Y]-Yes
 
