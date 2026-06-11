@@ -1274,7 +1274,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         checkWindow?.orderOut(nil)
                     } else {
                         checkWindow?.alphaValue = 1.0
-                        checkWindow?.ignoresMouseEvents = true
+                        checkWindow?.ignoresMouseEvents = false
                     }
                 }
             }
@@ -2277,7 +2277,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     window.orderOut(nil)
                 } else {
                     window.alphaValue = 1.0
-                    window.ignoresMouseEvents = true
+                    window.ignoresMouseEvents = false
                 }
                 self.updateNotchWindowFrame(heightOverride: self.settings.effectiveNotchHeight)
                 self.clearCursorPresenceState()
@@ -2508,7 +2508,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     window.orderOut(nil)
                 } else {
                     window.alphaValue = 1.0
-                    window.ignoresMouseEvents = true
+                    window.ignoresMouseEvents = false
                 }
             }
             updateClipboardObservationMode(immediatePoll: true)
