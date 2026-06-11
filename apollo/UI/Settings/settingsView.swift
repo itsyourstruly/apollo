@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var launcherApps: [LauncherApp] = []
     @State private var bookmarkItems: [BookmarkItem] = []
     @State private var isWindowVisible = true
+    @AppStorage(AppStorageKey.devicePopupUseAccentSymbols) private var devicePopupUseAccentSymbols = true
 
     private static let numberFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
@@ -258,7 +259,8 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Toggle("External storage drives", isOn: $settings.devicePopupStorageEnabled)
                         Toggle("Bluetooth devices (Requires Info.plist permission)", isOn: $settings.devicePopupBluetoothEnabled)
-                        Toggle("Other wired devices (Earbuds, etc.)", isOn: $settings.devicePopupWiredEnabled)
+                        Toggle("Other wired devices (Earbuds, Mice, Displays, etc.)", isOn: $settings.devicePopupWiredEnabled)
+                        Toggle("Use accent symbols", isOn: $devicePopupUseAccentSymbols)
                     }
                     .padding(.leading, 8)
                     .padding(.vertical, 4)

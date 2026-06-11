@@ -236,6 +236,7 @@ enum AppStorageKey {
     static let devicePopupStorageEnabled = "devicePopupStorageEnabled"
     static let devicePopupBluetoothEnabled = "devicePopupBluetoothEnabled"
     static let devicePopupWiredEnabled = "devicePopupWiredEnabled"
+    static let devicePopupUseAccentSymbols = "devicePopupUseAccentSymbols"
     
 
     static let batteryIndicatorEnabled = "batteryIndicatorEnabled"
