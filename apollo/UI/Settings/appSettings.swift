@@ -6,7 +6,7 @@ final class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
     private let defaults = UserDefaults.standard
-    private let defaultAccent = NSColor.systemGreen
+    private let defaultAccent = NSColor.white
     private let defaultBackground = NSColor.black
     private let defaultTitleColor: NSColor
     private let defaultNotchWidth: CGFloat = 210

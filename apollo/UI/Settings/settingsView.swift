@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var launcherApps: [LauncherApp] = []
     @State private var bookmarkItems: [BookmarkItem] = []
     @State private var isWindowVisible = true
+    @State private var isUninstallAlertPresented = false
     @AppStorage(AppStorageKey.devicePopupUseAccentSymbols) private var devicePopupUseAccentSymbols = true
 
     private static let numberFormatter: NumberFormatter = {
@@ -30,11 +31,24 @@ struct SettingsView: View {
         Group {
             if isWindowVisible {
                 HSplitView {
-                    List(SettingsSection.allCases, selection: $selection) { section in
-                        Label(section.rawValue, systemImage: section.symbolName)
-                            .tag(section)
+                    VStack(alignment: .leading, spacing: 0) {
+                        List(SettingsSection.allCases, selection: $selection) { section in
+                            Label(section.rawValue, systemImage: section.symbolName)
+                                .tag(section)
+                        }
+                        .listStyle(.sidebar)
+                        
+                        Button {
+                            isUninstallAlertPresented = true
+                        } label: {
+                            Label("Uninstall Apollo", systemImage: "trash")
+                                .foregroundColor(.red)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 16)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.bottom, 8)
                     }
-                    .listStyle(.sidebar)
                     .frame(minWidth: 140, idealWidth: 210, maxWidth: 250)
 
                     Group {
@@ -70,6 +84,14 @@ struct SettingsView: View {
                 .tint(accent)
                 .controlSize(.regular)
                 .toggleStyle(.switch)
+                .alert("Uninstall Apollo?", isPresented: $isUninstallAlertPresented) {
+                    Button("Cancel", role: .cancel) { }
+                    Button("Uninstall", role: .destructive) {
+                        performUninstall()
+                    }
+                } message: {
+                    Text("Are you sure? This will remove all settings and data. You will need to manually move the Apollo app to the Trash afterwards. This action cannot be undone.")
+                }
             } else {
                 Color.clear
                     .frame(minWidth: 520, minHeight: 420)
@@ -114,6 +136,46 @@ struct SettingsView: View {
     private func saveBookmarks() {
         persistBookmarkItems(bookmarkItems)
         NotificationCenter.default.post(name: NSNotification.Name("apolloDataChanged"), object: nil)
+    }
+
+    private func performUninstall() {
+        // Clear UserDefaults
+        if let bundleID = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: bundleID)
+            UserDefaults.standard.synchronize()
+        }
+        
+        let fm = FileManager.default
+        
+        // Remove Application Support directories
+        if let appSupportURL = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            if let bundleID = Bundle.main.bundleIdentifier {
+                try? fm.removeItem(at: appSupportURL.appendingPathComponent(bundleID))
+            }
+            try? fm.removeItem(at: appSupportURL.appendingPathComponent("apollo"))
+            try? fm.removeItem(at: appSupportURL.appendingPathComponent("Apollo"))
+        }
+        
+        // Remove Caches directories
+        if let cachesURL = fm.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            if let bundleID = Bundle.main.bundleIdentifier {
+                try? fm.removeItem(at: cachesURL.appendingPathComponent(bundleID))
+            }
+            try? fm.removeItem(at: cachesURL.appendingPathComponent("apollo"))
+            try? fm.removeItem(at: cachesURL.appendingPathComponent("Apollo"))
+        }
+
+        // Remove Preferences explicitly
+        if let prefsURL = fm.urls(for: .libraryDirectory, in: .userDomainMask).first?.appendingPathComponent("Preferences") {
+            if let bundleID = Bundle.main.bundleIdentifier {
+                try? fm.removeItem(at: prefsURL.appendingPathComponent("\(bundleID).plist"))
+            }
+        }
+        
+        // Terminate so the user can trash the app
+        DispatchQueue.main.async {
+            NSApp.terminate(nil)
+        }
     }
 
     @ViewBuilder
@@ -217,7 +279,7 @@ struct SettingsView: View {
                 Toggle("Default to Box if it has items", isOn: $settings.defaultToBoxIfItems)
             }
 
-            Section("Page Layout & Ordering") {
+            Section("Page Layout") {
                 ReorderablePageList(settings: settings)
                     .padding(.vertical, 4)
             }
@@ -234,10 +296,10 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
             }
 
-            Section("Pager Style") {
+            Section("Pager") {
                 Picker("Pager Style", selection: $settings.pagerStyle) {
-                    Text("Style 1 (Dots)").tag(0)
-                    Text("Style 2 (Circles)").tag(1)
+                    Text("Dots").tag(0)
+                    Text("Circles").tag(1)
                 }
                 .pickerStyle(.segmented)
                 
@@ -258,7 +320,7 @@ struct SettingsView: View {
                 if settings.devicePopupEnabled {
                     VStack(alignment: .leading, spacing: 10) {
                         Toggle("External storage drives", isOn: $settings.devicePopupStorageEnabled)
-                        Toggle("Bluetooth devices (Requires Info.plist permission)", isOn: $settings.devicePopupBluetoothEnabled)
+                        Toggle("Bluetooth devices (Requires Bluetooth permission)", isOn: $settings.devicePopupBluetoothEnabled)
                         Toggle("Other wired devices (Earbuds, Mice, Displays, etc.)", isOn: $settings.devicePopupWiredEnabled)
                         Toggle("Use accent symbols", isOn: $devicePopupUseAccentSymbols)
                     }

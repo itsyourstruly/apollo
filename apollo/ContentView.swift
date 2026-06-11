@@ -276,6 +276,10 @@ enum AppStorageKey {
     static let batteryBar75to100Blue = "batteryBar75to100Blue"
     static let batteryBar75to100Alpha = "batteryBar75to100Alpha"
 
+    static let batteryLevel1 = "batteryLevel1"
+    static let batteryLevel2 = "batteryLevel2"
+    static let batteryLevel3 = "batteryLevel3"
+
     // Custom Titles (String)
     static let clipboardCustomTitle = "clipboardCustomTitle"
     static let jotCustomTitle = "jotCustomTitle"
