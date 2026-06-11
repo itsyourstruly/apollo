@@ -56,11 +56,11 @@ Switch to a month or week view.
 
 Toggle the Battery Indicator to outline your notch with your battery percentage.
 
--
+--
 
 You can enable the New Device Popup to show when a new Storage, Bluetooth, or another wired device is connected and quickly switch to it.
 
--
+--
 
 Updates using Sparkle. Check for updates in the settings or set up automatic updates.
 
@@ -85,8 +85,11 @@ Change everything to your liking. It's yours.
 --
 
 Requirements: 
+
 Macos Tahoe 26+
+
 Apple Silicon
+
 --
 
 Installation:
@@ -129,7 +132,7 @@ Key: [I]-Idk [M]-Maybe [H]-Hopefully, if I figure it out. [P]-Probably [Y]-Yes
 
 [M]System monitoring to show the CPU/RAM/ENERGY/BATTERY/etc. usage.
 
-[M]New device connected popups. Bluetooth, wifi, external drives, etc..
+[M]Weather
 
 [H]Volume and Brightness slider. Hide default Macos ones. Boost Brightness and Volume range. 
 
