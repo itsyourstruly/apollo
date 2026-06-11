@@ -308,6 +308,27 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
                 
                 if settings.pagerStyle == 1 {
+                    Picker("Alignment", selection: $settings.pagerAlignment) {
+                        Text("Center").tag(0)
+                        Text("Left").tag(1)
+                        Text("Right").tag(2)
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    HStack {
+                        Text("Size")
+                        Slider(value: $settings.pagerSize, in: 24...64)
+                        Text("\(Int(settings.pagerSize)) pt")
+                            .frame(width: 48, alignment: .trailing)
+                    }
+                    
+                    HStack {
+                        Text("Spacing")
+                        Slider(value: $settings.pagerSpacing, in: 0...60)
+                        Text("\(Int(settings.pagerSpacing)) pt")
+                            .frame(width: 48, alignment: .trailing)
+                    }
+                    
                     Toggle("Show glass background", isOn: $settings.pagerStyle2BackgroundEnabled)
                 }
 

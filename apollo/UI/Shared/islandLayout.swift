@@ -278,11 +278,23 @@ struct UnifiedNotchContainer: View {
         let contentProgress: CGFloat = easedProgress.isFinite ? max(0, min(1, (easedProgress - 0.18) / 0.82)) : 0
         let showToastOnly: Bool = (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded && !model.isPinned
         let isFloatingPagerActive: Bool = settings.pagerStyle == 1 && settings.showPagers && !isSlimModeActive
-        let floatingPagerHeightAdjustment: CGFloat = isFloatingPagerActive ? (8 * easedProgress + 54 * easedProgress) : 0
-        let baseContainerHeight: CGFloat = isSlimModeActive ? currentSlimHeight : (showToastOnly ? max(panelHeight, toastPanelHeight) : panelHeight)
+        let bottomPagerSpacing: CGFloat = (isFloatingPagerActive && settings.pagerAlignment == 0) ? settings.pagerSpacing : 8
+        let floatingPagerHeightAdjustment: CGFloat = (isFloatingPagerActive && settings.pagerAlignment == 0) ? (bottomPagerSpacing * easedProgress + (settings.pagerSize + 22) * easedProgress) : 0
+        
+        let baseContainerHeight: CGFloat = {
+            var height: CGFloat = isSlimModeActive ? currentSlimHeight : (showToastOnly ? max(panelHeight, toastPanelHeight) : panelHeight)
+            if isFloatingPagerActive && settings.pagerAlignment != 0 {
+                let activePagesCount = CGFloat(activePages.count)
+                let verticalPagerHeight = (activePagesCount * settings.pagerSize) + ((activePagesCount - 1) * 12) + 20 + 16
+                height = max(height, verticalPagerHeight)
+            }
+            return height
+        }()
+        
         let containerHeight: CGFloat = safeDimension(baseContainerHeight + floatingPagerHeightAdjustment, fallback: panelHeight)
         let toastWidth: CGFloat = toastPanelWidth
-        let containerWidth: CGFloat = isSlimModeActive ? currentSlimWidth : max(panelWidth, notchWidth + 240)
+        let sidePagerWidth: CGFloat = (isFloatingPagerActive && settings.pagerAlignment != 0) ? (settings.pagerSize * 2 + settings.pagerSpacing * 2) * 2 : 0
+        let containerWidth: CGFloat = isSlimModeActive ? currentSlimWidth : max(panelWidth + sidePagerWidth, notchWidth + 320)
         let closeProgress: CGFloat = max(0, min(1, model.closeGestureProgress))
         let closeEase: CGFloat = closeProgress * closeProgress * (3 - 2 * closeProgress)
         let closeOffset: CGFloat = -44 * closeEase
@@ -327,7 +339,7 @@ struct UnifiedNotchContainer: View {
                         }
 
                         if !showToastOnly {
-                            VStack(spacing: 8 * easedProgress) {
+                            VStack(spacing: bottomPagerSpacing * easedProgress) {
                                 VStack(spacing: 0) {
                                     VStack(spacing: 0) {
                                         // UNIFIED FIX: Pad internal layouts to offset default top window inset masking values
@@ -429,13 +441,21 @@ struct UnifiedNotchContainer: View {
                                         }
                                     )
                                     .animation(settings.notchOpenAnimation, value: model.expansionProgress)
+                                    .overlay(alignment: settings.pagerAlignment == 1 ? .topLeading : .topTrailing) {
+                                        if isFloatingPagerActive && settings.pagerAlignment != 0 {
+                                            floatingPagerView(pages: activePages, isVertical: true)
+                                                .opacity(easedProgress)
+                                                .scaleEffect(0.6 + 0.4 * easedProgress)
+                                                .offset(x: settings.pagerAlignment == 1 ? -(settings.pagerSize + settings.pagerSpacing) : (settings.pagerSize + settings.pagerSpacing), y: 0)
+                                        }
+                                    }
                                 }
 
-                                if settings.pagerStyle == 1 && settings.showPagers && !isSlimModeActive {
-                                    floatingPagerView(pages: activePages)
+                                if isFloatingPagerActive && settings.pagerAlignment == 0 {
+                                    floatingPagerView(pages: activePages, isVertical: false)
                                         .opacity(easedProgress)
                                         .scaleEffect(0.6 + 0.4 * easedProgress)
-                                        .frame(height: 54 * easedProgress)
+                                        .frame(height: (settings.pagerSize + 22) * easedProgress)
                                 }
                             }
                             .background(GeometryReader { proxy in
@@ -612,34 +632,37 @@ struct UnifiedNotchContainer: View {
         }
     }
 
-    private func floatingPagerView(pages: [IslandPage]) -> some View {
-        HStack(spacing: 12) {
-            ForEach(0..<pages.count, id: \.self) { index in
-                let page = pages[index]
-                let isSelected = model.currentPage == index
-                
-                Button {
-                    setPageFromCarousel(index)
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(isSelected ? Color.white : Color.white.opacity(0.15))
-                            .frame(width: isSelected ? 30 : 24, height: isSelected ? 30 : 24)
-                            .shadow(color: Color.black.opacity(isSelected ? 0.15 : 0), radius: 3)
-                        
-                        Image(systemName: symbolForPage(page))
-                            .font(.system(size: isSelected ? 12 : 10, weight: isSelected ? .bold : .medium))
-                            .foregroundColor(isSelected ? Color.black : Color.white.opacity(0.8))
-                    }
-                    .frame(width: 32, height: 32)
+    private func floatingPagerView(pages: [IslandPage], isVertical: Bool) -> some View {
+        let pSize = settings.pagerSize
+        let content = ForEach(0..<pages.count, id: \.self) { index in
+            let page = pages[index]
+            let isSelected = model.currentPage == index
+            
+            Button {
+                setPageFromCarousel(index)
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(isSelected ? Color.white : Color.white.opacity(0.15))
+                        .frame(width: isSelected ? pSize * 0.93 : pSize * 0.75, height: isSelected ? pSize * 0.93 : pSize * 0.75)
+                        .shadow(color: Color.black.opacity(isSelected ? 0.15 : 0), radius: 3)
+                    
+                    Image(systemName: symbolForPage(page))
+                        .font(.system(size: isSelected ? pSize * 0.37 : pSize * 0.31, weight: isSelected ? .bold : .medium))
+                        .foregroundColor(isSelected ? Color.black : Color.white.opacity(0.8))
                 }
-                .buttonStyle(.plain)
-                .scaleEffect(isSelected ? 1.15 : 1.0)
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: model.currentPage)
+                .frame(width: pSize, height: pSize)
             }
+            .buttonStyle(.plain)
+            .scaleEffect(isSelected ? 1.15 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: model.currentPage)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        
+        return Group {
+            if isVertical { VStack(spacing: 12) { content } } else { HStack(spacing: 12) { content } }
+        }
+        .padding(.horizontal, isVertical ? 6 : 10)
+        .padding(.vertical, isVertical ? 10 : 6)
         .background(
             Group {
                 if settings.pagerStyle2BackgroundEnabled {
@@ -654,7 +677,7 @@ struct UnifiedNotchContainer: View {
             }
         )
         .shadow(color: Color.black.opacity(0.25), radius: 8, x: 0, y: 4)
-        .padding(.bottom, 6)
+        .padding(isVertical ? .top : .bottom, 6)
     }
 
     @ViewBuilder

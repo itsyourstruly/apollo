@@ -472,7 +472,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         .sink { [weak self] isStopwatch, isTimer, disableHUD in
             let needsActivity = (isStopwatch || isTimer) && !disableHUD
             if needsActivity && self?.chronoActivity == nil {
-                self?.chronoActivity = ProcessInfo.processInfo.beginActivity(options: [.userInitiatedAllowingIdleSystemSleep, .latencyCritical], reason: "Chrono HUD Active")
+                self?.chronoActivity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .latencyCritical], reason: "Chrono HUD Active")
             } else if !needsActivity && self?.chronoActivity != nil {
                 if let activity = self?.chronoActivity { ProcessInfo.processInfo.endActivity(activity) }
                 self?.chronoActivity = nil
@@ -622,7 +622,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func updateNotchWindowFrame(widthOverride: CGFloat? = nil, heightOverride: CGFloat? = nil) {
         guard let window = notchWindow, cachedScreenFrame != .zero else { return }
         let screenRect = cachedScreenFrame
-        let defaultWidth = max(panelWidth, notchWidth + 240)
+        let isFloatingPagerActive = settings.pagerStyle == 1 && settings.showPagers
+        let sidePagerWidth: CGFloat = (isFloatingPagerActive && settings.pagerAlignment != 0) ? (settings.pagerSize * 2 + settings.pagerSpacing * 2) * 2 : 0
+        let defaultWidth = max(panelWidth + sidePagerWidth, notchWidth + 320)
         let windowWidth = widthOverride ?? defaultWidth
         let windowHeight = heightOverride ?? window.frame.height
         
@@ -686,7 +688,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupNotchWindow() {
         guard cachedScreenFrame != .zero else { return }
         let screenRect = cachedScreenFrame
-        let windowWidth = max(panelWidth, notchWidth + 240)
+        let isFloatingPagerActive = settings.pagerStyle == 1 && settings.showPagers
+        let sidePagerWidth: CGFloat = (isFloatingPagerActive && settings.pagerAlignment != 0) ? (settings.pagerSize * 2 + settings.pagerSpacing * 2) * 2 : 0
+        let windowWidth = max(panelWidth + sidePagerWidth, notchWidth + 320)
         let windowHeight = settings.effectiveNotchHeight
         
         let notchX = settings.hardwareNotchX
@@ -707,6 +711,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         notchWindow.hasShadow = false
         notchWindow.level = .statusBar + 2
         notchWindow.alphaValue = 0.0
+        notchWindow.hidesOnDeactivate = false
         notchWindow.ignoresMouseEvents = true
         notchWindow.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         notchWindow.setAccessibilityElement(false)
@@ -1315,6 +1320,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.hasShadow = false
             window.level = .statusBar + 2
             window.alphaValue = 0.0
+            window.hidesOnDeactivate = false
             window.ignoresMouseEvents = true
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             window.setAccessibilityElement(false)
@@ -2528,10 +2534,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             var targetHeight = newHeight
             if model.isExpanded || model.isPinned {
                 let isFloatingPagerActive = settings.pagerStyle == 1 && settings.showPagers
-                let floatingPagerHeightAdjustment: CGFloat = isFloatingPagerActive ? (8 + 54) : 0
+                let floatingPagerHeightAdjustment: CGFloat = (isFloatingPagerActive && settings.pagerAlignment == 0) ? (settings.pagerSpacing + settings.pagerSize + 22) : 0
                 let expectedExpandedHeight = panelHeight + floatingPagerHeightAdjustment
-                if targetHeight < expectedExpandedHeight {
-                    targetHeight = expectedExpandedHeight
+                var maxNeededHeight = expectedExpandedHeight
+                
+                if isFloatingPagerActive && settings.pagerAlignment != 0 {
+                    let activePagesCount = CGFloat(self.activePages.count)
+                    let verticalPagerHeight = (activePagesCount * settings.pagerSize) + ((activePagesCount - 1) * 12) + 20 + 16
+                    maxNeededHeight = max(expectedExpandedHeight, verticalPagerHeight + settings.effectiveNotchHeight)
+                }
+                if targetHeight < maxNeededHeight {
+                    targetHeight = maxNeededHeight
                 }
             } else if model.expansionProgress > 0 {
                 let targetProgress = model.expansionProgress
@@ -2543,7 +2556,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             
             // Keep the window width fixed at the maximum possible panel width to avoid clipping content during animation.
-            let windowWidth = max(self.panelWidth, self.notchWidth + 240)
+            let isFloatingPagerActive = settings.pagerStyle == 1 && settings.showPagers
+            let sidePagerWidth: CGFloat = (isFloatingPagerActive && settings.pagerAlignment != 0) ? (settings.pagerSize * 2 + settings.pagerSpacing * 2) * 2 : 0
+            let windowWidth = max(self.panelWidth + sidePagerWidth, self.notchWidth + 320)
             let windowHeight = targetHeight
             
             // Correct window positioning: Center the window's midpoint on the hardware notch's midpoint

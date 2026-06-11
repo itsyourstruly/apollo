@@ -674,6 +674,24 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var pagerAlignment: Int {
+        didSet {
+            enqueueDefaultSet(pagerAlignment, forKey: AppStorageKey.pagerAlignment)
+        }
+    }
+
+    @Published var pagerSize: CGFloat {
+        didSet {
+            enqueueDefaultSet(Double(pagerSize), forKey: AppStorageKey.pagerSize)
+        }
+    }
+
+    @Published var pagerSpacing: CGFloat {
+        didSet {
+            enqueueDefaultSet(Double(pagerSpacing), forKey: AppStorageKey.pagerSpacing)
+        }
+    }
+
     @Published var peekerSize: CGFloat {
         didSet {
             enqueueDefaultSet(Double(peekerSize), forKey: AppStorageKey.peekerSize)
@@ -1632,6 +1650,24 @@ final class AppSettings: ObservableObject {
             pagerStyle = 0
         } else {
             pagerStyle = defaults.integer(forKey: AppStorageKey.pagerStyle)
+        }
+
+        if defaults.object(forKey: AppStorageKey.pagerAlignment) == nil {
+            pagerAlignment = 0
+        } else {
+            pagerAlignment = defaults.integer(forKey: AppStorageKey.pagerAlignment)
+        }
+
+        if defaults.object(forKey: AppStorageKey.pagerSize) == nil {
+            pagerSize = 32
+        } else {
+            pagerSize = CGFloat(defaults.double(forKey: AppStorageKey.pagerSize))
+        }
+
+        if defaults.object(forKey: AppStorageKey.pagerSpacing) == nil {
+            pagerSpacing = 16
+        } else {
+            pagerSpacing = CGFloat(defaults.double(forKey: AppStorageKey.pagerSpacing))
         }
 
         if defaults.object(forKey: AppStorageKey.peekerSize) == nil {
