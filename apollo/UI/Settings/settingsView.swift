@@ -387,10 +387,6 @@ struct SettingsView: View {
                     ColorPicker("Color while charging", selection: Binding(get: { Color(settings.batteryBarColorCharging) }, set: { settings.batteryBarColorCharging = NSColor($0) }))
                     
                     Toggle("Match Low Power Mode (Yellow)", isOn: $settings.batteryBarMatchLowPowerMode)
-                    
-                    Text("The bar wraps around the notch: down the left edge, across the bottom, and up the right edge.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                 }
             }
         }
