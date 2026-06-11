@@ -155,10 +155,13 @@ final class ChronoTicker: ObservableObject {
 
     private func start() {
         timer?.cancel()
-        let t = DispatchSource.makeTimerSource(queue: .main)
+        // Run the timer on a global userInteractive queue to bypass Main Thread App Nap entirely.
+        let t = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .userInteractive))
         t.schedule(deadline: .now(), repeating: .milliseconds(200))
         t.setEventHandler { [weak self] in
-            self?.tick = Date()
+            DispatchQueue.main.async {
+                self?.tick = Date()
+            }
         }
         t.resume()
         timer = t

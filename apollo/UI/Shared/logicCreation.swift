@@ -1204,7 +1204,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     model.expansionProgress = 0.0
                 }
                 if notchWindow?.ignoresMouseEvents == false {
-                    notchWindow?.ignoresMouseEvents = true
+                    let hasActiveChrono = (model.isStopwatchRunning || model.isTimerRunning) && !settings.disableChronoHUD
+                    if !hasActiveChrono { notchWindow?.ignoresMouseEvents = true }
                 }
             }
             updateContentActiveState()
