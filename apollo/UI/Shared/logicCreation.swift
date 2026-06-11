@@ -264,7 +264,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &settingsCancellables)
         
         Publishers.MergeMany(
-            settings.$disableApproach.map { _ in () }.eraseToAnyPublisher(),
+            settings.$enableApproach.map { _ in () }.eraseToAnyPublisher(),
             settings.$alwaysUseApproachWhenDraggingFile.map { _ in () }.eraseToAnyPublisher(),
             settings.$approachWidth.map { _ in () }.eraseToAnyPublisher(),
             settings.$approachHeight.map { _ in () }.eraseToAnyPublisher(),
@@ -779,6 +779,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         notchWindow.onTapToOpen = { [weak self] in
             self?.showPanel(expanded: true, pinned: false)
         }
+        notchWindow.needsKeyFocusProvider = { [weak self] in
+            guard let self else { return false }
+            if self.model.isAddSheetOpen { return true }
+            let pages = self.activePages
+            if pages.indices.contains(self.model.currentPage) {
+                if pages[self.model.currentPage] == .jot {
+                    return true
+                }
+            }
+            return false
+        }
         
         let rootHubView = UnifiedNotchContainer(model: model, settings: settings)
             .onPreferenceChange(UnifiedNotchContainer.ShellHeightKey.self) { [weak self] newHeight in
@@ -1033,17 +1044,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
         }
         
-        func postPasteCommand() {
-            let keyCodeV: CGKeyCode = 9
-            let source = CGEventSource(stateID: .combinedSessionState)
-            let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCodeV, keyDown: true)
-            let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCodeV, keyDown: false)
-            keyDown?.flags = .maskCommand
-            keyUp?.flags = .maskCommand
-            keyDown?.post(tap: .cghidEventTap)
-            keyUp?.post(tap: .cghidEventTap)
-        }
-        
         private func startGlobalProximityTracking() {
             setupProximityWakeWindow()
             updateProximityWakeWindowFrame()
@@ -1131,10 +1131,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ).insetBy(dx: -edge, dy: -edge)
             
             let approachScale: CGFloat = settings.alwaysUseApproachWhenDraggingFile ? 2.0 : 1.0
-            let isApproachDisabled = settings.disableApproach || settings.openMethod == 1
-            let approachWidth = isApproachDisabled ? 0 : settings.clampedApproachWidth * approachScale
-            let approachHeight = isApproachDisabled ? 0 : settings.clampedApproachHeight * approachScale
-            
+            let isApproachEnabled = settings.enableApproach && settings.openMethod != 1
+            let approachWidth = isApproachEnabled ? settings.clampedApproachWidth * approachScale : 0
+            let approachHeight = isApproachEnabled ? settings.clampedApproachHeight * approachScale : 0
+
             let cushion: CGFloat = 6
             let approachRect = CGRect(
                 x: edgeNotchRect.minX - approachWidth,
@@ -1250,7 +1250,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let checkWindow = notchWindow
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
                     guard let self, !self.model.isExpanded, self.model.expansionProgress == 0 else { return }
-                    let hasActiveChrono = self.model.isStopwatchRunning || self.model.isTimerRunning
+                        let hasActiveChrono = (self.model.isStopwatchRunning || self.model.isTimerRunning) && !self.settings.disableChronoHUD
                     if !hasActiveChrono {
                         checkWindow?.alphaValue = 0.0
                         checkWindow?.ignoresMouseEvents = true
@@ -1311,6 +1311,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.setAccessibilityRole(.none)
             window.isMovableByWindowBackground = false
             window.isSlimWindowProvider = { return true }
+            window.needsKeyFocusProvider = { return false }
             
             window.isActiveProvider = { return false }
             
@@ -1707,7 +1708,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         private func makeProximityZones(screenRect: CGRect, point: NSPoint, isFileDrag: Bool) -> ProximityZones {
             let edge = settings.clampedNotchEdgeThickness
             let forceApproachForDrag = isFileDrag && settings.alwaysUseApproachWhenDraggingFile
-            let disableApproachForCurrentInput = (settings.disableApproach || settings.openMethod == 1) && !forceApproachForDrag
+            let disableApproachForCurrentInput = (!settings.enableApproach || settings.openMethod == 1) && !forceApproachForDrag
             let approachScale: CGFloat = forceApproachForDrag ? 2.0 : 1.0
             let approachWidth = disableApproachForCurrentInput ? 0 : settings.clampedApproachWidth * approachScale
             let approachHeight = disableApproachForCurrentInput ? 0 : settings.clampedApproachHeight * approachScale
@@ -1949,7 +1950,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 
                 let isDirectHoverOverNotch = zones.isInsideNotch || zones.isHoveringEdge
                 let forceApproachForDrag = isFileDrag && settings.alwaysUseApproachWhenDraggingFile
-                let disableApproachForCurrentInput = settings.disableApproach && !forceApproachForDrag
+                let disableApproachForCurrentInput = !settings.enableApproach && !forceApproachForDrag
                 
                 if disableApproachForCurrentInput {
                     if isDirectHoverOverNotch, isFileDrag {
@@ -2252,7 +2253,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self, !self.model.isPinned else { return }
                 guard self.panelVisibilityEpoch == hideEpoch else { return }
                 window.contentView?.stopScrolling() // Intercept and kill any NSScrollingAnimators immediately
-                let hasActiveChrono = self.model.isStopwatchRunning || self.model.isTimerRunning
+                let hasActiveChrono = (self.model.isStopwatchRunning || self.model.isTimerRunning) && !self.settings.disableChronoHUD
                 if !hasActiveChrono {
                     window.alphaValue = 0.0
                     window.ignoresMouseEvents = true
@@ -2483,7 +2484,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             model.closeGestureProgress = 0
             updateNotchWindowFrame(heightOverride: panelHeight)
             if let window = notchWindow {
-                let hasActiveChrono = model.isStopwatchRunning || model.isTimerRunning
+                let hasActiveChrono = (model.isStopwatchRunning || model.isTimerRunning) && !settings.disableChronoHUD
                 if !hasActiveChrono {
                     window.alphaValue = 0.0
                     window.ignoresMouseEvents = true

@@ -717,16 +717,6 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    @Published var clipboardAction: Int {
-        didSet {
-            let clampedValue = clamp(clipboardAction, min: ClipboardActionOption.copy.rawValue, max: ClipboardActionOption.paste.rawValue)
-            if clampedValue != clipboardAction {
-                clipboardAction = clampedValue
-            }
-            enqueueDefaultSet(clipboardAction, forKey: AppStorageKey.clipboardAction)
-        }
-    }
-
     @Published var reopenLastPage: Bool {
         didSet {
             enqueueDefaultSet(reopenLastPage, forKey: AppStorageKey.reopenLastPage)
@@ -803,9 +793,9 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    @Published var disableApproach: Bool {
+    @Published var enableApproach: Bool {
         didSet {
-            enqueueDefaultSet(disableApproach, forKey: AppStorageKey.disableApproach)
+            enqueueDefaultSet(enableApproach, forKey: AppStorageKey.enableApproach)
         }
     }
 
@@ -950,6 +940,12 @@ final class AppSettings: ObservableObject {
     @Published var calendarViewOption: Int {
         didSet {
             enqueueDefaultSet(calendarViewOption, forKey: "calendarViewOption")
+        }
+    }
+
+    @Published var calendarWeekStartsOn: Int {
+        didSet {
+            enqueueDefaultSet(calendarWeekStartsOn, forKey: AppStorageKey.calendarWeekStartsOn)
         }
     }
 
@@ -1318,10 +1314,6 @@ final class AppSettings: ObservableObject {
 
     var effectiveTitleColor: NSColor {
         titleUseAccent ? accentColor : titleColor
-    }
-
-    var clipboardActionOption: ClipboardActionOption {
-        ClipboardActionOption(rawValue: clipboardAction) ?? .copy
     }
 
     var notchOpenAnimation: Animation {
@@ -1693,12 +1685,6 @@ final class AppSettings: ObservableObject {
             defaultToBoxIfItems = defaults.bool(forKey: AppStorageKey.defaultToBoxIfItems)
         }
 
-        if defaults.object(forKey: AppStorageKey.clipboardAction) == nil {
-            clipboardAction = ClipboardActionOption.copy.rawValue
-        } else {
-            clipboardAction = clamp(defaults.integer(forKey: AppStorageKey.clipboardAction), min: ClipboardActionOption.copy.rawValue, max: ClipboardActionOption.paste.rawValue)
-        }
-
         if defaults.object(forKey: AppStorageKey.reopenLastPage) == nil {
             reopenLastPage = false
         } else {
@@ -1841,10 +1827,10 @@ final class AppSettings: ObservableObject {
             swipeCloseDelay = 0.0
         }
 
-        if defaults.object(forKey: AppStorageKey.disableApproach) == nil {
-            disableApproach = true
+        if defaults.object(forKey: AppStorageKey.enableApproach) == nil {
+            enableApproach = false
         } else {
-            disableApproach = defaults.bool(forKey: AppStorageKey.disableApproach)
+            enableApproach = defaults.bool(forKey: AppStorageKey.enableApproach)
         }
 
         if defaults.object(forKey: AppStorageKey.alwaysUseApproachWhenDraggingFile) == nil {
@@ -1880,6 +1866,13 @@ final class AppSettings: ObservableObject {
         }
 
         calendarViewOption = defaults.integer(forKey: "calendarViewOption")
+        
+        if defaults.object(forKey: AppStorageKey.calendarWeekStartsOn) == nil {
+            calendarWeekStartsOn = 1
+        } else {
+            calendarWeekStartsOn = defaults.integer(forKey: AppStorageKey.calendarWeekStartsOn)
+        }
+        
         customActionsLayoutOption = defaults.integer(forKey: "customActionsLayoutOption")
         showLauncherInPeeker = defaults.bool(forKey: "showLauncherInPeeker")
         showBookmarksInPeeker = defaults.bool(forKey: "showBookmarksInPeeker")

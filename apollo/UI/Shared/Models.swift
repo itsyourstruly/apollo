@@ -34,18 +34,6 @@ enum TitleAlignmentOption: Int, CaseIterable {
     }
 }
 
-enum ClipboardActionOption: Int, CaseIterable {
-    case copy = 0
-    case paste = 1
-
-    var label: String {
-        switch self {
-        case .copy: return "Copy to clipboard"
-        case .paste: return "Paste at cursor"
-        }
-    }
-}
-
 enum HoverPreviewFocus {
     case all
     case islandSize

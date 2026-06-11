@@ -199,7 +199,6 @@ enum AppStorageKey {
     static let showPagers = "showPagers"
     static let showBoxFileNames = "showBoxFileNames"
     static let defaultToBoxIfItems = "defaultToBoxIfItems"
-    static let clipboardAction = "clipboardAction"
     static let clipboardColumns = "clipboardColumns"
     static let jotColumns = "jotColumns"
     static let boxColumns = "boxColumns"
@@ -219,13 +218,14 @@ enum AppStorageKey {
     static let swipeAnimationDamping = "swipeAnimationDamping"
     static let observedFolders = "observedFolders"
     static let toastHideDelay = "toastHideDelay"
+    static let calendarWeekStartsOn = "calendarWeekStartsOn"
     static let proximitySensitivity = "proximitySensitivity"
     static let carouselSensitivity = "carouselSensitivity"
     static let closeSensitivity = "closeSensitivity"
     static let approachDelay = "approachDelay"
     static let hoverCloseDelay = "hoverCloseDelay"
     static let swipeCloseDelay = "swipeCloseDelay"
-    static let disableApproach = "disableApproach"
+    static let enableApproach = "enableApproach"
     static let alwaysUseApproachWhenDraggingFile = "alwaysUseApproachWhenDraggingFile"
     static let notchEdgeThickness = "notchEdgeThickness"
     static let approachWidth = "approachWidth"
@@ -640,6 +640,7 @@ final class IslandPanel: NSPanel {
     var isExpandedProvider: (() -> Bool)?
     var onTapToOpen: (() -> Void)?
     var isSlimWindowProvider: (() -> Bool)?
+    var needsKeyFocusProvider: (() -> Bool)?
 
     private var accumulatedDeltaX: CGFloat = 0
     private var accumulatedDeltaY: CGFloat = 0
@@ -662,7 +663,9 @@ final class IslandPanel: NSPanel {
     }
     private var gestureAxis: GestureAxis?
 
-    override var canBecomeKey: Bool { true }
+    override var canBecomeKey: Bool {
+        return needsKeyFocusProvider?() ?? false
+    }
 
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
         return frameRect

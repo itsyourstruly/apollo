@@ -12,9 +12,6 @@ extension UnifiedNotchContainer {
         if item.hasFiles {
             _ = NSPasteboard.general.writeObjects(item.fileURLs as [NSURL])
         }
-        if settings.clipboardActionOption == .paste, let delegate = NSApp.delegate as? AppDelegate {
-            delegate.postPasteCommand()
-        }
         highlightedClipboardID = item.id
         clipboardTapFeedbackProgress = 0
 

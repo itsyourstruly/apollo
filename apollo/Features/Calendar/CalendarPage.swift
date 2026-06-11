@@ -156,16 +156,19 @@ struct MonthGridView: View {
     @Binding var selectedDate: Date
     let events: [EKEvent]
     let accentColor: Color
+    let weekStartsOn: Int
 
     private var daysInMonth: [Date?] {
-        let calendar = Calendar.current
+        var calendar = Calendar.current
+        calendar.firstWeekday = weekStartsOn
         guard let monthRange = calendar.range(of: .day, in: .month, for: month),
               let firstDayOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: month)) else {
             return []
         }
         
         let firstWeekday = calendar.component(.weekday, from: firstDayOfMonth)
-        let offset = firstWeekday - 1
+        var offset = firstWeekday - calendar.firstWeekday
+        if offset < 0 { offset += 7 }
         
         var days: [Date?] = Array(repeating: nil, count: offset)
         for day in 1...monthRange.count {
@@ -180,7 +183,12 @@ struct MonthGridView: View {
         return days
     }
 
-    private let weekdaySymbols = ["S", "M", "T", "W", "T", "F", "S"]
+    private var weekdaySymbols: [String] {
+        if weekStartsOn == 2 {
+            return ["M", "T", "W", "T", "F", "S", "S"]
+        }
+        return ["S", "M", "T", "W", "T", "F", "S"]
+    }
 
     var body: some View {
         VStack(spacing: 6) {
@@ -302,6 +310,7 @@ struct CalendarPageContent: View, Equatable {
     let height: CGFloat
     let accentColor: Color
     let calendarViewOption: Int
+    let calendarWeekStartsOn: Int
     @ObservedObject private var manager = CalendarManager.shared
     
     static func == (lhs: CalendarPageContent, rhs: CalendarPageContent) -> Bool {
@@ -309,6 +318,7 @@ struct CalendarPageContent: View, Equatable {
         lhs.height == rhs.height &&
         lhs.accentColor == rhs.accentColor &&
         lhs.calendarViewOption == rhs.calendarViewOption &&
+        lhs.calendarWeekStartsOn == rhs.calendarWeekStartsOn &&
         lhs.manager.events.count == rhs.manager.events.count &&
         lhs.manager.events.first?.eventIdentifier == rhs.manager.events.first?.eventIdentifier &&
         lhs.manager.permissionGranted == rhs.manager.permissionGranted &&
@@ -330,7 +340,8 @@ struct CalendarPageContent: View, Equatable {
     }
 
     private var currentWeekDays: [Date] {
-        let calendar = Calendar.current
+        var calendar = Calendar.current
+        calendar.firstWeekday = calendarWeekStartsOn
         let now = Date()
         let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) ?? now
         return (0..<7).compactMap { day in
@@ -384,7 +395,7 @@ struct CalendarPageContent: View, Equatable {
                     if width >= 340 {
                         // Side-by-Side View
                         HStack(spacing: 12) {
-                            MonthGridView(month: Date(), selectedDate: $selectedDate, events: manager.events, accentColor: accentColor)
+                            MonthGridView(month: Date(), selectedDate: $selectedDate, events: manager.events, accentColor: accentColor, weekStartsOn: calendarWeekStartsOn)
                                 .frame(width: 170)
                             
                             VStack(alignment: .leading, spacing: 4) {
@@ -556,7 +567,7 @@ struct CalendarPageContent: View, Equatable {
         guard floatingPanel == nil else { return }
         
         let gridView = VStack {
-            MonthGridView(month: Date(), selectedDate: $selectedDate, events: manager.events, accentColor: accentColor)
+            MonthGridView(month: Date(), selectedDate: $selectedDate, events: manager.events, accentColor: accentColor, weekStartsOn: calendarWeekStartsOn)
                 .padding(12)
         }
         .background(
@@ -610,7 +621,7 @@ struct CalendarPageContent: View, Equatable {
 
 // MARK: - UnifiedNotchContainer integration
 extension View {
-    func calendarPageOverlay(width: CGFloat, height: CGFloat, accentColor: Color, calendarViewOption: Int) -> some View {
-        CalendarPageContent(width: width, height: height, accentColor: accentColor, calendarViewOption: calendarViewOption)
+    func calendarPageOverlay(width: CGFloat, height: CGFloat, accentColor: Color, calendarViewOption: Int, calendarWeekStartsOn: Int) -> some View {
+        CalendarPageContent(width: width, height: height, accentColor: accentColor, calendarViewOption: calendarViewOption, calendarWeekStartsOn: calendarWeekStartsOn)
     }
 }

@@ -347,7 +347,7 @@ struct SettingsView: View {
                             .frame(width: 40, alignment: .trailing)
                     }
                     
-                    Toggle("Show unfilled battery track", isOn: $settings.batteryBarShowGhostTrack)
+                    Toggle("Show battery track", isOn: $settings.batteryBarShowGhostTrack)
                     
                     Picker("Color Mode", selection: $settings.batteryBarColorMode) {
                         Text("Accent Color").tag(0)
@@ -409,24 +409,12 @@ struct SettingsView: View {
                                 setPreviewFocus(.clipboardLimit, isEditing: isEditing)
                             }
                         )
+                        Text("\(settings.rememberClips)")
+                            .frame(width: 36, alignment: .trailing)
                     }
                     Text("Set to 0 for unlimited")
                         .font(.caption)
                         .foregroundColor(.secondary)
-
-                    Picker("Clip action", selection: $settings.clipboardAction) {
-                        ForEach(ClipboardActionOption.allCases, id: \.rawValue) { action in
-                            Text(action.label)
-                                .tag(action.rawValue)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-
-                    if settings.clipboardActionOption == .paste {
-                        Text("Paste requires Accessibility permission for Apollo")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
                 }
 
                 Section("Clipboard Layout") {
@@ -662,12 +650,18 @@ struct SettingsView: View {
                 
                 Section("Layout Options") {
                     Picker("View Style", selection: $settings.calendarViewOption) {
-                        Text("Month Grid").tag(0)
-                        Text("Week Carousel").tag(1)
+                        Text("Month").tag(0)
+                        Text("Week").tag(1)
                     }
                     .pickerStyle(.segmented)
                     
-                    Text("Month Grid displays a full monthly layout with day details. Week Carousel displays a horizontal scrolling strip of the current week.")
+                    Picker("Week starts on", selection: $settings.calendarWeekStartsOn) {
+                        Text("Sunday").tag(1)
+                        Text("Monday").tag(2)
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    Text("Month Grid displays a full monthly layout with day details. Week Carousel displays a horizontal strip for the week.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -1146,8 +1140,8 @@ struct SettingsView: View {
                         .frame(width: 56, alignment: .trailing)
                 }
 
-                Toggle("Disable approach", isOn: $settings.disableApproach)
-                    .help("Only opens when directly hovering over the notch")
+                Toggle("Enable approach", isOn: $settings.enableApproach)
+                    .help("Gradually expands the island as the cursor approaches the notch")
 
                 Toggle("Always use approach when dragging file", isOn: $settings.alwaysUseApproachWhenDraggingFile)
                     .help("For file drags, approach is enabled even if disabled, and its width/height are doubled")

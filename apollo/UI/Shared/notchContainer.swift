@@ -7,7 +7,8 @@ extension UnifiedNotchContainer {
             width: scaledPanelWidth(for: settings),
             height: max(1, contentAreaHeight - pageTopContentInset),
             accentColor: Color(settings.accentColor),
-            calendarViewOption: settings.calendarViewOption
+            calendarViewOption: settings.calendarViewOption,
+            calendarWeekStartsOn: settings.calendarWeekStartsOn
         )
         .equatable()
         .padding(.top, pageTopContentInset)

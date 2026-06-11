@@ -226,7 +226,7 @@ struct UnifiedNotchContainer: View {
             ZStack(alignment: .top) {
                 Color.clear
                 
-                if isSlimBoxInstance || model.isContentActive {
+                if isSlimBoxInstance || model.isContentActive || ((model.isStopwatchRunning || model.isTimerRunning) && !settings.disableChronoHUD) {
                     activeIslandContent
                 }
             }
@@ -250,8 +250,8 @@ struct UnifiedNotchContainer: View {
         let progress: CGFloat = rawProgress.isFinite ? max(0, min(1, rawProgress)) : 0
         let easedProgress: CGFloat = progress * progress * (3 - 2 * progress)
         
-        let showStopwatch: Bool = model.isStopwatchRunning
-        let showTimer: Bool = model.isTimerRunning
+        let showStopwatch: Bool = model.isStopwatchRunning && !settings.disableChronoHUD
+        let showTimer: Bool = model.isTimerRunning && !settings.disableChronoHUD
         let targetLeftExt: CGFloat = showStopwatch ? 100 : 0
         let targetRightExt: CGFloat = showTimer ? 100 : 0
         let activeLeftExt: CGFloat = targetLeftExt * (1 - easedProgress)
@@ -529,7 +529,7 @@ struct UnifiedNotchContainer: View {
                 Group {
                     switch focus {
                     case .all:
-                        if approachHeight > 0 || approachWidth > 0 {
+                    if (approachHeight > 0 || approachWidth > 0) && settings.enableApproach {
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .stroke(Color.white.opacity(0.75), style: StrokeStyle(lineWidth: 2, dash: [6, 6]))
                                 .frame(width: approachRect.width, height: approachRect.height)
@@ -567,7 +567,7 @@ struct UnifiedNotchContainer: View {
                             .frame(width: edgeNotchRect.width, height: edgeNotchRect.height)
                             .position(x: edgeNotchRect.midX, y: edgeNotchRect.midY)
                     case .approach:
-                        if approachHeight > 0 || approachWidth > 0 {
+                    if (approachHeight > 0 || approachWidth > 0) && settings.enableApproach {
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .stroke(Color.white.opacity(0.75), style: StrokeStyle(lineWidth: 2, dash: [6, 6]))
                                 .frame(width: approachRect.width, height: approachRect.height)
