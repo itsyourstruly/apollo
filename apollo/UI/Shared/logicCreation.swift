@@ -38,6 +38,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowFrameUpdateWorkItem: DispatchWorkItem?
     private var cachedScreenFrame: NSRect = .zero
     private let singleInstanceLock = SingleInstanceLock()
+    private var chronoActivity: NSObjectProtocol?
     
     // Event-driven proximity tracking
     private var proximityWakeWindow: ProximityWakeWindow?   // notch-edge / approach (open trigger)
@@ -461,6 +462,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self.hideSlimBox()
                 }
             }
+            .store(in: &settingsCancellables)
+            
+        Publishers.CombineLatest3(
+            model.$isStopwatchRunning,
+            model.$isTimerRunning,
+            settings.$disableChronoHUD
+        )
+        .sink { [weak self] isStopwatch, isTimer, disableHUD in
+            let needsActivity = (isStopwatch || isTimer) && !disableHUD
+            if needsActivity && self?.chronoActivity == nil {
+                self?.chronoActivity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .latencyCritical], reason: "Chrono HUD Active")
+            } else if !needsActivity && self?.chronoActivity != nil {
+                if let activity = self?.chronoActivity { ProcessInfo.processInfo.endActivity(activity) }
+                self?.chronoActivity = nil
+            }
+        }
             .store(in: &settingsCancellables)
     }
     
