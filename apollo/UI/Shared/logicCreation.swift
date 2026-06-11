@@ -472,7 +472,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         .sink { [weak self] isStopwatch, isTimer, disableHUD in
             let needsActivity = (isStopwatch || isTimer) && !disableHUD
             if needsActivity && self?.chronoActivity == nil {
-                self?.chronoActivity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .latencyCritical], reason: "Chrono HUD Active")
+                self?.chronoActivity = ProcessInfo.processInfo.beginActivity(options: [.userInitiatedAllowingIdleSystemSleep, .latencyCritical], reason: "Chrono HUD Active")
             } else if !needsActivity && self?.chronoActivity != nil {
                 if let activity = self?.chronoActivity { ProcessInfo.processInfo.endActivity(activity) }
                 self?.chronoActivity = nil
@@ -837,16 +837,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 )
                 return toastRect.contains(point)
             }
-            let notchWidth = self.settings.effectiveNotchWidth
-            let notchHeight = self.settings.effectiveNotchHeight
-            let slop: CGFloat = 20
-            let notchRect = NSRect(
-                x: (windowWidth - notchWidth) / 2 - slop,
-                y: windowHeight - notchHeight - slop,
-                width: notchWidth + (slop * 2),
-                height: notchHeight + slop
-            )
-            return notchRect.contains(point)
+            return false // Pass events through so ProximityWakeWindow can trigger the open
         }
         notchWindow.contentView = hostingView
         // Don't order front at startup — window will be ordered front on first show.
@@ -1077,7 +1068,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             wake.isOpaque = false
             wake.backgroundColor = .clear
             wake.hasShadow = false
-            wake.level = .statusBar + 1
+        wake.level = .statusBar + 4
             wake.alphaValue = 0.001
             wake.ignoresMouseEvents = false
             wake.acceptsMouseMovedEvents = true
@@ -1275,6 +1266,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     } else {
                         checkWindow?.alphaValue = 1.0
                         checkWindow?.ignoresMouseEvents = false
+                        checkWindow?.orderFrontRegardless()
                     }
                 }
             }
@@ -1997,7 +1989,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     if notchWindow?.isVisible == false {
                         notchWindow?.orderFrontRegardless()
                     }
-                    let shouldIgnoreMouseEvents = !(isFileDrag && zones.approachRect.contains(globalPoint))
+                    let hasActiveChrono = (model.isStopwatchRunning || model.isTimerRunning) && !settings.disableChronoHUD
+                    let shouldIgnoreMouseEvents = hasActiveChrono ? false : !(isFileDrag && zones.approachRect.contains(globalPoint))
                     if notchWindow?.ignoresMouseEvents != shouldIgnoreMouseEvents {
                         notchWindow?.ignoresMouseEvents = shouldIgnoreMouseEvents
                     }
@@ -2278,6 +2271,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 } else {
                     window.alphaValue = 1.0
                     window.ignoresMouseEvents = false
+                    window.orderFrontRegardless()
                 }
                 self.updateNotchWindowFrame(heightOverride: self.settings.effectiveNotchHeight)
                 self.clearCursorPresenceState()
@@ -2509,6 +2503,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 } else {
                     window.alphaValue = 1.0
                     window.ignoresMouseEvents = false
+                    window.orderFrontRegardless()
                 }
             }
             updateClipboardObservationMode(immediatePoll: true)
@@ -2565,7 +2560,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                abs(current.size.height - newFrame.size.height) < 1.0 {
                 return
             }
-            window.setFrame(newFrame, display: false)
+            window.setFrame(newFrame, display: true)
             window.level = .statusBar + 2
         }
         

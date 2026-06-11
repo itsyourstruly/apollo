@@ -1,5 +1,6 @@
 
 import SwiftUI
+import Combine
 
 extension UnifiedNotchContainer {
     func chronoPage(contentAreaHeight: CGFloat) -> some View {
@@ -61,21 +62,11 @@ extension UnifiedNotchContainer {
     }
     
     private var chronoStopwatchWidget: some View {
-        TimelineView(.periodic(from: .now, by: 1.0)) { context in
-            Text(formatCompactChrono(stopwatchElapsed(for: context.date)))
-                .font(.system(.subheadline, design: .monospaced).weight(.semibold))
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity, alignment: .center)
-        }
+        ChronoStopwatchWidgetView(model: model)
     }
 
     private var chronoTimerWidget: some View {
-        TimelineView(.periodic(from: .now, by: 1.0)) { context in
-            Text(formatCompactChrono(timerRemaining(for: context.date)))
-                .font(.system(.subheadline, design: .monospaced).weight(.semibold))
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity, alignment: .center)
-        }
+        ChronoTimerWidgetView(model: model)
     }
 
     // MARK: - Logic Helpers
@@ -138,5 +129,125 @@ extension UnifiedNotchContainer {
         model.timerRemainingAtPause = 0
         model.timerEndTime = nil
         model.isTimerRunning = false
+    }
+}
+
+final class ChronoTicker: ObservableObject {
+    static let shared = ChronoTicker()
+    @Published var tick = Date()
+    private var timer: DispatchSourceTimer?
+    private var subscribers = 0
+
+    func register() {
+        subscribers += 1
+        if subscribers == 1 {
+            start()
+        }
+    }
+
+    func unregister() {
+        subscribers -= 1
+        if subscribers <= 0 {
+            subscribers = 0
+            stop()
+        }
+    }
+
+    private func start() {
+        timer?.cancel()
+        let t = DispatchSource.makeTimerSource(queue: .main)
+        t.schedule(deadline: .now(), repeating: .milliseconds(200))
+        t.setEventHandler { [weak self] in
+            self?.tick = Date()
+        }
+        t.resume()
+        timer = t
+    }
+
+    private func stop() {
+        timer?.cancel()
+        timer = nil
+    }
+}
+
+struct ChronoStopwatchWidgetView: View {
+    @ObservedObject var model: NotchMenuModel
+    @State private var tick = Date()
+
+    var body: some View {
+        Text(formatCompactChrono(stopwatchElapsed(for: tick)))
+            .font(.system(.subheadline, design: .monospaced).weight(.semibold))
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .onAppear {
+                ChronoTicker.shared.register()
+            }
+            .onDisappear {
+                ChronoTicker.shared.unregister()
+            }
+            .onReceive(ChronoTicker.shared.$tick) { date in
+                tick = date
+            }
+    }
+
+    private func stopwatchElapsed(for date: Date) -> TimeInterval {
+        let activeTime = model.isStopwatchRunning ? date.timeIntervalSinceReferenceDate - (model.stopwatchStartTime ?? date.timeIntervalSinceReferenceDate) : 0
+        return model.stopwatchAccumulatedTime + activeTime
+    }
+
+    private func formatCompactChrono(_ time: TimeInterval) -> String {
+        let totalS = Int(time)
+        let s = totalS % 60
+        let m = (totalS / 60) % 60
+        let h = totalS / 3600
+        
+        if h > 0 {
+            return String(format: "%d:%02d:%02d", h, m, s)
+        } else if m > 0 {
+            return String(format: "%d:%02d", m, s)
+        } else {
+            return String(format: "%d", s)
+        }
+    }
+}
+
+struct ChronoTimerWidgetView: View {
+    @ObservedObject var model: NotchMenuModel
+    @State private var tick = Date()
+
+    var body: some View {
+        Text(formatCompactChrono(timerRemaining(for: tick)))
+            .font(.system(.subheadline, design: .monospaced).weight(.semibold))
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .onAppear {
+                ChronoTicker.shared.register()
+            }
+            .onDisappear {
+                ChronoTicker.shared.unregister()
+            }
+            .onReceive(ChronoTicker.shared.$tick) { date in
+                tick = date
+            }
+    }
+
+    private func timerRemaining(for date: Date) -> TimeInterval {
+        let remaining = model.isTimerRunning ? max(0, (model.timerEndTime ?? date.timeIntervalSinceReferenceDate) - date.timeIntervalSinceReferenceDate) : model.timerRemainingAtPause
+        return remaining
+    }
+
+    private func formatCompactChrono(_ time: TimeInterval) -> String {
+        let totalS = Int(time)
+        let s = totalS % 60
+        let m = (totalS / 60) % 60
+        let h = totalS / 3600
+        
+        if h > 0 {
+            return String(format: "%d:%02d:%02d", h, m, s)
+        } else if m > 0 {
+            return String(format: "%d:%02d", m, s)
+        } else {
+            return String(format: "%d", s)
+        }
     }
 }
