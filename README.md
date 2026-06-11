@@ -85,8 +85,11 @@ Change everything to your liking. It's yours.
 --
 
 Requirements: 
+
 Macos Tahoe 26+
+
 Apple Silicon
+
 --
 
 Installation:
