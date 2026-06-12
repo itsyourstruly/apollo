@@ -7,55 +7,60 @@ struct BoxShareButton: View {
     let files: [BoxFile]
     let selectedIDs: Set<UUID>
     let accentColor: NSColor
+    let isBoxTargeted: Bool
     
     @State private var isShareTargeted = false
     @State private var targetedAppPath: String? = nil
     @State private var shareCoordinator: SharePickerCoordinator?
+    @State private var isHovering = false
 
     private var urlsToShare: [URL] {
         let selected = files.filter { selectedIDs.contains($0.id) }.map(\.url)
         return selected.isEmpty ? files.map(\.url) : selected
     }
 
+    private var isExpanded: Bool {
+        isHovering || isShareTargeted || targetedAppPath != nil
+    }
+
     var body: some View {
         HStack(spacing: 8) {
-            if !AppSettings.shared.sharingTargetApps.isEmpty {
-                HStack(spacing: 6) {
-                    ForEach(AppSettings.shared.sharingTargetApps, id: \.self) { appPath in
-                        let appURL = URL(fileURLWithPath: appPath)
-                        let appName = appURL.deletingPathExtension().lastPathComponent
-                        let isHovered = targetedAppPath == appPath
-                        
-                        Button {
-                            openFiles(urlsToShare, with: appPath)
-                        } label: {
-                            BoxControlsAppIconView(appPath: appPath, size: 20)
-                                .padding(8)
-                                .background(isHovered ? Color.white.opacity(0.3) : Color.black.opacity(0.4), in: Circle())
-                                .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Open with \(appName)")
-                        .onDrop(of: [.fileURL], isTargeted: Binding(
-                            get: { self.targetedAppPath == appPath },
-                            set: { isTargeted in
-                                if isTargeted {
-                                    self.targetedAppPath = appPath
-                                } else if self.targetedAppPath == appPath {
-                                    self.targetedAppPath = nil
-                                }
+            if isExpanded {
+                if !AppSettings.shared.sharingTargetApps.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(AppSettings.shared.sharingTargetApps, id: \.self) { appPath in
+                            let appURL = URL(fileURLWithPath: appPath)
+                            let appName = appURL.deletingPathExtension().lastPathComponent
+                            let isHovered = targetedAppPath == appPath
+                            
+                            Button {
+                                openFiles(urlsToShare, with: appPath)
+                            } label: {
+                                BoxControlsAppIconView(appPath: appPath, size: 20)
+                                    .padding(8)
+                                    .background(isHovered ? Color.white.opacity(0.3) : Color.black.opacity(0.4), in: Circle())
+                                    .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
                             }
-                        )) { providers in
-                            handleAppDrop(providers: providers, appPath: appPath)
-                            return true
+                            .buttonStyle(.plain)
+                            .help("Open with \(appName)")
+                            .onDrop(of: [.fileURL], isTargeted: Binding(
+                                get: { self.targetedAppPath == appPath },
+                                set: { isTargeted in
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                        if isTargeted {
+                                            self.targetedAppPath = appPath
+                                        } else if self.targetedAppPath == appPath {
+                                            self.targetedAppPath = nil
+                                        }
+                                    }
+                                }
+                            )) { providers in
+                                handleAppDrop(providers: providers, appPath: appPath)
+                                return true
+                            }
                         }
                     }
                 }
-                
-                Rectangle()
-                    .fill(Color.white.opacity(0.25))
-                    .frame(width: 1, height: 20)
-                    .padding(.horizontal, 4)
             }
 
             Button {
@@ -70,13 +75,26 @@ struct BoxShareButton: View {
                     .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
             }
             .buttonStyle(.plain)
-            .onDrop(of: [.fileURL], isTargeted: $isShareTargeted) { providers in
+            .help("Share")
+            .onDrop(of: [.fileURL], isTargeted: Binding(
+                get: { isShareTargeted },
+                set: { isTargeted in
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        isShareTargeted = isTargeted
+                    }
+                }
+            )) { providers in
                 handleShareDrop(providers: providers)
                 return true
             }
         }
         .padding(6)
         .background(Color.black.opacity(0.25), in: Capsule())
+        .onHover { hovering in
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                isHovering = hovering
+            }
+        }
     }
 
     private func openFiles(_ urls: [URL], with appPath: String) {
@@ -109,30 +127,101 @@ struct BoxShareButton: View {
 
     private func share(urls: [URL]) {
         guard !urls.isEmpty else { return }
-        // Issue 6: Set isAddSheetOpen so the island doesn't close while the picker is visible.
         if let delegate = NSApp.delegate as? AppDelegate {
             delegate.model.isAddSheetOpen = true
         }
-        let picker = NSSharingServicePicker(items: urls)
-        let coordinator = SharePickerCoordinator {
-            if let delegate = NSApp.delegate as? AppDelegate {
-                delegate.model.isAddSheetOpen = false
+        
+        let menu = NSMenu(title: "Share")
+        
+        if !AppSettings.shared.sharingTargetApps.isEmpty {
+            for appPath in AppSettings.shared.sharingTargetApps {
+                let appURL = URL(fileURLWithPath: appPath)
+                let appName = appURL.deletingPathExtension().lastPathComponent
+                let item = NSMenuItem(title: "Open with \(appName)", action: #selector(ShareMenuActionTarget.openApp(_:)), keyEquivalent: "")
+                item.target = ShareMenuActionTarget.shared
+                item.representedObject = ["urls": urls, "appPath": appPath]
+                if let icon = AppIconCache.shared.icon(forPath: appPath)?.copy() as? NSImage {
+                    icon.size = NSSize(width: 16, height: 16)
+                    item.image = icon
+                }
+                menu.addItem(item)
             }
-            DispatchQueue.main.async {
-                self.shareCoordinator = nil
+            menu.addItem(.separator())
+        }
+        
+        let airdropService = NSSharingService(named: .sendViaAirDrop)
+        if let airdropService = airdropService {
+            let item = NSMenuItem(title: "AirDrop", action: #selector(ShareMenuActionTarget.performService(_:)), keyEquivalent: "")
+            item.target = ShareMenuActionTarget.shared
+            item.representedObject = ["urls": urls, "service": airdropService]
+            if let icon = airdropService.image.copy() as? NSImage {
+                icon.size = NSSize(width: 16, height: 16)
+                item.image = icon
+            }
+            menu.addItem(item)
+        }
+        
+        let messageService = NSSharingService(named: .composeMessage)
+        if let messageService = messageService {
+            let item = NSMenuItem(title: "Messages", action: #selector(ShareMenuActionTarget.performService(_:)), keyEquivalent: "")
+            item.target = ShareMenuActionTarget.shared
+            item.representedObject = ["urls": urls, "service": messageService]
+            if let icon = messageService.image.copy() as? NSImage {
+                icon.size = NSSize(width: 16, height: 16)
+                item.image = icon
+            }
+            menu.addItem(item)
+        }
+        
+        let mailService = NSSharingService(named: .composeEmail)
+        if let mailService = mailService {
+            let item = NSMenuItem(title: "Mail", action: #selector(ShareMenuActionTarget.performService(_:)), keyEquivalent: "")
+            item.target = ShareMenuActionTarget.shared
+            item.representedObject = ["urls": urls, "service": mailService]
+            if let icon = mailService.image.copy() as? NSImage {
+                icon.size = NSSize(width: 16, height: 16)
+                item.image = icon
+            }
+            menu.addItem(item)
+        }
+        
+        let services = NSSharingService.sharingServices(forItems: urls)
+        let airdropTitle = airdropService?.title ?? "AirDrop"
+        let messageTitle = messageService?.title ?? "Messages"
+        let mailTitle = mailService?.title ?? "Mail"
+        let otherServices = services.filter { $0.title != airdropTitle && $0.title != messageTitle && $0.title != mailTitle }
+        if !otherServices.isEmpty {
+            menu.addItem(.separator())
+            for service in otherServices {
+                let item = NSMenuItem(title: service.title, action: #selector(ShareMenuActionTarget.performService(_:)), keyEquivalent: "")
+                item.target = ShareMenuActionTarget.shared
+                item.representedObject = ["urls": urls, "service": service]
+                if let icon = service.image.copy() as? NSImage {
+                    icon.size = NSSize(width: 16, height: 16)
+                    item.image = icon
+                }
+                menu.addItem(item)
             }
         }
-        self.shareCoordinator = coordinator
-        picker.delegate = coordinator
-        if let window = NSApp.keyWindow, let view = window.contentView {
-            let rect = NSRect(x: view.bounds.width - 50, y: view.bounds.height - 20, width: 1, height: 1)
-            picker.show(relativeTo: rect, of: view, preferredEdge: .minY)
-        } else {
-            // No window available; clear the flag immediately.
-            if let delegate = NSApp.delegate as? AppDelegate {
-                delegate.model.isAddSheetOpen = false
+        
+        menu.delegate = ShareMenuDelegate.shared
+        
+        var targetView: NSView? = nil
+        if let window = NSApp.keyWindow {
+            targetView = window.contentView
+        } else if let delegate = NSApp.delegate as? AppDelegate {
+            if delegate.model.boxSlimModeActive {
+                targetView = delegate.slimBoxWindow?.contentView
+            } else {
+                targetView = delegate.islandWindow?.contentView
             }
-            self.shareCoordinator = nil
+        }
+        
+        if let view = targetView ?? NSApp.windows.first(where: { $0.isVisible })?.contentView {
+            let location = view.window?.mouseLocationOutsideOfEventStream ?? NSEvent.mouseLocation
+            menu.popUp(positioning: nil, at: location, in: view)
+        } else {
+            menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
         }
     }
 

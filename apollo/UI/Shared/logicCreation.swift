@@ -97,7 +97,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let window = islandWindow else { return false }
         
         let center = window.frame.width / 2
-        let fromTop = window.frame.height - point.y
+        let isFlipped = window.contentView?.isFlipped ?? false
+        let fromTop = isFlipped ? point.y : (window.frame.height - point.y)
+        
+        if fromTop < 0 { return false }
         let isExpanded = self.model.isExpanded || self.model.isPinned || self.model.expansionProgress > 0
         
         // 1. Toast Mode
@@ -1909,7 +1912,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         private func startIslandOpenMousePolling() {
             guard islandOpenMousePollTimer == nil else { return }
             let timer = DispatchSource.makeTimerSource(queue: .main)
-            timer.schedule(deadline: .now() + .milliseconds(400), repeating: .milliseconds(400), leeway: .milliseconds(150))
+            timer.schedule(deadline: .now() + .milliseconds(50), repeating: .milliseconds(50), leeway: .milliseconds(10))
             timer.setEventHandler { [weak self] in
                 self?.handleIslandOpenMousePollTick()
             }
@@ -1937,6 +1940,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             
             if isPointInsideVisualIsland(point) || isPointInsideNotchActivationZone(point) {
+                hoverCloseWorkItem?.cancel()
+                hoverCloseWorkItem = nil
                 return
             }
             scheduleHoverCloseIfNeeded()

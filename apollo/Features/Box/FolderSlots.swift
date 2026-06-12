@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 import Combine
+import Quartz
 
 // MARK: - Data Models & Workers
 
@@ -41,6 +42,32 @@ final class FolderSlotsWorker: Sendable {
             return entities.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         }.value
     }
+    
+    static func search(urls: [URL], query: String) async -> [FolderSlotEntity] {
+        return await Task.detached(priority: .userInitiated) {
+            var results: [FolderSlotEntity] = []
+            let fm = FileManager.default
+            let lowerQuery = query.lowercased()
+
+            for url in urls {
+                if Task.isCancelled { break }
+                
+                guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else { continue }
+                
+                for case let fileURL as URL in enumerator {
+                    if Task.isCancelled { break }
+                    let name = fileURL.lastPathComponent
+                    if name.lowercased().contains(lowerQuery) {
+                        let isDir = (try? fileURL.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+                        results.append(FolderSlotEntity(url: fileURL, isDirectory: isDir, name: name))
+                    }
+                    if results.count >= 250 { break }
+                }
+                if results.count >= 250 { break }
+            }
+            return results.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        }.value
+    }
 }
 
 // MARK: - Panel Configuration
@@ -60,6 +87,14 @@ final class FolderSlotsWindow: NSWindow {
     
     override var canBecomeKey: Bool { return true }
     override var canBecomeMain: Bool { return true }
+    
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 49 { // Spacebar
+            FolderSlotsManager.shared.toggleQuickLook()
+        } else {
+            super.keyDown(with: event)
+        }
+    }
     
     deinit {
         NSLog("FolderSlotsWindow deinitialized - Memory released successfully.")
@@ -83,8 +118,19 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
     private var baseEntities: [FolderSlotEntity] = []
     @Published var navigationStack: [URL] = []
     @Published var isNavigating: Bool = false
+    @Published var selectedIDs = Set<String>()
+    @Published var lastSelectedID: String?
+    @Published var searchQuery: String = ""
+    @Published var searchResults: [FolderSlotEntity] = []
+    @Published var isSearching: Bool = false
+    private var searchTask: Task<Void, Never>?
     private var activeRootURLs: [URL] = []
     private weak var activeModel: NotchMenuModel?
+    private var currentNavigationTask: Task<Void, Never>?
+    
+    var displayedEntities: [FolderSlotEntity] {
+        return searchQuery.isEmpty ? currentEntities : searchResults
+    }
     
     func open(anchor windowRect: CGRect, model: NotchMenuModel, settings: AppSettings) {
         self.activeModel = model
@@ -129,13 +175,41 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
     }
     
     func windowWillClose(_ notification: Notification) {
-        self.close(updateModel: true)
+        if let window = notification.object as? NSWindow {
+            if window === self.panel {
+                self.close(updateModel: true)
+            } else if QLPreviewPanel.sharedPreviewPanelExists(), window === QLPreviewPanel.shared() {
+                QLPreviewPanel.shared().dataSource = nil
+                QLPreviewPanel.shared().delegate = nil
+            }
+        }
+    }
+    
+    func toggleQuickLook() {
+        if QLPreviewPanel.sharedPreviewPanelExists() && QLPreviewPanel.shared().isVisible {
+            QLPreviewPanel.shared().orderOut(nil)
+        } else {
+            let selectedURLs = currentEntities.filter { selectedIDs.contains($0.id) }.map(\.url)
+            guard !selectedURLs.isEmpty else { return }
+            
+            let panel = QLPreviewPanel.shared()
+            panel?.dataSource = self
+            panel?.delegate = self
+            panel?.reloadData()
+            panel?.makeKeyAndOrderFront(nil)
+        }
     }
     
     func close(updateModel: Bool = true) {
         if let currentSize = panel?.frame.size {
             UserDefaults.standard.set(Double(currentSize.width), forKey: "folderSlotsWindowWidth")
             UserDefaults.standard.set(Double(currentSize.height), forKey: "folderSlotsWindowHeight")
+        }
+        
+        if QLPreviewPanel.sharedPreviewPanelExists() && QLPreviewPanel.shared().dataSource === self {
+            QLPreviewPanel.shared().orderOut(nil)
+            QLPreviewPanel.shared().dataSource = nil
+            QLPreviewPanel.shared().delegate = nil
         }
         
         panel?.delegate = nil
@@ -145,6 +219,15 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
         currentEntities.removeAll()
         navigationStack.removeAll()
         isNavigating = false
+        selectedIDs.removeAll()
+        lastSelectedID = nil
+        searchQuery = ""
+        searchResults.removeAll()
+        isSearching = false
+        searchTask?.cancel()
+        searchTask = nil
+        currentNavigationTask?.cancel()
+        currentNavigationTask = nil
         for url in activeRootURLs {
             url.stopAccessingSecurityScopedResource()
         }
@@ -158,16 +241,27 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
     }
     
     func navigate(to url: URL) {
-        isNavigating = true
-        navigationStack.append(url)
-        Task {
-            // Subdirectories of your authorized folder don't need additional Security Scope tokens
-            let fetched = await FolderSlotsWorker.fetchContents(of: url, withSecurityScope: false)
-            await MainActor.run {
-                self.currentEntities = fetched
-                self.isNavigating = false
+        if navigationStack.isEmpty {
+            var hierarchy: [URL] = []
+            let components = url.pathComponents
+            var current = URL(fileURLWithPath: "/")
+            
+            if components.first == "/" {
+                hierarchy.append(current)
+                for component in components.dropFirst() {
+                    current = current.appendingPathComponent(component)
+                    hierarchy.append(current)
+                }
+            } else {
+                hierarchy.append(url)
+            }
+            navigationStack = hierarchy
+        } else {
+            if navigationStack.last != url {
+                navigationStack.append(url)
             }
         }
+        loadContents(of: url)
     }
     
     func navigateBack() {
@@ -176,10 +270,104 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
         
         if let lastURL = navigationStack.last {
             // Re-fetch the parent directory
-            navigate(to: lastURL)
+            loadContents(of: lastURL)
         } else {
+            currentNavigationTask?.cancel()
             self.currentEntities = self.baseEntities
             self.isNavigating = false
+        }
+    }
+    
+    func navigateToRoot() {
+        guard !navigationStack.isEmpty else { return }
+        navigationStack.removeAll()
+        selectedIDs.removeAll()
+        lastSelectedID = nil
+        searchQuery = ""
+        searchResults.removeAll()
+        isSearching = false
+        searchTask?.cancel()
+        searchTask = nil
+        currentNavigationTask?.cancel()
+        self.currentEntities = self.baseEntities
+        self.isNavigating = false
+    }
+    
+    func navigateToStackIndex(_ index: Int) {
+        guard index >= 0 && index < navigationStack.count - 1 else { return }
+        let targetURL = navigationStack[index]
+        navigationStack = Array(navigationStack.prefix(index + 1))
+        selectedIDs.removeAll()
+        lastSelectedID = nil
+        loadContents(of: targetURL)
+    }
+    
+    private func loadContents(of url: URL) {
+        isNavigating = true
+        searchQuery = ""
+        searchResults.removeAll()
+        isSearching = false
+        searchTask?.cancel()
+        searchTask = nil
+        currentNavigationTask?.cancel()
+        currentNavigationTask = Task {
+            let fetched = await FolderSlotsWorker.fetchContents(of: url, withSecurityScope: false)
+            if !Task.isCancelled {
+                await MainActor.run {
+                    self.currentEntities = fetched
+                    self.isNavigating = false
+                }
+            }
+        }
+    }
+    
+    func performSearch(query: String) {
+        searchTask?.cancel()
+        if query.isEmpty {
+            isSearching = false
+            searchResults = []
+            return
+        }
+        
+        let targetURLs = navigationStack.isEmpty ? activeRootURLs : [navigationStack.last!]
+        
+        isSearching = true
+        searchTask = Task {
+            // Debounce briefly for smooth typing without firing on every single keystroke
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            guard !Task.isCancelled else { return }
+            
+            let results = await FolderSlotsWorker.search(urls: targetURLs, query: query)
+            if !Task.isCancelled {
+                await MainActor.run {
+                    self.searchResults = results
+                    self.isSearching = false
+                }
+            }
+        }
+    }
+    
+    func addRootFolder(url: URL) {
+        if let bookmark = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
+            UserDefaults.standard.set(bookmark, forKey: "folder_bookmark_\(url.path)")
+        }
+        
+        let settings = AppSettings.shared
+        if !settings.folderSlotsPaths.contains(url.path) {
+            settings.folderSlotsPaths.append(url.path)
+        }
+        
+        let newEntity = FolderSlotEntity(url: url, isDirectory: true, name: url.lastPathComponent)
+        if !baseEntities.contains(where: { $0.url == url }) {
+            baseEntities.append(newEntity)
+            baseEntities.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        }
+        
+        if navigationStack.isEmpty {
+            if !currentEntities.contains(where: { $0.url == url }) {
+                currentEntities.append(newEntity)
+                currentEntities.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            }
         }
     }
     
@@ -205,10 +393,10 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
         var originY: CGFloat = 0
         
         if settings.folderSlotsDirection == 0 { // Left
-            originX = islandFrame.minX - width - 40
+            originX = islandFrame.minX - width - 48
             originY = screenRect.maxY - height - 40
         } else if settings.folderSlotsDirection == 1 { // Right
-            originX = islandFrame.maxX + 40
+            originX = islandFrame.maxX + 48
             originY = screenRect.maxY - height - 40
         } else { // Bottom
             originX = islandFrame.midX - (width / 2)
@@ -240,6 +428,20 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
     }
 }
 
+// MARK: - Quick Look Panel Source & Delegate
+
+extension FolderSlotsManager: QLPreviewPanelDataSource, QLPreviewPanelDelegate {
+    func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
+        return displayedEntities.filter { selectedIDs.contains($0.id) }.count
+    }
+    
+    func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
+        let selectedURLs = displayedEntities.filter { selectedIDs.contains($0.id) }.map(\.url)
+        guard index >= 0 && index < selectedURLs.count else { return nil }
+        return selectedURLs[index] as NSURL
+    }
+}
+
 // MARK: - Grid View
 
 struct FolderSlotsRootView: View {
@@ -247,60 +449,105 @@ struct FolderSlotsRootView: View {
     let columns: Int
     let accentColor: Color
     
-    @State private var selectedIDs = Set<String>()
-    @State private var lastSelectedID: String?
+    @State private var isDropTargeted = false
     
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.white.opacity(0.8))
-                    .frame(width: 24, height: 24)
+                    .frame(width: 20, height: 20)
                     .background(Color.white.opacity(0.15), in: Circle())
                     .overlay { WindowControlSurface { manager.close() } }
                 
                 if !manager.navigationStack.isEmpty {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundColor(.white.opacity(0.8))
-                        .frame(width: 24, height: 24)
+                        .frame(width: 20, height: 20)
                         .background(Color.white.opacity(0.15), in: Circle())
                         .overlay {
                             WindowControlSurface {
                                 manager.navigateBack()
-                                selectedIDs.removeAll()
-                                lastSelectedID = nil
+                            manager.selectedIDs.removeAll()
+                            manager.lastSelectedID = nil
                             }
                         }
                 }
                 
-                Text(manager.navigationStack.last?.lastPathComponent ?? "Folder Slots")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(accentColor)
-                    .lineLimit(1)
+                ScrollViewReader { scrollProxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 4) {
+                            Button {
+                                manager.navigateToRoot()
+                            } label: {
+                                Text("Folder Slots")
+                                    .foregroundColor(manager.navigationStack.isEmpty ? accentColor : .white.opacity(0.8))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                            }
+                            .buttonStyle(.plain)
+                            .id(-1)
+                            
+                            ForEach(Array(manager.navigationStack.enumerated()), id: \.offset) { index, url in
+                                Text("/")
+                                    .foregroundColor(.white.opacity(0.4))
+                                
+                                Button {
+                                    manager.navigateToStackIndex(index)
+                                } label: {
+                                    Text(url.path == "/" ? "Macintosh HD" : url.lastPathComponent)
+                                        .foregroundColor(index == manager.navigationStack.count - 1 ? accentColor : .white.opacity(0.8))
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.8)
+                                        .frame(maxWidth: 160)
+                                }
+                                .buttonStyle(.plain)
+                                .id(index)
+                            }
+                        }
+                        .font(.system(size: 12, weight: .semibold))
+                        .padding(.horizontal, 2)
+                    }
+                    .onChange(of: manager.navigationStack.count) { _, count in
+                        withAnimation {
+                            scrollProxy.scrollTo(count - 1, anchor: .trailing)
+                        }
+                    }
+                }
                 
                 Spacer()
+                
+                NativeSearchBar(text: $manager.searchQuery)
+                    .frame(width: 180)
+                    .onChange(of: manager.searchQuery) { _, newValue in
+                        manager.performSearch(query: newValue)
+                    }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 8)
+            .frame(height: 28)
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
             
             if manager.isNavigating {
                 ProgressView().controlSize(.regular)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if manager.currentEntities.isEmpty {
-                Text(manager.navigationStack.isEmpty ? "No folders configured.\nAdd them in Settings." : "Folder is empty.")
+            } else if manager.isSearching && manager.searchResults.isEmpty {
+                ProgressView().controlSize(.regular)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if manager.displayedEntities.isEmpty {
+                Text(manager.searchQuery.isEmpty ? (manager.navigationStack.isEmpty ? "No folders configured.\nAdd them in Settings." : "Folder is empty.") : "No results found.")
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView(.vertical, showsIndicators: true) {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: columns), spacing: 16) {
-                        ForEach(manager.currentEntities) { entity in
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: columns), spacing: 8) {
+                        ForEach(manager.displayedEntities) { entity in
                             FolderSlotItemView(
                                 entity: entity,
-                                isSelected: selectedIDs.contains(entity.id),
+                            isSelected: manager.selectedIDs.contains(entity.id),
                                 onSingleClick: { isShiftPressed in
                                     handleSingleClick(on: entity, isShiftPressed: isShiftPressed)
                                 },
@@ -310,7 +557,9 @@ struct FolderSlotsRootView: View {
                             )
                         }
                     }
-                    .padding(16)
+                    .padding(.horizontal, 10)
+                    .padding(.top, 4)
+                    .padding(.bottom, 10)
                 }
             }
         }
@@ -318,35 +567,107 @@ struct FolderSlotsRootView: View {
         .background(VisualEffectView(material: .hudWindow, blendingMode: .behindWindow))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.15), lineWidth: 1))
+        .overlay(
+            Group {
+                if isDropTargeted && manager.navigationStack.isEmpty {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.white.opacity(0.1))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color.white.opacity(0.5), lineWidth: 2)
+                        )
+                }
+            }
+        )
+        .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
+            guard manager.navigationStack.isEmpty else { return false }
+            var handled = false
+            for provider in providers where provider.canLoadObject(ofClass: URL.self) {
+                handled = true
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                    guard let fileURL = url else { return }
+                    var isDir: ObjCBool = false
+                    if FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir), isDir.boolValue {
+                        DispatchQueue.main.async {
+                            manager.addRootFolder(url: fileURL)
+                        }
+                    }
+                }
+            }
+            return handled
+        }
     }
     
     private func handleSingleClick(on entity: FolderSlotEntity, isShiftPressed: Bool) {
-        if isShiftPressed, let lastID = lastSelectedID,
-           let startIndex = manager.currentEntities.firstIndex(where: { $0.id == lastID }),
-           let endIndex = manager.currentEntities.firstIndex(where: { $0.id == entity.id }) {
+        if isShiftPressed, let lastID = manager.lastSelectedID,
+           let startIndex = manager.displayedEntities.firstIndex(where: { $0.id == lastID }),
+           let endIndex = manager.displayedEntities.firstIndex(where: { $0.id == entity.id }) {
             let lower = min(startIndex, endIndex)
             let upper = max(startIndex, endIndex)
             for i in lower...upper {
-                selectedIDs.insert(manager.currentEntities[i].id)
+                manager.selectedIDs.insert(manager.displayedEntities[i].id)
             }
         } else {
-            if selectedIDs.contains(entity.id) && selectedIDs.count == 1 {
-                selectedIDs.remove(entity.id)
+            if manager.selectedIDs.contains(entity.id) && manager.selectedIDs.count == 1 {
+                manager.selectedIDs.remove(entity.id)
             } else {
-                selectedIDs.removeAll()
-                selectedIDs.insert(entity.id)
+                manager.selectedIDs.removeAll()
+                manager.selectedIDs.insert(entity.id)
             }
         }
-        lastSelectedID = entity.id
+        manager.lastSelectedID = entity.id
+        
+        if QLPreviewPanel.sharedPreviewPanelExists() && QLPreviewPanel.shared().isVisible {
+            QLPreviewPanel.shared().reloadData()
+        }
     }
     
     private func handleDoubleClick(on entity: FolderSlotEntity) {
         if entity.isDirectory {
-            selectedIDs.removeAll()
-            lastSelectedID = nil
+            manager.selectedIDs.removeAll()
+            manager.lastSelectedID = nil
             manager.navigate(to: entity.url)
         } else {
             NSWorkspace.shared.open(entity.url)
+        }
+    }
+}
+
+// MARK: - Native Search Bar
+
+struct NativeSearchBar: NSViewRepresentable {
+    @Binding var text: String
+    
+    func makeNSView(context: Context) -> NSSearchField {
+        let searchField = NSSearchField()
+        searchField.placeholderString = "Search"
+        searchField.controlSize = .regular
+        searchField.bezelStyle = .roundedBezel
+        searchField.delegate = context.coordinator
+        return searchField
+    }
+    
+    func updateNSView(_ nsView: NSSearchField, context: Context) {
+        if nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+    
+    class Coordinator: NSObject, NSSearchFieldDelegate {
+        var text: Binding<String>
+        
+        init(text: Binding<String>) {
+            self.text = text
+        }
+        
+        func controlTextDidChange(_ obj: Notification) {
+            if let field = obj.object as? NSSearchField {
+                text.wrappedValue = field.stringValue
+            }
         }
     }
 }

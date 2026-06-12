@@ -244,6 +244,24 @@ struct SafeCachedBoxItemView: View {
                 Divider()
             }
             
+            Button("AirDrop") {
+                if let service = NSSharingService(named: .sendViaAirDrop) {
+                    service.perform(withItems: [file.url])
+                }
+            }
+            
+            Button("Messages") {
+                if let service = NSSharingService(named: .composeMessage) {
+                    service.perform(withItems: [file.url])
+                }
+            }
+            
+            Button("Mail") {
+                if let service = NSSharingService(named: .composeEmail) {
+                    service.perform(withItems: [file.url])
+                }
+            }
+
             Button("Open") {
                 NSWorkspace.shared.open(file.url)
             }

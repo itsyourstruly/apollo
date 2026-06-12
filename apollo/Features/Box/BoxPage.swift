@@ -221,12 +221,12 @@ struct BoxPageContent: View, Equatable {
                         .frame(width: safeW)
                     }
                     
-                    if !files.isEmpty {
+                    if !files.isEmpty || isTargeted {
                         VStack {
                             Spacer()
                             HStack {
                                 Spacer()
-                                BoxShareButton(files: files, selectedIDs: selectedIDs, accentColor: accentColor)
+                                BoxShareButton(files: files, selectedIDs: selectedIDs, accentColor: accentColor, isBoxTargeted: isTargeted)
                                     .padding(.bottom, 6)
                                     .padding(.trailing, 6)
                             }
@@ -280,8 +280,8 @@ struct BoxPageContent: View, Equatable {
                 }
                 .frame(width: width, height: safeH, alignment: .top)
                 .overlay(alignment: .bottomTrailing) {
-                    if !files.isEmpty {
-                        BoxShareButton(files: files, selectedIDs: selectedIDs, accentColor: accentColor)
+                    if !files.isEmpty || isTargeted {
+                        BoxShareButton(files: files, selectedIDs: selectedIDs, accentColor: accentColor, isBoxTargeted: isTargeted)
                             .padding(.trailing, 4)
                             .padding(.bottom, 2)
                     }
