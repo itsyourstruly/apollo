@@ -132,7 +132,7 @@ struct UnifiedNotchContainer: View {
 
     private var boxMenuBarControls: some View {
         let isBoxPage = activePages.indices.contains(model.currentPage) && activePages[model.currentPage] == .box
-        let showControls = model.isExpanded && isBoxPage && !model.boxFiles.isEmpty && !isSlimModeActive
+        let showControls = model.isExpanded && isBoxPage && (!model.boxFiles.isEmpty || (settings.enableFolderSlots && !settings.folderSlotsPaths.isEmpty)) && !isSlimModeActive
         return GeometryReader { geo in
             let edgeNotchWidth = settings.effectiveNotchWidth
             let notchRight = (geo.size.width + edgeNotchWidth) / 2
@@ -140,6 +140,27 @@ struct UnifiedNotchContainer: View {
             let xOffset = notchRight + 10
 
             HStack(spacing: 10) {
+            if settings.enableFolderSlots && !settings.folderSlotsPaths.isEmpty {
+                GeometryReader { buttonGeo in
+                    Button {
+                        model.isFolderSlotsOpen.toggle()
+                        if model.isFolderSlotsOpen {
+                            let anchorFrame = buttonGeo.frame(in: .global)
+                            FolderSlotsManager.shared.open(anchor: anchorFrame, model: model, settings: settings)
+                        } else {
+                            FolderSlotsManager.shared.close()
+                        }
+                    } label: {
+                        Image(systemName: "text.below.folder.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(model.isFolderSlotsOpen ? Color(settings.accentColor) : .white.opacity(0.85))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .frame(width: 16, height: 16)
+            }
+
+            if !model.boxFiles.isEmpty {
                 Button {
                     withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
                         if selectedBoxFileIDs.count == model.boxFiles.count {
@@ -171,6 +192,7 @@ struct UnifiedNotchContainer: View {
                         .foregroundColor(.red.opacity(0.9))
                 }
                 .buttonStyle(.plain)
+            }
             }
             .frame(width: controlWidth, alignment: .leading)
             .offset(x: xOffset, y: 6)
@@ -750,6 +772,10 @@ struct UnifiedNotchContainer: View {
     private func unloadCollapsedPageState() {
         unloadInactivePageState(activePage: -1)
         BoxIconCache.shared.cancelQueuedPreviewLoads()
+        if model.isFolderSlotsOpen {
+            FolderSlotsManager.shared.close()
+            model.isFolderSlotsOpen = false
+        }
     }
 
     func emptyDismissableScrollView<Content: View>(

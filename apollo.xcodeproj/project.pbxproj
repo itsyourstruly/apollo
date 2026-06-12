@@ -277,7 +277,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 22;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = 674BLKXUR9;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -294,12 +294,15 @@
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Apollo needs to access Bluetooth in order to show when a Bluetooth device is connected.";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Apollo needs to access your Calender in order to display it.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "Apollo needs access to your calendar to display your upcoming events.";
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Apollo needs to access your Desktop folder to add it as a slot.";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Apollo needs to access your Documents folder to add it as a slot.";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Apollo needs to access your Downloads folder to add it as a slot.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.2.4.6;
+				MARKETING_VERSION = 0.2.4.8;
 				PRODUCT_BUNDLE_IDENTIFIER = amo.apollo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -328,7 +331,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 22;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = 674BLKXUR9;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -345,12 +348,15 @@
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Apollo needs to access Bluetooth in order to show when a Bluetooth device is connected.";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Apollo needs to access your Calender in order to display it.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "Apollo needs access to your calendar to display your upcoming events.";
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Apollo needs to access your Desktop folder to add it as a slot.";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Apollo needs to access your Documents folder to add it as a slot.";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Apollo needs to access your Downloads folder to add it as a slot.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.2.4.6;
+				MARKETING_VERSION = 0.2.4.8;
 				PRODUCT_BUNDLE_IDENTIFIER = amo.apollo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

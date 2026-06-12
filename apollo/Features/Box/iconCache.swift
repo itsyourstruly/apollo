@@ -22,6 +22,7 @@ final class BoxIconCache {
     private let maintenanceQueue = DispatchQueue(label: "apollo.box.maintenance", qos: .utility)
     private var pendingTrimKeepPaths = Set<String>()
     private var pendingTrimWorkItem: DispatchWorkItem?
+    private var activeOperations = [UUID: Operation]()
 
     private init() {
         iconCache.countLimit = 64
@@ -219,8 +220,10 @@ final class BoxIconCache {
         return previewCache.object(forKey: nsKey)
     }
 
-    func requestDisplayImage(for url: URL, targetSize: CGFloat, completion: @escaping (NSImage) -> Void) {
+    @discardableResult
+    func requestDisplayImage(for url: URL, targetSize: CGFloat, completion: @escaping (NSImage) -> Void) -> UUID {
         let safeTarget = max(24, targetSize)
+        let requestID = UUID()
         let operation = BlockOperation()
         operation.qualityOfService = .utility
         operation.addExecutionBlock { [weak self, weak operation] in
@@ -231,8 +234,23 @@ final class BoxIconCache {
                 guard !operation.isCancelled else { return }
                 completion(image)
             }
+            self.stateLock.lock()
+            self.activeOperations.removeValue(forKey: requestID)
+            self.stateLock.unlock()
         }
+        self.stateLock.lock()
+        self.activeOperations[requestID] = operation
+        self.stateLock.unlock()
         previewLoadQueue.addOperation(operation)
+        return requestID
+    }
+    
+    func cancelRequest(_ id: UUID) {
+        stateLock.lock()
+        if let op = activeOperations.removeValue(forKey: id) {
+            op.cancel()
+        }
+        stateLock.unlock()
     }
 
     func cancelQueuedPreviewLoads() {

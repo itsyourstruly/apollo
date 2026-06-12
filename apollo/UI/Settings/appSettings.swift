@@ -1265,6 +1265,36 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var folderSlotsDirection: Int {
+        didSet {
+            enqueueDefaultSet(folderSlotsDirection, forKey: AppStorageKey.folderSlotsDirection)
+        }
+    }
+
+    @Published var folderSlotsColumns: Int {
+        didSet {
+            enqueueDefaultSet(folderSlotsColumns, forKey: AppStorageKey.folderSlotsColumns)
+        }
+    }
+
+    @Published var enableFolderSlots: Bool {
+        didSet {
+            enqueueDefaultSet(enableFolderSlots, forKey: AppStorageKey.enableFolderSlots)
+        }
+    }
+
+    @Published var folderSlotsPaths: [String] {
+        didSet {
+            var seen = Set<String>()
+            let unique = folderSlotsPaths.filter { seen.insert($0).inserted }
+            if unique != folderSlotsPaths {
+                folderSlotsPaths = unique
+                return
+            }
+            enqueueDefaultSet(folderSlotsPaths, forKey: AppStorageKey.folderSlotsPaths)
+        }
+    }
+
     @Published var hardwareNotchX: CGFloat = 0
     @Published var hardwareNotchWidth: CGFloat = 210
     @Published var hardwareNotchHeight: CGFloat = 32
@@ -2252,6 +2282,26 @@ final class AppSettings: ObservableObject {
             blueKey: AppStorageKey.combinedTitleBlue,
             alphaKey: AppStorageKey.combinedTitleAlpha
         )
+
+    if defaults.object(forKey: AppStorageKey.folderSlotsDirection) == nil {
+        folderSlotsDirection = 2 // 0: Left, 1: Right, 2: Bottom
+    } else {
+        folderSlotsDirection = defaults.integer(forKey: AppStorageKey.folderSlotsDirection)
+    }
+
+    if defaults.object(forKey: AppStorageKey.folderSlotsColumns) == nil {
+        folderSlotsColumns = 4
+    } else {
+        folderSlotsColumns = defaults.integer(forKey: AppStorageKey.folderSlotsColumns)
+    }
+
+    if defaults.object(forKey: AppStorageKey.enableFolderSlots) == nil {
+        enableFolderSlots = false
+    } else {
+        enableFolderSlots = defaults.bool(forKey: AppStorageKey.enableFolderSlots)
+    }
+
+    folderSlotsPaths = defaults.stringArray(forKey: AppStorageKey.folderSlotsPaths) ?? []
 
         persistAccentColor()
         persistBackgroundColor()

@@ -403,6 +403,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.handleIslandOpenMousePollTick()
             }
             .store(in: &settingsCancellables)
+            
+        model.$isFolderSlotsOpen
+            .sink { [weak self] open in
+                guard let self, !open else { return }
+                self.handleIslandOpenMousePollTick()
+            }
+            .store(in: &settingsCancellables)
         
         // Issue 1: React to enable-flag changes
         Publishers.MergeMany(
@@ -447,6 +454,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         .store(in: &settingsCancellables)
         
+        model.$isFolderSlotsOpen
+            .sink { [weak self] _ in
+                self?.updateContentActiveState()
+            }
+            .store(in: &settingsCancellables)
+        
         settings.$boxSlimModeEnabled
             .sink { [weak self] enabled in
                 guard let self = self else { return }
@@ -483,7 +496,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func updateContentActiveState() {
         let shouldBeActive: Bool
-        if model.isExpanded || model.isPinned || model.boxSlimModeActive || (model.expansionProgress > 0) || model.observedFileToast != nil || model.isAddSheetOpen {
+        if model.isExpanded || model.isPinned || model.boxSlimModeActive || (model.expansionProgress > 0) || model.observedFileToast != nil || model.isAddSheetOpen || model.isFolderSlotsOpen {
             shouldBeActive = true
         } else {
             let isHovered: Bool
@@ -824,26 +837,48 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if #available(macOS 11.0, *) {
             hostingView.safeAreaRegions = []
         }
+        
         hostingView.isPointInteractive = { [weak self] point in
-            guard let self = self else { return true }
-            if self.model.isExpanded || self.model.isPinned {
-                return true
+            guard let self = self, let window = self.islandWindow else { return false }
+            
+            let center = window.frame.width / 2
+            let fromTop = window.frame.height - point.y
+            let isExpanded = self.model.isExpanded || self.model.isPinned || self.model.expansionProgress > 0
+            
+            // 1. Top row (Menu Bar level controls & physical Notch area)
+            if fromTop <= 45 {
+                if isExpanded || (self.settings.showHoverPreviews && self.settings.hoverPreviewFocus != .all) {
+                    let maxControlDist: CGFloat = (self.settings.effectiveNotchWidth / 2) + 240
+                    if abs(point.x - center) <= maxControlDist {
+                        return true
+                    }
+                } else {
+                    let maxNotchDist: CGFloat = (self.settings.effectiveNotchWidth / 2) + 10
+                    if abs(point.x - center) <= maxNotchDist {
+                        return true
+                    }
+                }
             }
-            let windowWidth = self.notchWindow.frame.width
-            let windowHeight = self.notchWindow.frame.height
-            if self.model.observedFileToast != nil || self.model.isToastDismissing {
-                let toastWidth: CGFloat = 180
-                let toastHeight: CGFloat = 260
-                let toastRect = NSRect(
-                    x: (windowWidth - toastWidth) / 2,
-                    y: windowHeight - toastHeight,
-                    width: toastWidth,
-                    height: toastHeight
-                )
-                return toastRect.contains(point)
+            
+            if !isExpanded && self.model.observedFileToast == nil {
+                return false
             }
-            return false // Pass events through so ProximityWakeWindow can trigger the open
+            
+            // 2. Main Island Body & Pagers
+            let width: CGFloat
+            if self.model.observedFileToast != nil && !self.model.isExpanded && !self.model.isPinned {
+                width = 180 // toastPanelWidth
+            } else {
+                let panelWidth = scaledPanelWidth(for: self.settings)
+                let isFloatingPager = self.settings.pagerStyle == 1 && self.settings.showPagers
+                let sidePager: CGFloat = (isFloatingPager && self.settings.pagerAlignment != 0) ? (self.settings.pagerSize * 2 + self.settings.pagerSpacing * 2) * 2 : 0
+                width = panelWidth + sidePager
+            }
+            
+            let maxIslandDist = (width / 2) + 24 // Include some padding for shadows
+            return abs(point.x - center) <= maxIslandDist
         }
+        
         notchWindow.contentView = hostingView
         // Don't order front at startup — window will be ordered front on first show.
         // Keeping it ordered out eliminates all NSTrackingArea and SwiftUI hover
@@ -1033,7 +1068,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         func closeNotchFromSwipe() {
-            guard !model.isPinned else { return }
+            guard !model.isPinned, !model.isFolderSlotsOpen else { return }
             // Issue 4b: Only suppress proximity if the cursor is currently over the notch zone.
             // Suppressing unconditionally blocks re-open when the cursor is already far away.
             if let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.screens.first {
@@ -1271,7 +1306,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         checkWindow?.orderOut(nil)
                     } else {
                         checkWindow?.alphaValue = 1.0
-                        checkWindow?.ignoresMouseEvents = false
+                        checkWindow?.ignoresMouseEvents = true
                         checkWindow?.orderFrontRegardless()
                     }
                 }
@@ -1771,7 +1806,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         private func scheduleHoverCloseIfNeeded() {
-            guard !model.isAddSheetOpen else { return }
+            guard !model.isAddSheetOpen, !model.isFolderSlotsOpen else { return }
             guard hoverCloseWorkItem == nil else { return }
             let delay = settings.hoverCloseDelay
             if delay <= 0 {
@@ -1802,7 +1837,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         private func handleIslandOpenMousePollTick() {
-            guard !model.isAddSheetOpen else { return }
+            guard !model.isAddSheetOpen, !model.isFolderSlotsOpen else { return }
             guard model.isExpanded, !model.isPinned, let window = islandWindow else {
                 stopIslandOpenMousePolling()
                 return
@@ -1870,7 +1905,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if model.boxSlimModeActive {
                     return
                 }
-                if model.isAddSheetOpen {
+            if model.isAddSheetOpen || model.isFolderSlotsOpen {
                     hoverCloseWorkItem?.cancel()
                     hoverCloseWorkItem = nil
                     return
@@ -1996,8 +2031,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     if notchWindow?.isVisible == false {
                         notchWindow?.orderFrontRegardless()
                     }
-                    let hasActiveChrono = (model.isStopwatchRunning || model.isTimerRunning) && !settings.disableChronoHUD
-                    let shouldIgnoreMouseEvents = hasActiveChrono ? false : !(isFileDrag && zones.approachRect.contains(globalPoint))
+                    let shouldIgnoreMouseEvents = !(isFileDrag && zones.approachRect.contains(globalPoint))
                     if notchWindow?.ignoresMouseEvents != shouldIgnoreMouseEvents {
                         notchWindow?.ignoresMouseEvents = shouldIgnoreMouseEvents
                     }
@@ -2277,7 +2311,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     window.orderOut(nil)
                 } else {
                     window.alphaValue = 1.0
-                    window.ignoresMouseEvents = false
+                    window.ignoresMouseEvents = true
                     window.orderFrontRegardless()
                 }
                 self.updateNotchWindowFrame(heightOverride: self.settings.effectiveNotchHeight)
@@ -2509,7 +2543,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     window.orderOut(nil)
                 } else {
                     window.alphaValue = 1.0
-                    window.ignoresMouseEvents = false
+                    window.ignoresMouseEvents = true
                     window.orderFrontRegardless()
                 }
             }

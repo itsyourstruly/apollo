@@ -141,6 +141,7 @@ final class NotchMenuModel: ObservableObject {
     @Published var timerRemainingAtPause: TimeInterval = 0
     @Published var isAddSheetOpen = false
     @Published var isContentActive = false
+    @Published var isFolderSlotsOpen = false
 }
 
 final class SwipeState: ObservableObject {
@@ -230,6 +231,11 @@ enum AppStorageKey {
     static let notchEdgeThickness = "notchEdgeThickness"
     static let approachWidth = "approachWidth"
     static let approachHeight = "approachHeight"
+
+    static let folderSlotsDirection = "folderSlotsDirection"
+    static let folderSlotsColumns = "folderSlotsColumns"
+    static let enableFolderSlots = "enableFolderSlots"
+    static let folderSlotsPaths = "folderSlotsPaths"
 
     static let devicePopupEnabled = "devicePopupEnabled"
     static let devicePopupDelay = "devicePopupDelay"

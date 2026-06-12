@@ -176,6 +176,8 @@ struct SafeCachedBoxItemView: View {
 
     @State private var loadedImage: NSImage? = nil
     @State private var isLoading = false
+    @State private var imageRequestID: UUID?
+    @State private var imageLoadTask: Task<Void, Never>?
 
     var body: some View {
         let size = max(1, maxSize)
@@ -264,13 +266,33 @@ struct SafeCachedBoxItemView: View {
             loadImage()
         }
         .onChange(of: file.url) { _, _ in
-            loadImage()
+            reloadImage()
+        }
+        .onDisappear {
+            cancelImageLoad()
+            loadedImage = nil // Instantly free RAM when scrolled out of view
         }
         .frame(
             width: previewSize.width + 8,
             height: showBoxFileNames ? previewSize.height + 36 : previewSize.height,
             alignment: .center
         )
+    }
+
+    private func cancelImageLoad() {
+        imageLoadTask?.cancel()
+        imageLoadTask = nil
+        if let id = imageRequestID {
+            BoxIconCache.shared.cancelRequest(id)
+            imageRequestID = nil
+        }
+    }
+
+    private func reloadImage() {
+        cancelImageLoad()
+        loadedImage = nil
+        isLoading = false
+        loadImage()
     }
 
     private func loadImage() {
@@ -284,10 +306,18 @@ struct SafeCachedBoxItemView: View {
             self.isLoading = false
             return
         }
-        self.isLoading = true
-        BoxIconCache.shared.requestDisplayImage(for: file.url, targetSize: targetSize) { image in
-            self.loadedImage = image
-            self.isLoading = false
+        
+        imageLoadTask?.cancel()
+        imageLoadTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            guard !Task.isCancelled else { return }
+            self.isLoading = true
+            self.imageRequestID = BoxIconCache.shared.requestDisplayImage(for: file.url, targetSize: targetSize) { image in
+                if !Task.isCancelled {
+                    self.loadedImage = image
+                    self.isLoading = false
+                }
+            }
         }
     }
 

@@ -642,6 +642,62 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("Folder Slots") {
+                    Toggle("Enable Folder Slots", isOn: $settings.enableFolderSlots)
+                    
+                    if settings.enableFolderSlots {
+                        Picker("Expand Direction", selection: $settings.folderSlotsDirection) {
+                            Text("Left").tag(0)
+                            Text("Right").tag(1)
+                            Text("Bottom").tag(2)
+                        }
+                        .pickerStyle(.segmented)
+                        
+                        HStack {
+                            Text("Columns")
+                            Slider(value: Binding(
+                                get: { Double(settings.folderSlotsColumns) },
+                                set: { settings.folderSlotsColumns = Int($0) }
+                            ), in: 1...8, step: 1)
+                            Text("\(settings.folderSlotsColumns)")
+                                .frame(width: 32, alignment: .trailing)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            if settings.folderSlotsPaths.isEmpty {
+                                Text("No folders selected")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            ForEach(settings.folderSlotsPaths, id: \.self) { path in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(URL(fileURLWithPath: path).lastPathComponent)
+                                            .font(.subheadline)
+                                        Text(path)
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    Button {
+                                        settings.folderSlotsPaths.removeAll { $0 == path }
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+
+                            Button {
+                                openFolderSlotsPanel()
+                            } label: {
+                                Label("Add folder", systemImage: "plus")
+                            }
+                        }
+                    }
+                }
+
                 titleCustomizationSection(for: .box)
             }
             .disabled(!settings.boxEnabled)
@@ -1519,6 +1575,25 @@ struct SettingsView: View {
             guard response == .OK, let url = panel.url else { return }
             DispatchQueue.main.async {
                 settings.observedFolders.append(url.path)
+            }
+        }
+    }
+
+    private func openFolderSlotsPanel() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Select"
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            
+            if let bookmark = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
+                UserDefaults.standard.set(bookmark, forKey: "folder_bookmark_\(url.path)")
+            }
+            
+            DispatchQueue.main.async {
+                settings.folderSlotsPaths.append(url.path)
             }
         }
     }
