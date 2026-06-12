@@ -86,47 +86,124 @@ final class FolderSlotsWorker: Sendable {
         }.value
     }
     
-    static func search(urls: [URL], query: String, sortOption: Int, foldersFirst: Bool) async -> [FolderSlotEntity] {
-        return await Task.detached(priority: .userInitiated) {
+    static func deepSearch(urls: [URL], query: String, onUpdate: @escaping @Sendable ([FolderSlotEntity]) -> Void) async {
+        let task = Task.detached(priority: .userInitiated) {
             var exactMatches: [FolderSlotEntity] = []
             var fuzzyMatches: [FolderSlotEntity] = []
             var seenURLs = Set<URL>()
-            let fm = FileManager.default
+            let checkDuplicates = urls.count > 1
             let lowerQuery = query.lowercased()
+            
+            let isExtOnlySearch = lowerQuery.hasPrefix(".") && lowerQuery.count > 1
+            let extOnly = isExtOnlySearch ? String(lowerQuery.dropFirst()) : ""
+            let extOnlyChars = Array(extOnly)
+            
+            let parts = lowerQuery.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+            let isNameAndExtSearch = !isExtOnlySearch && parts.count >= 2 && !parts.last!.isEmpty
+            let searchExt = isNameAndExtSearch ? parts.last! : ""
+            let searchName = isNameAndExtSearch ? parts.dropLast().joined(separator: ".") : ""
+            let searchNameChars = Array(searchName)
+            
             let queryChars = Array(lowerQuery)
+            let fm = FileManager.default
+            
+            var lastYieldTime = ProcessInfo.processInfo.systemUptime
+            var yieldCount = 0
+            var scannedCount = 0
 
             for url in urls {
                 if Task.isCancelled { break }
                 
-                guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey], options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { continue }
+                guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { continue }
                 
                 for case let fileURL as URL in enumerator {
                     if Task.isCancelled { break }
                     
-                    if !seenURLs.insert(fileURL).inserted {
-                        continue
+                    scannedCount += 1
+                    if scannedCount % 1000 == 0 {
+                        await Task.yield()
                     }
                     
                     let name = fileURL.lastPathComponent
-                    let lowerName = name.lowercased()
-                    let size = (try? fileURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
-                    let date = (try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
                     
-                    if lowerName.contains(lowerQuery) {
-                        let isDir = (try? fileURL.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-                        exactMatches.append(FolderSlotEntity(url: fileURL, isDirectory: isDir, name: name, fileSize: Int64(size), dateModified: date))
-                    } else if isFuzzyMatch(queryChars: queryChars, target: lowerName) {
-                        let isDir = (try? fileURL.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-                        fuzzyMatches.append(FolderSlotEntity(url: fileURL, isDirectory: isDir, name: name, fileSize: Int64(size), dateModified: date))
+                    // Skip massive unneeded folders to keep search instant
+                    if name == "node_modules" || name == "Library" || name == "DerivedData" || name == "Pods" || name == ".git" || name == ".build" || name == ".Trash" || name == "build" || name == ".swiftpm" || name == "Carthage" {
+                        enumerator.skipDescendants()
+                        continue
                     }
                     
-                    if exactMatches.count + fuzzyMatches.count >= 250 { break }
+                    if checkDuplicates {
+                        if !seenURLs.insert(fileURL).inserted { continue }
+                    }
+                    
+                    let lowerName = name.lowercased()
+                    let fileExt = fileURL.pathExtension.lowercased()
+                    
+                    var isExact = false
+                    var isFuzzy = false
+                    
+                    if isExtOnlySearch {
+                        if fileExt == extOnly {
+                            isExact = true
+                        } else if fileExt.contains(extOnly) || isFuzzyMatch(queryChars: extOnlyChars, target: fileExt) {
+                            isFuzzy = true
+                        }
+                    } else if isNameAndExtSearch {
+                        if fileExt == searchExt || fileExt.contains(searchExt) {
+                            let baseName = fileURL.deletingPathExtension().lastPathComponent.lowercased()
+                            if baseName.contains(searchName) {
+                                isExact = true
+                            } else if isFuzzyMatch(queryChars: searchNameChars, target: baseName) {
+                                isFuzzy = true
+                            }
+                        }
+                    } else {
+                        if lowerName.contains(lowerQuery) {
+                            isExact = true
+                        } else if isFuzzyMatch(queryChars: queryChars, target: lowerName) {
+                            isFuzzy = true
+                        }
+                    }
+                    
+                    if isExact || isFuzzy {
+                        let isDir = (try? fileURL.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+                        let size = (try? fileURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+                        let date = (try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+                        
+                        let entity = FolderSlotEntity(url: fileURL, isDirectory: isDir, name: name, fileSize: Int64(size), dateModified: date)
+                        if isExact {
+                            exactMatches.append(entity)
+                        } else {
+                            fuzzyMatches.append(entity)
+                        }
+                        
+                        let now = ProcessInfo.processInfo.systemUptime
+                        if (now - lastYieldTime > 0.25) || (yieldCount == 0 && (exactMatches.count + fuzzyMatches.count) >= 15) {
+                            if !Task.isCancelled {
+                                let partial = sortSearchEntities(exact: exactMatches, fuzzy: fuzzyMatches, query: query)
+                                onUpdate(partial)
+                            }
+                            lastYieldTime = now
+                            yieldCount += 1
+                        }
+                    }
+                    
+                    if exactMatches.count + fuzzyMatches.count >= 200 { break }
                 }
-                if exactMatches.count + fuzzyMatches.count >= 250 { break }
+                if exactMatches.count + fuzzyMatches.count >= 200 { break }
             }
             
-            return sortSearchEntities(exact: exactMatches, fuzzy: fuzzyMatches, option: sortOption, query: query, foldersFirst: foldersFirst)
-        }.value
+            if !Task.isCancelled {
+                let final = sortSearchEntities(exact: exactMatches, fuzzy: fuzzyMatches, query: query)
+                onUpdate(final)
+            }
+        }
+        
+        await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
     }
     
     static func sortEntities(_ entities: [FolderSlotEntity], option: Int, foldersFirst: Bool) -> [FolderSlotEntity] {
@@ -150,52 +227,39 @@ final class FolderSlotsWorker: Sendable {
         }
     }
     
-    static func sortSearchEntities(exact: [FolderSlotEntity], fuzzy: [FolderSlotEntity], option: Int, query: String, foldersFirst: Bool) -> [FolderSlotEntity] {
-        let exactSet = Set(exact.map { $0.id })
-        let combined = exact + fuzzy
+    static func sortSearchEntities(exact: [FolderSlotEntity], fuzzy: [FolderSlotEntity], query: String) -> [FolderSlotEntity] {
         let lowerQuery = query.lowercased()
         
-        return combined.sorted {
-            let isExact0 = exactSet.contains($0.id)
-            let isExact1 = exactSet.contains($1.id)
+        func rankAndCount(for entity: FolderSlotEntity, isExact: Bool) -> (Int, Int) {
+            let name = entity.name.lowercased()
+            let base = entity.url.deletingPathExtension().lastPathComponent.lowercased()
             
-            let name0 = $0.name.lowercased()
-            let name1 = $1.name.lowercased()
-            let base0 = $0.url.deletingPathExtension().lastPathComponent.lowercased()
-            let base1 = $1.url.deletingPathExtension().lastPathComponent.lowercased()
+            let rank: Int
+            if name == lowerQuery || base == lowerQuery { rank = 0 }
+            else if name.hasPrefix(lowerQuery) || base.hasPrefix(lowerQuery) { rank = 1 }
+            else { rank = isExact ? 2 : 3 }
             
-            let rank0: Int
-            if name0 == lowerQuery || base0 == lowerQuery { rank0 = 0 }
-            else if name0.hasPrefix(lowerQuery) { rank0 = 1 }
-            else if isExact0 { rank0 = 2 }
-            else { rank0 = 3 }
-            
-            let rank1: Int
-            if name1 == lowerQuery || base1 == lowerQuery { rank1 = 0 }
-            else if name1.hasPrefix(lowerQuery) { rank1 = 1 }
-            else if isExact1 { rank1 = 2 }
-            else { rank1 = 3 }
-            
-            if rank0 != rank1 { return rank0 < rank1 }
-            if foldersFirst && $0.isDirectory != $1.isDirectory { return $0.isDirectory }
-            if name0.count != name1.count { return name0.count < name1.count }
-            
-            switch option {
-            case 1: // Type
-                let ext0 = $0.url.pathExtension.lowercased()
-                let ext1 = $1.url.pathExtension.lowercased()
-                if ext0 != ext1 { return ext0 < ext1 }
-                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
-            case 2: // Size
-                if $0.fileSize != $1.fileSize { return $0.fileSize > $1.fileSize }
-                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
-            case 3: // Date
-                if $0.dateModified != $1.dateModified { return $0.dateModified > $1.dateModified }
-                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
-            default: // Name
-                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
-            }
+            return (rank, entity.name.count)
         }
+        
+        let exactMapped = exact.map { ($0, rankAndCount(for: $0, isExact: true)) }
+        let fuzzyMapped = fuzzy.map { ($0, rankAndCount(for: $0, isExact: false)) }
+        
+        var combined = exactMapped + fuzzyMapped
+        
+        combined.sort { lhs, rhs in
+            let rank0 = lhs.1.0
+            let rank1 = rhs.1.0
+            if rank0 != rank1 { return rank0 < rank1 }
+            
+            let count0 = lhs.1.1
+            let count1 = rhs.1.1
+            if count0 != count1 { return count0 < count1 }
+            
+            return lhs.0.name.localizedStandardCompare(rhs.0.name) == .orderedAscending
+        }
+        
+        return combined.map { $0.0 }
     }
     
     private static func isFuzzyMatch(queryChars: [Character], target: String) -> Bool {
@@ -232,6 +296,18 @@ final class FolderSlotsWindow: NSWindow {
     override var canBecomeKey: Bool { return true }
     override var canBecomeMain: Bool { return true }
     
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers?.lowercased() == "v" {
+            let pboard = NSPasteboard.general
+            if pboard.types?.contains(.fileURL) == true || pboard.types?.contains(.fileContents) == true {
+                if FolderSlotsManager.shared.handlePaste() {
+                    return true
+                }
+            }
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+    
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 49 { // Spacebar
             FolderSlotsManager.shared.toggleQuickLook()
@@ -265,8 +341,11 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
     @Published var selectedIDs = Set<String>()
     @Published var lastSelectedID: String?
     @Published var searchQuery: String = ""
+    private var currentSearchID: UUID?
+    private var lastSearchQuery: String = ""
     @Published var searchResults: [FolderSlotEntity] = []
     @Published var isSearching: Bool = false
+    @Published var showCurrentEntitiesDespiteSearch: Bool = false
     private var searchTask: Task<Void, Never>?
     private var activeRootURLs: [URL] = []
     @Published var expandedStacks = Set<String>()
@@ -300,11 +379,19 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
     }
     
     var displayedEntities: [FolderSlotEntity] {
-        return searchQuery.isEmpty ? currentEntities : searchResults
+        if searchQuery.isEmpty { return currentEntities }
+        if showCurrentEntitiesDespiteSearch { return currentEntities }
+        return searchResults
     }
     
     var groupedItems: [FolderSlotGroup] {
         let source = displayedEntities
+        
+        if !searchQuery.isEmpty && !showCurrentEntitiesDespiteSearch {
+            let items = source.map { FolderSlotDisplayItem.entity($0) }
+            return [FolderSlotGroup(id: "Search Results", title: "", items: items)]
+        }
+        
         let settings = AppSettings.shared
         let groupByType = settings.folderSlotsGroupByType
         let enableStacks = settings.folderSlotsEnableStacks
@@ -500,8 +587,11 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
         lastSelectedID = nil
         expandedStacks.removeAll()
         searchQuery = ""
+        currentSearchID = nil
+        lastSearchQuery = ""
         searchResults.removeAll()
         isSearching = false
+        showCurrentEntitiesDespiteSearch = false
         searchTask?.cancel()
         searchTask = nil
         currentNavigationTask?.cancel()
@@ -518,8 +608,10 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
         }
     }
     
-    func navigate(to url: URL) {
-        resignSearchFocus()
+    func navigate(to url: URL, keepSearchFocus: Bool = false, keepSearchQuery: Bool = false) {
+        if !keepSearchFocus {
+            resignSearchFocus()
+        }
         if navigationStack.isEmpty {
             var hierarchy: [URL] = []
             let components = url.pathComponents
@@ -540,21 +632,34 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
                 navigationStack.append(url)
             }
         }
-        loadContents(of: url)
+        loadContents(of: url, keepSearchQuery: keepSearchQuery)
     }
     
-    func navigateBack() {
-        resignSearchFocus()
+    func navigateBack(keepSearchFocus: Bool = false, keepSearchQuery: Bool = false) {
+        if !keepSearchFocus {
+            resignSearchFocus()
+        }
         guard !navigationStack.isEmpty else { return }
         navigationStack.removeLast()
         
         if let lastURL = navigationStack.last {
             // Re-fetch the parent directory
-            loadContents(of: lastURL)
+            loadContents(of: lastURL, keepSearchQuery: keepSearchQuery)
         } else {
             currentNavigationTask?.cancel()
             self.currentEntities = self.baseEntities
             self.isNavigating = false
+            if !keepSearchQuery {
+                self.searchQuery = ""
+                self.currentSearchID = nil
+                self.lastSearchQuery = ""
+                self.searchResults.removeAll()
+                self.showCurrentEntitiesDespiteSearch = false
+            } else {
+                if !self.searchQuery.isEmpty && !self.searchQuery.hasSuffix("/") {
+                    self.performSearch(query: self.searchQuery)
+                }
+            }
         }
     }
     
@@ -566,8 +671,11 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
         lastSelectedID = nil
         expandedStacks.removeAll()
         searchQuery = ""
+        currentSearchID = nil
+        lastSearchQuery = ""
         searchResults.removeAll()
         isSearching = false
+        showCurrentEntitiesDespiteSearch = false
         searchTask?.cancel()
         searchTask = nil
         currentNavigationTask?.cancel()
@@ -586,9 +694,14 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
         loadContents(of: targetURL)
     }
     
-    private func loadContents(of url: URL) {
+    private func loadContents(of url: URL, keepSearchQuery: Bool = false) {
         isNavigating = true
-        searchQuery = ""
+        if !keepSearchQuery {
+            searchQuery = ""
+            lastSearchQuery = ""
+            currentSearchID = nil
+            showCurrentEntitiesDespiteSearch = false
+        }
         searchResults.removeAll()
         expandedStacks.removeAll()
         isSearching = false
@@ -603,34 +716,94 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
                 await MainActor.run {
                     self.currentEntities = fetched
                     self.isNavigating = false
+                    
+                    if keepSearchQuery && !self.searchQuery.isEmpty && !self.searchQuery.hasSuffix("/") {
+                        self.performSearch(query: self.searchQuery)
+                    }
                 }
             }
         }
     }
     
     func performSearch(query: String) {
+        let isAddingSlash = query.hasSuffix("/") && !lastSearchQuery.hasSuffix("/") && query.count > lastSearchQuery.count
+        let isDeletingSlash = lastSearchQuery.hasSuffix("/") && !query.hasSuffix("/") && query.count < lastSearchQuery.count
+        
+        if isDeletingSlash {
+            let deletedFolderName = lastSearchQuery.dropLast().components(separatedBy: "/").last ?? ""
+            if let currentURL = navigationStack.last, currentURL.lastPathComponent.lowercased() == deletedFolderName.lowercased() {
+                lastSearchQuery = query
+                searchTask?.cancel()
+                navigateBack(keepSearchFocus: true, keepSearchQuery: true)
+                return
+            }
+        }
+        
+        lastSearchQuery = query
+        
         searchTask?.cancel()
-        if query.isEmpty {
+        showCurrentEntitiesDespiteSearch = false
+        
+        if isAddingSlash {
+            let parts = query.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+            if parts.count >= 2 {
+                let folderName = parts[parts.count - 2]
+                
+                var bestMatch: FolderSlotEntity? = nil
+                
+                if let topResult = searchResults.first(where: { $0.isDirectory && $0.name.lowercased().hasPrefix(folderName.lowercased()) }) {
+                    bestMatch = topResult
+                } else if let topResult = searchResults.first(where: { $0.isDirectory }) {
+                    bestMatch = topResult
+                }
+                
+                if bestMatch == nil {
+                    bestMatch = currentEntities.first(where: { $0.isDirectory && $0.name.lowercased() == folderName.lowercased() })
+                        ?? currentEntities.first(where: { $0.isDirectory && $0.name.lowercased().hasPrefix(folderName.lowercased()) })
+                        ?? currentEntities.first(where: { $0.isDirectory && $0.name.lowercased().contains(folderName.lowercased()) })
+                }
+                
+                if let match = bestMatch {
+                    showCurrentEntitiesDespiteSearch = true
+                    navigate(to: match.url, keepSearchFocus: true, keepSearchQuery: true)
+                    return
+                }
+            }
+        }
+        
+        let effectiveQuery = query.components(separatedBy: "/").last ?? query
+        
+        if effectiveQuery.isEmpty {
             isSearching = false
             searchResults = []
+            currentSearchID = nil
             expandedStacks.removeAll()
+            if query.hasSuffix("/") {
+                showCurrentEntitiesDespiteSearch = true
+            }
             return
         }
         
+        isSearching = true
         let targetURLs = navigationStack.isEmpty ? activeRootURLs : [navigationStack.last!]
         
-        isSearching = true
-        let option = AppSettings.shared.folderSlotsSortOption
-        let foldersFirst = AppSettings.shared.folderSlotsSortFoldersFirst
+        let searchID = UUID()
+        currentSearchID = searchID
+        
         searchTask = Task {
-            // Debounce briefly for smooth typing without firing on every single keystroke
             try? await Task.sleep(nanoseconds: 150_000_000)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, currentSearchID == searchID else { return }
             
-            let results = await FolderSlotsWorker.search(urls: targetURLs, query: query, sortOption: option, foldersFirst: foldersFirst)
+            await FolderSlotsWorker.deepSearch(urls: targetURLs, query: effectiveQuery) { [weak self] partialResults in
+                DispatchQueue.main.async {
+                    guard let self = self, self.currentSearchID == searchID else { return }
+                    self.searchResults = partialResults
+                }
+            }
+            
             if !Task.isCancelled {
                 await MainActor.run {
-                    self.searchResults = results
+                    guard self.currentSearchID == searchID else { return }
                     self.isSearching = false
                 }
             }
@@ -715,6 +888,49 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
         self.panel = newPanel
         newPanel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    func handlePaste() -> Bool {
+        guard !navigationStack.isEmpty, let targetURL = navigationStack.last else { return false }
+        let pboard = NSPasteboard.general
+        guard let urls = pboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL], !urls.isEmpty else { return false }
+        
+        let fm = FileManager.default
+        var pasted = false
+        for url in urls {
+            let destURL = uniqueURL(for: url, in: targetURL)
+            do {
+                try fm.copyItem(at: url, to: destURL)
+                pasted = true
+            } catch {
+                NSLog("Paste error: \(error.localizedDescription)")
+            }
+        }
+        
+        if pasted {
+            refreshCurrentDirectory()
+        }
+        return pasted
+    }
+    
+    func refreshCurrentDirectory() {
+        if let targetURL = navigationStack.last {
+            loadContents(of: targetURL)
+        }
+    }
+    
+    func uniqueURL(for url: URL, in directory: URL) -> URL {
+        var destURL = directory.appendingPathComponent(url.lastPathComponent)
+        var counter = 1
+        let name = url.deletingPathExtension().lastPathComponent
+        let ext = url.pathExtension
+        
+        while FileManager.default.fileExists(atPath: destURL.path) {
+            let newName = ext.isEmpty ? "\(name) \(counter)" : "\(name) \(counter).\(ext)"
+            destURL = directory.appendingPathComponent(newName)
+            counter += 1
+        }
+        return destURL
     }
 }
 
@@ -848,11 +1064,6 @@ struct FolderSlotsRootView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .padding(.horizontal, 2)
                     }
-                    .onChange(of: manager.navigationStack.count) { _, count in
-                        withAnimation {
-                            scrollProxy.scrollTo(count - 1, anchor: .trailing)
-                        }
-                    }
                     .onHover { hovering in
                         breadcrumbScrollManager.isHovering = hovering
                     }
@@ -886,7 +1097,7 @@ struct FolderSlotsRootView: View {
                     .onTapGesture { manager.resignSearchFocus() }
             } else {
                 ScrollView(.vertical, showsIndicators: true) {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: columns), spacing: 8) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8, alignment: .top), count: columns), spacing: 8) {
                         ForEach(manager.groupedItems) { group in
                             Section(header: groupHeader(title: group.title)) {
                                 ForEach(group.items) { item in
@@ -907,10 +1118,10 @@ struct FolderSlotsRootView: View {
                                             isExpanded: isExpanded,
                                             topEntities: topEntities,
                                             onToggle: {
-                                                manager.resignSearchFocus()
+                                            manager.resignSearchFocus()
                                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                                    if isExpanded { manager.expandedStacks.remove(ext) }
-                                                    else { manager.expandedStacks.insert(ext) }
+                                                if isExpanded { manager.expandedStacks.remove(ext) }
+                                                else { manager.expandedStacks.insert(ext) }
                                                 }
                                             }
                                         )
@@ -936,7 +1147,7 @@ struct FolderSlotsRootView: View {
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.15), lineWidth: 1))
         .overlay(
             Group {
-                if isDropTargeted && manager.navigationStack.isEmpty {
+                if isDropTargeted {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(Color.white.opacity(0.1))
                         .overlay(
@@ -947,21 +1158,41 @@ struct FolderSlotsRootView: View {
             }
         )
         .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
-            guard manager.navigationStack.isEmpty else { return false }
-            var handled = false
-            for provider in providers where provider.canLoadObject(ofClass: URL.self) {
-                handled = true
-                _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                    guard let fileURL = url else { return }
-                    var isDir: ObjCBool = false
-                    if FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir), isDir.boolValue {
-                        DispatchQueue.main.async {
-                            manager.addRootFolder(url: fileURL)
+            if manager.navigationStack.isEmpty {
+                var handled = false
+                for provider in providers where provider.canLoadObject(ofClass: URL.self) {
+                    handled = true
+                    _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                        guard let fileURL = url else { return }
+                        var isDir: ObjCBool = false
+                        if FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir), isDir.boolValue {
+                            DispatchQueue.main.async {
+                                manager.addRootFolder(url: fileURL)
+                            }
                         }
                     }
                 }
+                return handled
+            } else {
+                guard let targetURL = manager.navigationStack.last else { return false }
+                var handled = false
+                for provider in providers where provider.canLoadObject(ofClass: URL.self) {
+                    handled = true
+                    _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                        guard let fileURL = url else { return }
+                        let destURL = manager.uniqueURL(for: fileURL, in: targetURL)
+                        do {
+                            try FileManager.default.copyItem(at: fileURL, to: destURL)
+                            DispatchQueue.main.async {
+                                manager.refreshCurrentDirectory()
+                            }
+                        } catch {
+                            NSLog("Drop copy error: \(error.localizedDescription)")
+                        }
+                    }
+                }
+                return handled
             }
-            return handled
         }
     }
     
@@ -1024,8 +1255,22 @@ struct FolderSlotsRootView: View {
 struct NativeSearchBar: NSViewRepresentable {
     @Binding var text: String
     
+    final class AutoFocusSearchField: NSSearchField {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if self.window != nil {
+                DispatchQueue.main.async {
+                    self.window?.makeFirstResponder(self)
+                    if let fieldEditor = self.window?.fieldEditor(true, for: self) as? NSTextView {
+                        fieldEditor.setSelectedRange(NSRange(location: self.stringValue.count, length: 0))
+                    }
+                }
+            }
+        }
+    }
+    
     func makeNSView(context: Context) -> NSSearchField {
-        let searchField = NSSearchField()
+        let searchField = AutoFocusSearchField()
         searchField.placeholderString = "Search"
         searchField.controlSize = .regular
         searchField.bezelStyle = .roundedBezel
@@ -1207,11 +1452,13 @@ struct FolderSlotItemView: View {
             Text(entity.name)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.white)
-                .lineLimit(2)
+                .lineLimit(isSelected ? nil : 2)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(4)
-        .frame(width: 100, height: 100)
+        .frame(width: 100)
+        .frame(minHeight: 100, alignment: .top)
         .overlay {
             FolderSlotDragSurface(
                 url: entity.url,
