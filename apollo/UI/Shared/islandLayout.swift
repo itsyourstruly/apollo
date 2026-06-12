@@ -484,6 +484,12 @@ struct UnifiedNotchContainer: View {
                                 Color.clear.preference(key: ShellHeightKey.self, value: proxy.size.height)
                             })
                             .offset(x: islandOffset)
+                            // Apply interactive features ONLY to the tight visual components
+                            .simultaneousGesture(isSlimModeActive ? nil : horizontalPagingGesture)
+                            .contextMenu {
+                                SettingsLink { Text("Settings") }
+                            }
+                            .onDrop(of: [.fileURL], isTargeted: $isNotchFileDropTargeted, perform: handleNotchFileDrop)
                         } // End if !showToastOnly
                     } // End ZStack
                     .frame(width: containerWidth, height: containerHeight, alignment: .top)
@@ -500,14 +506,6 @@ struct UnifiedNotchContainer: View {
                     }
                     .scaleEffect(closeScale, anchor: .top)
                     .offset(y: closeOffset)
-                    // Keep swipe paging, but don't preempt taps on pager buttons. Disable swipe gesture in slim mode so window background dragging works.
-                    .simultaneousGesture(isSlimModeActive ? nil : horizontalPagingGesture)
-                    .contextMenu {
-                        SettingsLink {
-                            Text("Settings")
-                        }
-                    }
-                    .onDrop(of: [.fileURL], isTargeted: $isNotchFileDropTargeted, perform: handleNotchFileDrop)
                     .onChange(of: isNotchFileDropTargeted) { _, targeted in
                         if targeted {
                             if let delegate = NSApp.delegate as? AppDelegate {

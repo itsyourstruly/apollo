@@ -75,6 +75,129 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let approachProgressDeltaThreshold: CGFloat = 0.02
     private let idleCompactionDelay: TimeInterval = 1.5 // Lowered to immediately dump memory after Island closes
     
+    private func isPointInsideVisualIsland(_ globalPoint: NSPoint) -> Bool {
+        guard let window = islandWindow else { return false }
+        
+        if model.boxSlimModeActive {
+            if let slimWindow = slimBoxWindow {
+                let bufferFrame = slimWindow.frame.insetBy(dx: -40, dy: -40)
+                return bufferFrame.contains(globalPoint)
+            } else {
+                let bufferFrame = window.frame.insetBy(dx: -40, dy: -40)
+                return bufferFrame.contains(globalPoint)
+            }
+        }
+        
+        let windowPoint = window.convertPoint(fromScreen: globalPoint)
+        let localPoint = window.contentView?.convert(windowPoint, from: nil) ?? windowPoint
+        return isLocalPointInteractive(localPoint)
+    }
+    
+    func isLocalPointInteractive(_ point: NSPoint) -> Bool {
+        guard let window = islandWindow else { return false }
+        
+        let center = window.frame.width / 2
+        let fromTop = window.frame.height - point.y
+        let isExpanded = self.model.isExpanded || self.model.isPinned || self.model.expansionProgress > 0
+        
+        // 1. Toast Mode
+        if !isExpanded && self.model.observedFileToast != nil {
+            let toastWidth: CGFloat = 180
+            let toastHeight: CGFloat = 260
+            let isInsideToastX = abs(point.x - center) <= (toastWidth / 2)
+            let isInsideToastY = fromTop <= toastHeight
+            return isInsideToastX && isInsideToastY
+        }
+        
+        // 2. Top row (Menu Bar level controls, Notch, Chrono)
+        if fromTop <= 45 {
+            let notchWidth = self.settings.effectiveNotchWidth
+            var activeLeft: CGFloat = 0
+            var activeRight: CGFloat = 0
+            
+            // Chrono extensions only apply when closed
+            if !isExpanded {
+                if self.model.isStopwatchRunning && !self.settings.disableChronoHUD { activeLeft = 100 }
+                if self.model.isTimerRunning && !self.settings.disableChronoHUD { activeRight = 100 }
+            }
+            
+            let minX = center - (notchWidth / 2) - activeLeft
+            let maxX = center + (notchWidth / 2) + activeRight
+            
+            if point.x >= minX && point.x <= maxX {
+                return true
+            }
+            
+            // The Box controls (only when expanded, Box page active, and has files)
+            if isExpanded {
+                let pages = self.activePages
+                if pages.indices.contains(self.model.currentPage) && pages[self.model.currentPage] == .box {
+                    let hasBoxItems = !self.model.boxFiles.isEmpty || (self.settings.enableFolderSlots && !self.settings.folderSlotsPaths.isEmpty)
+                    if hasBoxItems {
+                        let notchRight = center + (notchWidth / 2)
+                        let controlsMinX = notchRight + 10
+                        let controlsMaxX = controlsMinX + 180
+                        if point.x >= controlsMinX && point.x <= controlsMaxX {
+                            return true
+                        }
+                    }
+                }
+            }
+            
+            // Hover preview (settings)
+            if self.settings.showHoverPreviews && self.settings.hoverPreviewFocus != .all {
+                let approachWidth = self.settings.clampedApproachWidth
+                if abs(point.x - center) <= (notchWidth / 2) + approachWidth {
+                    return true
+                }
+            }
+        }
+        
+        if !isExpanded {
+            return false
+        }
+        
+        // 3. Main Island Body
+        let panelWidth = scaledPanelWidth(for: self.settings)
+        let panelHeight = scaledPanelHeight(for: self.settings)
+        
+        let isInsideIslandX = abs(point.x - center) <= (panelWidth / 2)
+        let isInsideIslandY = fromTop <= panelHeight
+        if isInsideIslandX && isInsideIslandY {
+            return true
+        }
+        
+        // 4. Floating Pagers
+        if self.settings.showPagers && self.settings.pagerStyle == 1 {
+            if self.settings.pagerAlignment == 0 {
+                // Bottom pager
+                let pagerAreaHeight: CGFloat = self.settings.pagerSize + 40
+                let isInsidePagerX = abs(point.x - center) <= 150
+                let isInsidePagerY = fromTop > panelHeight && fromTop <= panelHeight + pagerAreaHeight
+                if isInsidePagerX && isInsidePagerY {
+                    return true
+                }
+            } else {
+                // Side pagers
+                let sidePagerWidth = self.settings.pagerSize + 30
+                let isInsideSidePagerX: Bool
+                if self.settings.pagerAlignment == 1 { // Left
+                    let expectedX = center - (panelWidth / 2) - sidePagerWidth / 2
+                    isInsideSidePagerX = abs(point.x - expectedX) <= sidePagerWidth / 2
+                } else { // Right
+                    let expectedX = center + (panelWidth / 2) + sidePagerWidth / 2
+                    isInsideSidePagerX = abs(point.x - expectedX) <= sidePagerWidth / 2
+                }
+                let isInsideSidePagerY = fromTop <= panelHeight
+                if isInsideSidePagerX && isInsideSidePagerY {
+                    return true
+                }
+            }
+        }
+        
+        return false
+    }
+    
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard acquireSingleInstanceLock() else {
             activateExistingInstance()
@@ -839,44 +962,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         hostingView.isPointInteractive = { [weak self] point in
-            guard let self = self, let window = self.islandWindow else { return false }
-            
-            let center = window.frame.width / 2
-            let fromTop = window.frame.height - point.y
-            let isExpanded = self.model.isExpanded || self.model.isPinned || self.model.expansionProgress > 0
-            
-            // 1. Top row (Menu Bar level controls & physical Notch area)
-            if fromTop <= 45 {
-                if isExpanded || (self.settings.showHoverPreviews && self.settings.hoverPreviewFocus != .all) {
-                    let maxControlDist: CGFloat = (self.settings.effectiveNotchWidth / 2) + 240
-                    if abs(point.x - center) <= maxControlDist {
-                        return true
-                    }
-                } else {
-                    let maxNotchDist: CGFloat = (self.settings.effectiveNotchWidth / 2) + 10
-                    if abs(point.x - center) <= maxNotchDist {
-                        return true
-                    }
-                }
-            }
-            
-            if !isExpanded && self.model.observedFileToast == nil {
-                return false
-            }
-            
-            // 2. Main Island Body & Pagers
-            let width: CGFloat
-            if self.model.observedFileToast != nil && !self.model.isExpanded && !self.model.isPinned {
-                width = 180 // toastPanelWidth
-            } else {
-                let panelWidth = scaledPanelWidth(for: self.settings)
-                let isFloatingPager = self.settings.pagerStyle == 1 && self.settings.showPagers
-                let sidePager: CGFloat = (isFloatingPager && self.settings.pagerAlignment != 0) ? (self.settings.pagerSize * 2 + self.settings.pagerSpacing * 2) * 2 : 0
-                width = panelWidth + sidePager
-            }
-            
-            let maxIslandDist = (width / 2) + 24 // Include some padding for shadows
-            return abs(point.x - center) <= maxIslandDist
+            return self?.isLocalPointInteractive(point) ?? false
         }
         
         notchWindow.contentView = hostingView
@@ -1287,7 +1373,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             approachWorkItem?.cancel()
             approachWorkItem = nil
             let globalPoint = NSEvent.mouseLocation
-            let isWithinExpandedPanel = notchWindow?.frame.contains(globalPoint) ?? false
+            let isWithinExpandedPanel = isPointInsideVisualIsland(globalPoint)
             if model.isExpanded {
                 if !isWithinExpandedPanel {
                     scheduleHoverCloseIfNeeded()
@@ -1850,7 +1936,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
             
-            if window.frame.contains(point) || isPointInsideNotchActivationZone(point) {
+            if isPointInsideVisualIsland(point) || isPointInsideNotchActivationZone(point) {
                 return
             }
             scheduleHoverCloseIfNeeded()
@@ -1898,7 +1984,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         private func evaluateMouseCoordinates(_ globalPoint: NSPoint, isFileDrag: Bool) {
             autoreleasepool {
-                if model.observedFileToast != nil, let frame = notchWindow?.frame, frame.contains(globalPoint) {
+                if model.observedFileToast != nil, isPointInsideVisualIsland(globalPoint) {
                     toastHideWorkItem?.cancel()
                     toastHideWorkItem = nil
                 }
@@ -1938,15 +2024,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
                 
                 if model.isExpanded {
-                    var isWithinExpandedPanel = false
-                    if let frame = notchWindow?.frame {
-                        if model.boxSlimModeActive {
-                            let bufferFrame = frame.insetBy(dx: -40, dy: -40)
-                            isWithinExpandedPanel = bufferFrame.contains(globalPoint)
-                        } else {
-                            isWithinExpandedPanel = frame.contains(globalPoint)
-                        }
-                    }
+                    let isWithinExpandedPanel = isPointInsideVisualIsland(globalPoint)
                     if isWithinExpandedPanel || zones.isInsideNotch || zones.isHoveringEdge {
                         hoverCloseWorkItem?.cancel()
                         hoverCloseWorkItem = nil
@@ -2189,7 +2267,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if expanded {
                 lastPanelExpandedAt = ProcessInfo.processInfo.systemUptime
             }
-            isCursorInActivationZone = window.frame.contains(NSEvent.mouseLocation)
+            isCursorInActivationZone = isPointInsideVisualIsland(NSEvent.mouseLocation)
             updateClipboardObservationMode(immediatePoll: true)
             updateProximityWakeWindowFrame()
             if expanded {

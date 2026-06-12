@@ -55,7 +55,7 @@ final class FolderSlotsWindow: NSWindow {
         self.backgroundColor = .clear
         self.isOpaque = false
         self.hasShadow = true
-        self.minSize = NSSize(width: 300, height: 300)
+        self.minSize = NSSize(width: 200, height: 200)
     }
     
     override var canBecomeKey: Bool { return true }
@@ -133,6 +133,11 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
     }
     
     func close(updateModel: Bool = true) {
+        if let currentSize = panel?.frame.size {
+            UserDefaults.standard.set(Double(currentSize.width), forKey: "folderSlotsWindowWidth")
+            UserDefaults.standard.set(Double(currentSize.height), forKey: "folderSlotsWindowHeight")
+        }
+        
         panel?.delegate = nil
         panel?.close()
         panel = nil
@@ -179,8 +184,11 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
     }
     
     private func spawnDetachedPanel(settings: AppSettings) {
-        let width: CGFloat = 400
-        let height: CGFloat = 400
+        let savedWidth = UserDefaults.standard.double(forKey: "folderSlotsWindowWidth")
+        let savedHeight = UserDefaults.standard.double(forKey: "folderSlotsWindowHeight")
+        
+        let width: CGFloat = savedWidth >= 200 ? CGFloat(savedWidth) : 260
+        let height: CGFloat = savedHeight >= 200 ? CGFloat(savedHeight) : 220
         
         // Calculate the Island's approximate frame to position the window
         let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen()
@@ -197,14 +205,14 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
         var originY: CGFloat = 0
         
         if settings.folderSlotsDirection == 0 { // Left
-            originX = islandFrame.minX - width - 16
-            originY = screenRect.maxY - height - 32
+            originX = islandFrame.minX - width - 40
+            originY = screenRect.maxY - height - 40
         } else if settings.folderSlotsDirection == 1 { // Right
-            originX = islandFrame.maxX + 16
-            originY = screenRect.maxY - height - 32
+            originX = islandFrame.maxX + 40
+            originY = screenRect.maxY - height - 40
         } else { // Bottom
             originX = islandFrame.midX - (width / 2)
-            originY = islandFrame.minY - height - 16
+            originY = islandFrame.minY - height - 12
         }
         
         // Ensure the window stays strictly on-screen if the island is near the edge
