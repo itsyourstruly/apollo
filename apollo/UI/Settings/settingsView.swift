@@ -646,6 +646,33 @@ struct SettingsView: View {
                     Toggle("Enable Folder Slots", isOn: $settings.enableFolderSlots)
                     
                     if settings.enableFolderSlots {
+                        Picker("Sort by", selection: $settings.folderSlotsSortOption) {
+                            Text("Name").tag(0)
+                            Text("Type").tag(1)
+                            Text("Size").tag(2)
+                            Text("Date Modified").tag(3)
+                        }
+                        
+                        Toggle("Sort folders to top", isOn: $settings.folderSlotsSortFoldersFirst)
+                        
+                        Toggle("Enable Smart Stacks", isOn: $settings.folderSlotsEnableStacks)
+                        
+                        if settings.folderSlotsEnableStacks {
+                            Toggle("Stack folders", isOn: $settings.folderSlotsStackFolders)
+                            
+                            HStack {
+                                Text("Stack limit")
+                                Slider(value: Binding(
+                                    get: { Double(settings.folderSlotsStackThreshold) },
+                                    set: { settings.folderSlotsStackThreshold = Int($0) }
+                                ), in: 3...50, step: 1)
+                                Text("\(settings.folderSlotsStackThreshold) items")
+                                    .frame(width: 60, alignment: .trailing)
+                            }
+                        }
+                        
+                        Toggle("Put each file type in its own row", isOn: $settings.folderSlotsGroupByType)
+                        
                         Picker("Expand Direction", selection: $settings.folderSlotsDirection) {
                             Text("Left").tag(0)
                             Text("Right").tag(1)

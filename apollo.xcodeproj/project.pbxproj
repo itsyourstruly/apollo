@@ -302,7 +302,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.2.5;
+				MARKETING_VERSION = 0.2.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = amo.apollo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -356,7 +356,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.2.5;
+				MARKETING_VERSION = 0.2.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = amo.apollo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

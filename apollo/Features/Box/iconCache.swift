@@ -314,6 +314,27 @@ final class BoxIconCache {
         stateLock.unlock()
     }
 
+    func invalidate(url: URL) {
+        let key = url as NSURL
+        iconCache.removeObject(forKey: key)
+        
+        stateLock.lock()
+        knownIconKeys.remove(key)
+        
+        let pathPrefix = url.path + "|"
+        let pKeys = knownPreviewKeys.filter { $0.hasPrefix(pathPrefix) }
+        for k in pKeys {
+            previewCache.removeObject(forKey: k as NSString)
+            knownPreviewKeys.remove(k)
+        }
+        
+        let fKeys = failedPreviewKeys.filter { $0.hasPrefix(pathPrefix) }
+        for k in fKeys {
+            failedPreviewKeys.remove(k)
+        }
+        stateLock.unlock()
+    }
+
     func shouldAttemptPreview(for url: URL) -> Bool {
         isLikelyPreviewableURL(url)
     }

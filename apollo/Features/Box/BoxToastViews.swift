@@ -39,6 +39,20 @@ extension UnifiedNotchContainer {
             ZStack(alignment: .bottomTrailing) {
                 VStack(spacing: 10) {
                     VStack(spacing: 8) {
+                        if toast.isDownloading {
+                            Text("Downloading")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.blue)
+                                .padding(.bottom, -4)
+                        } else if toast.isDone {
+                            Text("Done")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.green)
+                                .padding(.bottom, -4)
+                        }
+                        
                         Image(nsImage: icon)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
@@ -58,14 +72,19 @@ extension UnifiedNotchContainer {
                     .overlay(
                         ToastDragSurface(
                             url: toast.fileURL,
+                            isDisabled: toast.isDownloading,
                             onClick: {
-                                withAnimation(.easeOut(duration: 0.18)) {
-                                    isSelected.toggle()
+                                if !toast.isDownloading {
+                                    withAnimation(.easeOut(duration: 0.18)) {
+                                        isSelected.toggle()
+                                    }
                                 }
                             },
                             onDoubleClick: {
-                                NSWorkspace.shared.open(toast.fileURL)
-                                onClose()
+                                if !toast.isDownloading {
+                                    NSWorkspace.shared.open(toast.fileURL)
+                                    onClose()
+                                }
                             }
                         )
                     )
@@ -116,12 +135,14 @@ extension UnifiedNotchContainer {
 
     private struct ToastDragSurface: NSViewRepresentable {
         let url: URL
+        var isDisabled: Bool = false
         let onClick: () -> Void
         let onDoubleClick: () -> Void
 
         func makeNSView(context: Context) -> DragSurfaceView {
             let view = DragSurfaceView()
             view.url = url
+            view.isDisabled = isDisabled
             view.onClick = onClick
             view.onDoubleClick = onDoubleClick
             return view
@@ -129,12 +150,14 @@ extension UnifiedNotchContainer {
 
         func updateNSView(_ nsView: DragSurfaceView, context: Context) {
             nsView.url = url
+            nsView.isDisabled = isDisabled
             nsView.onClick = onClick
             nsView.onDoubleClick = onDoubleClick
         }
 
         final class DragSurfaceView: NSView, NSDraggingSource {
             var url: URL?
+            var isDisabled: Bool = false
             var onClick: (() -> Void)?
             var onDoubleClick: (() -> Void)?
             private var mouseDownPoint: NSPoint = .zero
@@ -147,12 +170,13 @@ extension UnifiedNotchContainer {
             }
 
             override func mouseDown(with event: NSEvent) {
+                guard !isDisabled else { return }
                 mouseDownPoint = convert(event.locationInWindow, from: nil)
                 didStartDrag = false
             }
 
             override func mouseDragged(with event: NSEvent) {
-                guard !didStartDrag, let url else { return }
+                guard !isDisabled, !didStartDrag, let url else { return }
                 let currentPoint = convert(event.locationInWindow, from: nil)
                 let deltaX = currentPoint.x - mouseDownPoint.x
                 let deltaY = currentPoint.y - mouseDownPoint.y
@@ -163,7 +187,7 @@ extension UnifiedNotchContainer {
             }
 
             override func mouseUp(with event: NSEvent) {
-                guard !didStartDrag else { return }
+                guard !isDisabled, !didStartDrag else { return }
                 if event.clickCount > 1 {
                     onDoubleClick?()
                 } else {

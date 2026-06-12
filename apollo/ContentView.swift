@@ -77,6 +77,8 @@ struct ObservedFileToast: Identifiable, Hashable {
     let fileURL: URL
     let folderURL: URL
     let createdAt = Date()
+    var isDownloading: Bool = false
+    var isDone: Bool = false
 }
 
 // MARK: - App Main Entry
@@ -236,6 +238,12 @@ enum AppStorageKey {
     static let folderSlotsColumns = "folderSlotsColumns"
     static let enableFolderSlots = "enableFolderSlots"
     static let folderSlotsPaths = "folderSlotsPaths"
+    static let folderSlotsSortOption = "folderSlotsSortOption"
+    static let folderSlotsSortFoldersFirst = "folderSlotsSortFoldersFirst"
+    static let folderSlotsEnableStacks = "folderSlotsEnableStacks"
+    static let folderSlotsStackFolders = "folderSlotsStackFolders"
+    static let folderSlotsStackThreshold = "folderSlotsStackThreshold"
+    static let folderSlotsGroupByType = "folderSlotsGroupByType"
 
     static let devicePopupEnabled = "devicePopupEnabled"
     static let devicePopupDelay = "devicePopupDelay"

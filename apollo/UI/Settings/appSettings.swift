@@ -1283,6 +1283,42 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var folderSlotsSortFoldersFirst: Bool {
+        didSet {
+            enqueueDefaultSet(folderSlotsSortFoldersFirst, forKey: AppStorageKey.folderSlotsSortFoldersFirst)
+        }
+    }
+
+    @Published var folderSlotsSortOption: Int {
+        didSet {
+            enqueueDefaultSet(folderSlotsSortOption, forKey: AppStorageKey.folderSlotsSortOption)
+        }
+    }
+
+    @Published var folderSlotsEnableStacks: Bool {
+        didSet {
+            enqueueDefaultSet(folderSlotsEnableStacks, forKey: AppStorageKey.folderSlotsEnableStacks)
+        }
+    }
+
+    @Published var folderSlotsStackFolders: Bool {
+        didSet {
+            enqueueDefaultSet(folderSlotsStackFolders, forKey: AppStorageKey.folderSlotsStackFolders)
+        }
+    }
+
+    @Published var folderSlotsStackThreshold: Int {
+        didSet {
+            enqueueDefaultSet(folderSlotsStackThreshold, forKey: AppStorageKey.folderSlotsStackThreshold)
+        }
+    }
+
+    @Published var folderSlotsGroupByType: Bool {
+        didSet {
+            enqueueDefaultSet(folderSlotsGroupByType, forKey: AppStorageKey.folderSlotsGroupByType)
+        }
+    }
+
     @Published var folderSlotsPaths: [String] {
         didSet {
             var seen = Set<String>()
@@ -2299,6 +2335,42 @@ final class AppSettings: ObservableObject {
         enableFolderSlots = false
     } else {
         enableFolderSlots = defaults.bool(forKey: AppStorageKey.enableFolderSlots)
+    }
+
+    if defaults.object(forKey: AppStorageKey.folderSlotsSortFoldersFirst) == nil {
+        folderSlotsSortFoldersFirst = true
+    } else {
+        folderSlotsSortFoldersFirst = defaults.bool(forKey: AppStorageKey.folderSlotsSortFoldersFirst)
+    }
+
+    if defaults.object(forKey: AppStorageKey.folderSlotsSortOption) == nil {
+        folderSlotsSortOption = 0
+    } else {
+        folderSlotsSortOption = defaults.integer(forKey: AppStorageKey.folderSlotsSortOption)
+    }
+    
+    if defaults.object(forKey: AppStorageKey.folderSlotsEnableStacks) == nil {
+        folderSlotsEnableStacks = true
+    } else {
+        folderSlotsEnableStacks = defaults.bool(forKey: AppStorageKey.folderSlotsEnableStacks)
+    }
+    
+    if defaults.object(forKey: AppStorageKey.folderSlotsStackFolders) == nil {
+        folderSlotsStackFolders = true
+    } else {
+        folderSlotsStackFolders = defaults.bool(forKey: AppStorageKey.folderSlotsStackFolders)
+    }
+    
+    if defaults.object(forKey: AppStorageKey.folderSlotsStackThreshold) == nil {
+        folderSlotsStackThreshold = 10
+    } else {
+        folderSlotsStackThreshold = defaults.integer(forKey: AppStorageKey.folderSlotsStackThreshold)
+    }
+    
+    if defaults.object(forKey: AppStorageKey.folderSlotsGroupByType) == nil {
+        folderSlotsGroupByType = false
+    } else {
+        folderSlotsGroupByType = defaults.bool(forKey: AppStorageKey.folderSlotsGroupByType)
     }
 
     folderSlotsPaths = defaults.stringArray(forKey: AppStorageKey.folderSlotsPaths) ?? []
