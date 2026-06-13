@@ -1074,11 +1074,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     lastClipboardChangeCount = currentChangeCount
                     
                     let entry = ClipboardEntry(text: trimmedText, fileURLs: fileURLs).normalizedForLightweightStorage()
-                    if !force {
-                        CopyPopupManager.shared.show(for: entry)
-                    }
                     
                     Task { @MainActor [weak self] in
+                        if !force {
+                            CopyPopupManager.shared.show(for: entry)
+                        }
                         guard let self = self else { return }
                         if self.model.clipboardItems.first?.signature != entry.signature {
                             self.model.clipboardItems.removeAll { $0.signature == entry.signature }

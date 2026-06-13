@@ -936,7 +936,7 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
 
 // MARK: - Quick Look Panel Source & Delegate
 
-extension FolderSlotsManager: QLPreviewPanelDataSource, QLPreviewPanelDelegate {
+@MainActor extension FolderSlotsManager: QLPreviewPanelDataSource, QLPreviewPanelDelegate {
     func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
         return displayedEntities.filter { selectedIDs.contains($0.id) }.count
     }
