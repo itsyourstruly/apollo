@@ -48,6 +48,77 @@ struct BookmarkIconView: View {
     }
 }
 
+struct AppFolderIconView: View {
+    let apps: [LauncherApp]
+    let size: CGFloat
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                .fill(Color.white.opacity(0.12))
+                .frame(width: size, height: size)
+            
+            let padding: CGFloat = size * 0.12
+            let spacing: CGFloat = size * 0.06
+            let itemSize = (size - (padding * 2) - spacing) / 2
+            
+            let gridItems = [
+                GridItem(.fixed(itemSize), spacing: spacing),
+                GridItem(.fixed(itemSize), spacing: spacing)
+            ]
+            
+            LazyVGrid(columns: gridItems, spacing: spacing) {
+                ForEach(0..<4, id: \.self) { index in
+                    if index < apps.count {
+                        CustomAppIconView(appPath: apps[index].path, size: itemSize)
+                    } else {
+                        RoundedRectangle(cornerRadius: itemSize * 0.22, style: .continuous)
+                            .fill(Color.white.opacity(0.06))
+                            .frame(width: itemSize, height: itemSize)
+                    }
+                }
+            }
+            .padding(padding)
+        }
+    }
+}
+
+struct BookmarkFolderIconView: View {
+    let bookmarks: [BookmarkItem]
+    let size: CGFloat
+    let accentColor: Color
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                .fill(Color.white.opacity(0.12))
+                .frame(width: size, height: size)
+            
+            let padding: CGFloat = size * 0.12
+            let spacing: CGFloat = size * 0.06
+            let itemSize = (size - (padding * 2) - spacing) / 2
+            
+            let gridItems = [
+                GridItem(.fixed(itemSize), spacing: spacing),
+                GridItem(.fixed(itemSize), spacing: spacing)
+            ]
+            
+            LazyVGrid(columns: gridItems, spacing: spacing) {
+                ForEach(0..<4, id: \.self) { index in
+                    if index < bookmarks.count {
+                        BookmarkIconView(bookmark: bookmarks[index], size: itemSize, accentColor: accentColor)
+                    } else {
+                        RoundedRectangle(cornerRadius: itemSize * 0.22, style: .continuous)
+                            .fill(Color.white.opacity(0.06))
+                            .frame(width: itemSize, height: itemSize)
+                    }
+                }
+            }
+            .padding(padding)
+        }
+    }
+}
+
 // MARK: - Launcher Actions
 func launchApp(_ app: LauncherApp) {
     if let bundleId = app.bundleIdentifier,
@@ -190,6 +261,8 @@ struct CombinedActionsPageContent: View, Equatable {
     @ObservedObject var model: NotchMenuModel
     let apps: [LauncherApp]
     let bookmarks: [BookmarkItem]
+    let launcherCurrentFolderID: UUID?
+    let bookmarksCurrentFolderID: UUID?
     let launcherMode: Int
     let bookmarkMode: Int
     let launcherColumns: Int
@@ -207,13 +280,24 @@ struct CombinedActionsPageContent: View, Equatable {
     let onRemoveApp: (LauncherApp) -> Void
     let onAddApp: (LauncherApp) -> Void
     let onTogglePinApp: (LauncherApp) -> Void
+    let onOpenLauncherFolder: (LauncherApp) -> Void
+    let onDropApp: (UUID, LauncherApp) -> Void
+    let onMoveAppOut: (LauncherApp) -> Void
+    let onRenameLauncherFolder: (LauncherApp, String) -> Void
+    
     let onRemoveBookmark: (BookmarkItem) -> Void
     let onAddBookmark: (BookmarkItem) -> Void
     let onTogglePinBookmark: (BookmarkItem) -> Void
+    let onOpenBookmarksFolder: (BookmarkItem) -> Void
+    let onDropBookmark: (UUID, BookmarkItem) -> Void
+    let onMoveBookmarkOut: (BookmarkItem) -> Void
+    let onRenameBookmarksFolder: (BookmarkItem, String) -> Void
     
     static func == (lhs: CombinedActionsPageContent, rhs: CombinedActionsPageContent) -> Bool {
         lhs.apps == rhs.apps &&
         lhs.bookmarks == rhs.bookmarks &&
+        lhs.launcherCurrentFolderID == rhs.launcherCurrentFolderID &&
+        lhs.bookmarksCurrentFolderID == rhs.bookmarksCurrentFolderID &&
         lhs.launcherMode == rhs.launcherMode &&
         lhs.bookmarkMode == rhs.bookmarkMode &&
         lhs.launcherColumns == rhs.launcherColumns &&
@@ -235,6 +319,7 @@ struct CombinedActionsPageContent: View, Equatable {
             // Left Column (Apps/Launcher)
             LauncherPageContent(
                 apps: apps,
+                currentFolderID: launcherCurrentFolderID,
                 displayMode: launcherMode,
                 columnsCount: max(1, launcherColumns / 2),
                 iconSize: launcherIconSize,
@@ -246,7 +331,11 @@ struct CombinedActionsPageContent: View, Equatable {
                 showHeader: false,
                 onRemove: onRemoveApp,
                 onAdd: onAddApp,
-                onTogglePin: onTogglePinApp
+                onTogglePin: onTogglePinApp,
+                onOpenFolder: onOpenLauncherFolder,
+                onDropApp: onDropApp,
+                onMoveAppOut: onMoveAppOut,
+                onRenameFolder: onRenameLauncherFolder
             )
             .frame(width: halfWidth, height: height, alignment: .topLeading)
             
@@ -259,6 +348,7 @@ struct CombinedActionsPageContent: View, Equatable {
             // Right Column (Bookmarks)
             BookmarksPageContent(
                 bookmarks: bookmarks,
+                currentFolderID: bookmarksCurrentFolderID,
                 displayMode: bookmarkMode,
                 columnsCount: max(1, bookmarkColumns / 2),
                 iconSize: bookmarkIconSize,
@@ -270,7 +360,11 @@ struct CombinedActionsPageContent: View, Equatable {
                 showHeader: false,
                 onRemove: onRemoveBookmark,
                 onAdd: onAddBookmark,
-                onTogglePin: onTogglePinBookmark
+                onTogglePin: onTogglePinBookmark,
+                onOpenFolder: onOpenBookmarksFolder,
+                onDropBookmark: onDropBookmark,
+                onMoveBookmarkOut: onMoveBookmarkOut,
+                onRenameFolder: onRenameBookmarksFolder
             )
             .frame(width: halfWidth, height: height, alignment: .topTrailing)
         }

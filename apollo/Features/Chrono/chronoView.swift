@@ -74,6 +74,8 @@ struct ChronoPageContent: View, Equatable {
                     Image(systemName: isStopwatchRunning ? "pause.fill" : "play.fill")
                         .font(.title2)
                         .foregroundColor(isStopwatchRunning ? .yellow : .green)
+                        .padding(10)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 
@@ -82,6 +84,8 @@ struct ChronoPageContent: View, Equatable {
                         Image(systemName: "trash.fill")
                             .font(.title2)
                             .foregroundColor(.red)
+                            .padding(10)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -116,6 +120,8 @@ struct ChronoPageContent: View, Equatable {
                     Image(systemName: isTimerRunning ? "pause.fill" : "play.fill")
                         .font(.title2)
                         .foregroundColor(isTimerRunning ? .yellow : .green)
+                        .padding(10)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .disabled(timerDuration == 0 && timerRemainingAtPause == 0)
@@ -125,6 +131,8 @@ struct ChronoPageContent: View, Equatable {
                         Image(systemName: "trash.fill")
                             .font(.title2)
                             .foregroundColor(.red)
+                            .padding(10)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }

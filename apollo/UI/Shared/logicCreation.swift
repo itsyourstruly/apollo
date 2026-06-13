@@ -1073,12 +1073,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if (trimmedText?.isEmpty == false) || !fileURLs.isEmpty {
                     lastClipboardChangeCount = currentChangeCount
                     
-                    Task.detached(priority: .utility) { [weak self] in
-                        let entry = ClipboardEntry(text: trimmedText, fileURLs: fileURLs).normalizedForLightweightStorage()
-                        await MainActor.run {
-                            guard let self else { return }
-                            guard self.model.clipboardItems.first?.signature != entry.signature else { return }
-                            
+                    let entry = ClipboardEntry(text: trimmedText, fileURLs: fileURLs).normalizedForLightweightStorage()
+                    if !force {
+                        CopyPopupManager.shared.show(for: entry)
+                    }
+                    
+                    Task { @MainActor [weak self] in
+                        guard let self = self else { return }
+                        if self.model.clipboardItems.first?.signature != entry.signature {
                             self.model.clipboardItems.removeAll { $0.signature == entry.signature }
                             self.model.clipboardItems.insert(entry, at: 0)
                             self.applyClipboardLimitIfNeeded()
@@ -1927,7 +1929,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         private func handleIslandOpenMousePollTick() {
             guard !model.isAddSheetOpen, !model.isFolderSlotsOpen else { return }
-            guard model.isExpanded, !model.isPinned, let window = islandWindow else {
+            guard model.isExpanded, !model.isPinned, islandWindow != nil else {
                 stopIslandOpenMousePolling()
                 return
             }

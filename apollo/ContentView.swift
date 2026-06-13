@@ -18,13 +18,21 @@ public struct LauncherApp: Identifiable, Codable, Hashable {
     public var path: String
     public var bundleIdentifier: String?
     public var isPeekerPinned: Bool?
+    public var isFolder: Bool?
+    public var parentId: UUID?
+    public var rowSpan: Int?
+    public var colSpan: Int?
 
-    public init(id: UUID = UUID(), name: String, path: String, bundleIdentifier: String? = nil, isPeekerPinned: Bool? = nil) {
+    public init(id: UUID = UUID(), name: String, path: String, bundleIdentifier: String? = nil, isPeekerPinned: Bool? = nil, isFolder: Bool? = nil, parentId: UUID? = nil, rowSpan: Int? = nil, colSpan: Int? = nil) {
         self.id = id
         self.name = name
         self.path = path
         self.bundleIdentifier = bundleIdentifier
         self.isPeekerPinned = isPeekerPinned
+        self.isFolder = isFolder
+        self.parentId = parentId
+        self.rowSpan = rowSpan
+        self.colSpan = colSpan
     }
 }
 
@@ -42,14 +50,22 @@ public struct BookmarkItem: Identifiable, Codable, Hashable {
     public var customBrowserPath: String?
     public var iconBase64: String?
     public var isPeekerPinned: Bool?
+    public var isFolder: Bool?
+    public var parentId: UUID?
+    public var rowSpan: Int?
+    public var colSpan: Int?
 
-    public init(id: UUID = UUID(), name: String, urlString: String, customBrowserPath: String? = nil, iconBase64: String? = nil, isPeekerPinned: Bool? = nil) {
+    public init(id: UUID = UUID(), name: String, urlString: String, customBrowserPath: String? = nil, iconBase64: String? = nil, isPeekerPinned: Bool? = nil, isFolder: Bool? = nil, parentId: UUID? = nil, rowSpan: Int? = nil, colSpan: Int? = nil) {
         self.id = id
         self.name = name
         self.urlString = urlString
         self.customBrowserPath = customBrowserPath
         self.iconBase64 = iconBase64
         self.isPeekerPinned = isPeekerPinned
+        self.isFolder = isFolder
+        self.parentId = parentId
+        self.rowSpan = rowSpan
+        self.colSpan = colSpan
     }
 }
 
@@ -144,6 +160,8 @@ final class NotchMenuModel: ObservableObject {
     @Published var isAddSheetOpen = false
     @Published var isContentActive = false
     @Published var isFolderSlotsOpen = false
+    @Published var launcherCurrentFolderID: UUID? = nil
+    @Published var bookmarksCurrentFolderID: UUID? = nil
 }
 
 final class SwipeState: ObservableObject {
@@ -194,6 +212,7 @@ enum AppStorageKey {
     static let notchHeight = "notchHeight"
     static let defaultPage = "defaultPage"
     static let rememberClips = "rememberClips"
+    static let enableCopyPopup = "enableCopyPopup"
     static let jotNotes = "jotNotes"
     static let titleAlignment = "titleAlignment"
     static let titleSize = "titleSize"

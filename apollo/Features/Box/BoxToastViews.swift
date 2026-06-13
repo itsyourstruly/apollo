@@ -15,6 +15,8 @@ extension UnifiedNotchContainer {
         let cornerRadius: CGFloat
         @State private var isSelected = false
         @State private var contentHeight: CGFloat = 0
+        @State private var iconImage: NSImage? = nil
+        @State private var imageRequestID: UUID? = nil
 
         private struct ContentHeightKey: PreferenceKey {
             static var defaultValue: CGFloat = 0
@@ -35,7 +37,7 @@ extension UnifiedNotchContainer {
             let targetHeight = min(max(baseHeight, measuredHeight), expandedHeight)
             let contentScale = measuredHeight > expandedHeight ? expandedHeight / measuredHeight : 1
             let panelHeight = baseHeight + (targetHeight - baseHeight) * easedProgress
-            let icon = BoxIconCache.shared.displayImage(for: toast.fileURL, targetSize: 72)
+            let icon = iconImage ?? BoxIconCache.shared.icon(for: toast.fileURL)
             ZStack(alignment: .bottomTrailing) {
                 VStack(spacing: 10) {
                     VStack(spacing: 8) {
@@ -128,6 +130,33 @@ extension UnifiedNotchContainer {
             .onPreferenceChange(ContentHeightKey.self) { value in
                 if value.isFinite && contentHeight != value {
                     contentHeight = value
+                }
+            }
+            .onAppear {
+                loadIcon()
+            }
+            .onChange(of: toast.fileURL) { _, _ in
+                loadIcon()
+            }
+            .onDisappear {
+                if let id = imageRequestID {
+                    BoxIconCache.shared.cancelRequest(id)
+                }
+            }
+        }
+
+        private func loadIcon() {
+            if let oldID = imageRequestID {
+                BoxIconCache.shared.cancelRequest(oldID)
+                imageRequestID = nil
+            }
+            if let cached = BoxIconCache.shared.cachedPreview(for: toast.fileURL, targetSize: 72) {
+                self.iconImage = cached
+            } else {
+                self.iconImage = nil
+                self.imageRequestID = BoxIconCache.shared.requestDisplayImage(for: toast.fileURL, targetSize: 72) { img in
+                    self.iconImage = img
+                    self.imageRequestID = nil
                 }
             }
         }

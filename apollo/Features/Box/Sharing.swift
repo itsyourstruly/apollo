@@ -39,6 +39,7 @@ struct BoxShareButton: View {
                                 BoxControlsAppIconView(appPath: appPath, size: 20)
                                     .padding(8)
                                     .background(isHovered ? Color.white.opacity(0.3) : Color.black.opacity(0.4), in: Circle())
+                                    .contentShape(Circle())
                                     .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
                             }
                             .buttonStyle(.plain)
@@ -72,6 +73,7 @@ struct BoxShareButton: View {
                     .font(.system(size: 18, weight: .semibold))
                     .padding(10)
                     .background(isShareTargeted ? Color.white.opacity(0.3) : Color.black.opacity(0.4), in: Circle())
+                    .contentShape(Circle())
                     .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
             }
             .buttonStyle(.plain)
@@ -185,7 +187,15 @@ struct BoxShareButton: View {
             menu.addItem(item)
         }
         
-        let services = NSSharingService.sharingServices(forItems: urls)
+        let services: [NSSharingService]
+        let selector = NSSelectorFromString("sharingServicesForItems:")
+        if let classObject = NSClassFromString("NSSharingService") as AnyObject?,
+           classObject.responds(to: selector),
+           let result = classObject.perform(selector, with: urls)?.takeUnretainedValue() as? [NSSharingService] {
+            services = result
+        } else {
+            services = []
+        }
         let airdropTitle = airdropService?.title ?? "AirDrop"
         let messageTitle = messageService?.title ?? "Messages"
         let mailTitle = mailService?.title ?? "Mail"

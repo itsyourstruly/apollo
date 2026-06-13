@@ -638,6 +638,12 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var enableCopyPopup: Bool {
+        didSet {
+            enqueueDefaultSet(enableCopyPopup, forKey: AppStorageKey.enableCopyPopup)
+        }
+    }
+
     @Published var jotEnabled: Bool {
         didSet {
             enqueueDefaultSet(jotEnabled, forKey: AppStorageKey.jotEnabled)
@@ -1680,6 +1686,12 @@ final class AppSettings: ObservableObject {
             clipEnabled = true
         } else {
             clipEnabled = defaults.bool(forKey: AppStorageKey.clipEnabled)
+        }
+
+        if defaults.object(forKey: AppStorageKey.enableCopyPopup) == nil {
+            enableCopyPopup = true
+        } else {
+            enableCopyPopup = defaults.bool(forKey: AppStorageKey.enableCopyPopup)
         }
 
         if defaults.object(forKey: AppStorageKey.jotEnabled) == nil {

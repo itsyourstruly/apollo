@@ -34,6 +34,9 @@ struct TimerColumn: View {
             Button(action: { onChange(min(maxLimit, value + 1)) }) {
                 Image(systemName: "chevron.up")
                     .foregroundColor(.white.opacity(0.7))
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 12)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             
@@ -50,6 +53,9 @@ struct TimerColumn: View {
             Button(action: { onChange(Swift.max(0, value - 1)) }) {
                 Image(systemName: "chevron.down")
                     .foregroundColor(.white.opacity(0.7))
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 12)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }

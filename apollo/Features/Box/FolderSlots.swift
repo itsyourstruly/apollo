@@ -28,7 +28,7 @@ struct FolderSlotEntity: Identifiable, Hashable, Sendable {
             return "waveform"
         case "mp4", "mov", "m4v", "avi", "mkv", "wmv", "flv", "webm", "mpg", "mpeg", "3gp", "ts", "m2ts":
             return "film.fill"
-        case "swift", "js", "ts", "py", "java", "c", "cpp", "h", "json", "html", "css", "md", "txt", "xml", "yml", "yaml", "sh", "rb", "php":
+        case "swift", "js", "py", "java", "c", "cpp", "h", "json", "html", "css", "md", "txt", "xml", "yml", "yaml", "sh", "rb", "php":
             return "chevron.left.forwardslash.chevron.right"
         default:
             return "doc.fill"
@@ -116,7 +116,7 @@ final class FolderSlotsWorker: Sendable {
                 
                 guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { continue }
                 
-                for case let fileURL as URL in enumerator {
+                while let fileURL = enumerator.nextObject() as? URL {
                     if Task.isCancelled { break }
                     
                     scannedCount += 1
@@ -206,7 +206,7 @@ final class FolderSlotsWorker: Sendable {
         }
     }
     
-    static func sortEntities(_ entities: [FolderSlotEntity], option: Int, foldersFirst: Bool) -> [FolderSlotEntity] {
+    nonisolated static func sortEntities(_ entities: [FolderSlotEntity], option: Int, foldersFirst: Bool) -> [FolderSlotEntity] {
         return entities.sorted {
             if foldersFirst && $0.isDirectory != $1.isDirectory { return $0.isDirectory }
             switch option {
@@ -227,7 +227,7 @@ final class FolderSlotsWorker: Sendable {
         }
     }
     
-    static func sortSearchEntities(exact: [FolderSlotEntity], fuzzy: [FolderSlotEntity], query: String) -> [FolderSlotEntity] {
+    nonisolated static func sortSearchEntities(exact: [FolderSlotEntity], fuzzy: [FolderSlotEntity], query: String) -> [FolderSlotEntity] {
         let lowerQuery = query.lowercased()
         
         func rankAndCount(for entity: FolderSlotEntity, isExact: Bool) -> (Int, Int) {
@@ -262,7 +262,7 @@ final class FolderSlotsWorker: Sendable {
         return combined.map { $0.0 }
     }
     
-    private static func isFuzzyMatch(queryChars: [Character], target: String) -> Bool {
+    nonisolated private static func isFuzzyMatch(queryChars: [Character], target: String) -> Bool {
         var queryIndex = 0
         let queryCount = queryChars.count
         
@@ -919,7 +919,7 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
         }
     }
     
-    func uniqueURL(for url: URL, in directory: URL) -> URL {
+    nonisolated func uniqueURL(for url: URL, in directory: URL) -> URL {
         var destURL = directory.appendingPathComponent(url.lastPathComponent)
         var counter = 1
         let name = url.deletingPathExtension().lastPathComponent

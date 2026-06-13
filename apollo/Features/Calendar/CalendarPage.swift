@@ -240,6 +240,7 @@ struct MonthGridView: View {
                                         isSelected ? accentColor : (isToday ? Color.white.opacity(0.15) : Color.clear),
                                         in: RoundedRectangle(cornerRadius: 4)
                                     )
+                                    .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                             } else {
@@ -439,6 +440,8 @@ struct CalendarPageContent: View, Equatable {
                                     Image(systemName: "calendar")
                                         .font(.system(size: 10))
                                         .foregroundColor(floatingPanel != nil ? accentColor : .white.opacity(0.6))
+                                        .padding(6)
+                                        .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -502,6 +505,7 @@ struct CalendarPageContent: View, Equatable {
                                         isSelected ? accentColor : (isToday ? Color.white.opacity(0.12) : Color.clear),
                                         in: RoundedRectangle(cornerRadius: 6)
                                     )
+                                    .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                             }

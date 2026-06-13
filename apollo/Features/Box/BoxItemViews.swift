@@ -38,9 +38,10 @@ extension UnifiedNotchContainer {
                     .foregroundColor(.white)
                     .background(Circle().fill(Color.black.opacity(0.5)))
                     .font(.caption)
+                    .padding(6)
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .padding(4)
         }
     }
 

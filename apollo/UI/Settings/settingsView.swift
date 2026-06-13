@@ -436,6 +436,8 @@ struct SettingsView: View {
                     Text("Set to 0 for unlimited")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                    
+                    Toggle("Show notification popup on copy", isOn: $settings.enableCopyPopup)
                 }
 
                 Section("Clipboard Layout") {

@@ -765,12 +765,13 @@ public class DevicePopupManager: ObservableObject {
         storageObserverToken = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didMountNotification, object: nil, queue: .main
         ) { [weak self] notification in
+            guard let userInfo = notification.userInfo,
+                  let volumeURL = userInfo[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
+            let volumeName = userInfo["NSWorkspaceVolumeLocalizedNameKey"] as? String
+                ?? volumeURL.lastPathComponent
+            
             Task { @MainActor [weak self] in
                 guard let self = self, !self.isStartupPhase else { return }
-                guard let userInfo = notification.userInfo,
-                      let volumeURL = userInfo[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
-                let volumeName = userInfo["NSWorkspaceVolumeLocalizedNameKey"] as? String
-                    ?? volumeURL.lastPathComponent
                 guard volumeURL.path != "/" && volumeURL.path.hasPrefix("/Volumes/") else { return }
                 let device = DeviceDetails(name: volumeName, sfSymbol: "externaldrive.fill",
                                            deviceType: .externalStorage, fileURL: volumeURL)
@@ -781,11 +782,11 @@ public class DevicePopupManager: ObservableObject {
         storageUnmountObserverToken = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didUnmountNotification, object: nil, queue: .main
         ) { [weak self] notification in
+            guard let userInfo = notification.userInfo,
+                  let volumeURL = userInfo[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
+            
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
-                guard let userInfo = notification.userInfo,
-                      let volumeURL = userInfo[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
-                
                 if case .connected(let details) = self.state, details.deviceType == .externalStorage, details.fileURL?.path == volumeURL.path {
                     self.dismissManually()
                 }
@@ -812,7 +813,9 @@ public class DevicePopupManager: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.handleScreenChange()
+            Task { @MainActor [weak self] in
+                self?.handleScreenChange()
+            }
         }
     }
 
