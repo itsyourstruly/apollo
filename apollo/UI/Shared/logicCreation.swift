@@ -46,6 +46,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var approachWorkItem: DispatchWorkItem?
     private var cachePurgeWorkItem: DispatchWorkItem?
     private var boxDragHoldWorkItem: DispatchWorkItem?
+    private var safetyTimer: DispatchSourceTimer?
     private var isDraggingOverProximity = false
     private var lastApproachProgressSampleTime: TimeInterval = 0
     private var lastApproachProgressEmitted: CGFloat = -1
@@ -90,30 +91,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         let windowPoint = window.convertPoint(fromScreen: globalPoint)
         let localPoint = window.contentView?.convert(windowPoint, from: nil) ?? windowPoint
-        return isLocalPointInteractive(localPoint)
+        return isLocalPointInteractive(localPoint, isHover: true)
     }
     
-    func isLocalPointInteractive(_ point: NSPoint) -> Bool {
+    func isLocalPointInteractive(_ point: NSPoint, isHover: Bool = false) -> Bool {
         guard let window = islandWindow else { return false }
         
         let center = window.frame.width / 2
-        let isFlipped = window.contentView?.isFlipped ?? false
-        let fromTop = isFlipped ? point.y : (window.frame.height - point.y)
         
-        if fromTop < 0 { return false }
+        // hitTest points are injected in the unflipped superview coordinate system (NSThemeFrame).
+        // y = 0 is ALWAYS the absolute physical bottom of the window.
+        let fromTop = window.frame.height - point.y
+        
+        let pad: CGFloat = isHover ? 20 : 0
+        
+        if fromTop < -pad { return false }
         let isExpanded = self.model.isExpanded || self.model.isPinned || self.model.expansionProgress > 0
         
         // 1. Toast Mode
         if !isExpanded && self.model.observedFileToast != nil {
             let toastWidth: CGFloat = 180
             let toastHeight: CGFloat = 260
-            let isInsideToastX = abs(point.x - center) <= (toastWidth / 2)
-            let isInsideToastY = fromTop <= toastHeight
+            let isInsideToastX = abs(point.x - center) <= (toastWidth / 2) + pad
+            let isInsideToastY = fromTop <= toastHeight + pad
             return isInsideToastX && isInsideToastY
         }
         
         // 2. Top row (Menu Bar level controls, Notch, Chrono)
-        if fromTop <= 45 {
+        if fromTop <= 55 + pad {
             let notchWidth = self.settings.effectiveNotchWidth
             var activeLeft: CGFloat = 0
             var activeRight: CGFloat = 0
@@ -124,33 +129,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if self.model.isTimerRunning && !self.settings.disableChronoHUD { activeRight = 100 }
             }
             
-            let minX = center - (notchWidth / 2) - activeLeft
-            let maxX = center + (notchWidth / 2) + activeRight
+            let minX = center - (notchWidth / 2) - activeLeft - pad
+            let maxX = center + (notchWidth / 2) + activeRight + pad
             
             if point.x >= minX && point.x <= maxX {
                 return true
             }
             
-            // The Box controls (only when expanded, Box page active, and has files)
+            // Global top bar controls (only when expanded)
             if isExpanded {
-                let pages = self.activePages
-                if pages.indices.contains(self.model.currentPage) && pages[self.model.currentPage] == .box {
-                    let hasBoxItems = !self.model.boxFiles.isEmpty || (self.settings.enableFolderSlots && !self.settings.folderSlotsPaths.isEmpty)
-                    if hasBoxItems {
-                        let notchRight = center + (notchWidth / 2)
-                        let controlsMinX = notchRight + 10
-                        let controlsMaxX = controlsMinX + 180
-                        if point.x >= controlsMinX && point.x <= controlsMaxX {
-                            return true
-                        }
-                    }
+                let panelWidth = scaledPanelWidth(for: self.settings)
+                let isFloatingPagerActive = self.settings.showPagers && self.settings.pagerStyle == 1
+                let sidePagerWidth: CGFloat = (isFloatingPagerActive && self.settings.pagerAlignment != 0) ? (self.settings.pagerSize * 2 + self.settings.pagerSpacing * 2) * 2 : 0
+                let containerWidth = max(panelWidth + sidePagerWidth, notchWidth + 320)
+                
+                if abs(point.x - center) <= (containerWidth / 2) + pad {
+                    return true
                 }
             }
             
             // Hover preview (settings)
             if self.settings.showHoverPreviews && self.settings.hoverPreviewFocus != .all {
                 let approachWidth = self.settings.clampedApproachWidth
-                if abs(point.x - center) <= (notchWidth / 2) + approachWidth {
+                if abs(point.x - center) <= (notchWidth / 2) + approachWidth + pad {
                     return true
                 }
             }
@@ -164,8 +165,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let panelWidth = scaledPanelWidth(for: self.settings)
         let panelHeight = scaledPanelHeight(for: self.settings)
         
-        let isInsideIslandX = abs(point.x - center) <= (panelWidth / 2)
-        let isInsideIslandY = fromTop <= panelHeight
+        let isInsideIslandX = abs(point.x - center) <= (panelWidth / 2) + pad
+        let isInsideIslandY = fromTop <= panelHeight + pad
         if isInsideIslandX && isInsideIslandY {
             return true
         }
@@ -175,8 +176,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if self.settings.pagerAlignment == 0 {
                 // Bottom pager
                 let pagerAreaHeight: CGFloat = self.settings.pagerSize + 40
-                let isInsidePagerX = abs(point.x - center) <= 150
-                let isInsidePagerY = fromTop > panelHeight && fromTop <= panelHeight + pagerAreaHeight
+                let isInsidePagerX = abs(point.x - center) <= 150 + pad
+                let isInsidePagerY = fromTop > panelHeight - pad && fromTop <= panelHeight + pagerAreaHeight + pad
                 if isInsidePagerX && isInsidePagerY {
                     return true
                 }
@@ -186,12 +187,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let isInsideSidePagerX: Bool
                 if self.settings.pagerAlignment == 1 { // Left
                     let expectedX = center - (panelWidth / 2) - sidePagerWidth / 2
-                    isInsideSidePagerX = abs(point.x - expectedX) <= sidePagerWidth / 2
+                    isInsideSidePagerX = abs(point.x - expectedX) <= (sidePagerWidth / 2) + pad
                 } else { // Right
                     let expectedX = center + (panelWidth / 2) + sidePagerWidth / 2
-                    isInsideSidePagerX = abs(point.x - expectedX) <= sidePagerWidth / 2
+                    isInsideSidePagerX = abs(point.x - expectedX) <= (sidePagerWidth / 2) + pad
                 }
-                let isInsideSidePagerY = fromTop <= panelHeight
+                let isInsideSidePagerY = fromTop <= panelHeight + pad
                 if isInsideSidePagerX && isInsideSidePagerY {
                     return true
                 }
@@ -235,6 +236,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         persistLauncherApps(model.launcherApps)
         persistBookmarkItems(model.bookmarkItems)
         refreshNativeState()
+        
+        let safety = DispatchSource.makeTimerSource(queue: .main)
+        safety.schedule(deadline: .now() + 2.0, repeating: 2.0)
+        safety.setEventHandler { [weak self] in
+            guard let self = self else { return }
+            if self.model.isExpanded && !self.model.isPinned && !self.model.isAddSheetOpen && !self.model.isFolderSlotsOpen {
+                if self.islandOpenMousePollTimer == nil {
+                    self.startIslandOpenMousePolling()
+                }
+            }
+        }
+        safety.resume()
+        self.safetyTimer = safety
         
         // Bind back decoupled settings data events
         NotificationCenter.default.addObserver(forName: NSNotification.Name("apolloDataChanged"), object: nil, queue: .main) { [weak self] _ in
@@ -353,8 +367,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         model.isPinned.toggle()
         if model.isPinned {
             showPanel(expanded: true, pinned: true)
-        } else if !model.isExpanded {
-            hidePanel()
+        } else {
+            if model.isExpanded {
+                showPanel(expanded: true, pinned: false)
+            } else {
+                hidePanel()
+            }
         }
     }
     
@@ -2748,6 +2766,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             pendingWindowHeightUpdate = nil
             memoryPressureSource?.cancel()
             memoryPressureSource = nil
+            safetyTimer?.cancel()
+            safetyTimer = nil
             for monitor in folderMonitors.values {
                 monitor.stop()
             }

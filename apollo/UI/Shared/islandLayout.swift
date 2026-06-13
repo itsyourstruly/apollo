@@ -130,85 +130,6 @@ struct UnifiedNotchContainer: View {
             .frame(width: width, alignment: alignment)
     }
     
-    private var boxMenuBarControls: some View {
-        let isBoxPage = activePages.indices.contains(model.currentPage) && activePages[model.currentPage] == .box
-        let showControls = model.isExpanded && isBoxPage && (!model.boxFiles.isEmpty || (settings.enableFolderSlots && !settings.folderSlotsPaths.isEmpty)) && !isSlimModeActive
-        return GeometryReader { geo in
-            let edgeNotchWidth = settings.effectiveNotchWidth
-            let notchRight = (geo.size.width + edgeNotchWidth) / 2
-            let controlWidth: CGFloat = 180
-            let xOffset = notchRight + 10
-            
-            HStack(spacing: 10) {
-                if settings.enableFolderSlots && !settings.folderSlotsPaths.isEmpty {
-                    GeometryReader { buttonGeo in
-                        Button {
-                            model.isFolderSlotsOpen.toggle()
-                            if model.isFolderSlotsOpen {
-                                let anchorFrame = buttonGeo.frame(in: .global)
-                                FolderSlotsManager.shared.open(anchor: anchorFrame, model: model, settings: settings)
-                            } else {
-                                FolderSlotsManager.shared.close()
-                            }
-                        } label: {
-                            Image(systemName: "text.below.folder.fill")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(model.isFolderSlotsOpen ? Color(settings.accentColor) : .white.opacity(0.85))
-                                .padding(6)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .frame(width: 16, height: 16)
-                }
-                
-                if !model.boxFiles.isEmpty {
-                    Button {
-                        withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
-                            if selectedBoxFileIDs.count == model.boxFiles.count {
-                                selectedBoxFileIDs.removeAll()
-                            } else {
-                                selectedBoxFileIDs = Set(model.boxFiles.map { $0.id })
-                            }
-                        }
-                    } label: {
-                        Text(selectedBoxFileIDs.count == model.boxFiles.count ? "Deselect" : "Select All")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.85))
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 6)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    
-                    Button {
-                        withAnimation {
-                            if selectedBoxFileIDs.isEmpty {
-                                model.boxFiles.removeAll()
-                                selectedBoxFileIDs.removeAll()
-                            } else {
-                                model.boxFiles.removeAll { selectedBoxFileIDs.contains($0.id) }
-                                selectedBoxFileIDs.removeAll()
-                            }
-                        }
-                    } label: {
-                        Text(selectedBoxFileIDs.isEmpty ? "Clear" : "Clear Selected")
-                            .font(.caption)
-                            .foregroundColor(.red.opacity(0.9))
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 6)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .frame(width: controlWidth, alignment: .leading)
-            .offset(x: xOffset, y: 6)
-            .opacity(showControls ? 1.0 : 0.0)
-            .zIndex(5)
-        }
-    }
-    
     private var slimBoxMenuBarControls: some View {
         HStack(spacing: 8) {
             Button {
@@ -383,12 +304,6 @@ struct UnifiedNotchContainer: View {
                                         .fill(Color(nsColor: settings.backgroundColor.withAlphaComponent(1.0)))
                                         .frame(width: islandWidth, height: islandHeight)
                                     
-                                    globalTitleOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
-                                        .opacity(shouldRenderExpandedContent ? contentProgress : 0)
-                                        .allowsHitTesting(shouldRenderExpandedContent)
-                                    globalControlsOverlay(islandWidth: targetIslandWidth, islandHeight: islandHeight)
-                                        .opacity(shouldRenderExpandedContent ? contentProgress : 0)
-                                        .allowsHitTesting(shouldRenderExpandedContent)
                                     
                                     if !model.isExpanded && !model.isPinned {
                                         closedIslandChronoWidgets(islandWidth: islandWidth, islandHeight: islandHeight, leftExt: activeLeftExt, rightExt: activeRightExt)
@@ -397,6 +312,17 @@ struct UnifiedNotchContainer: View {
                                 .compositingGroup()
                                 .frame(width: islandWidth, height: islandHeight)
                                 .padding(.top, 0)
+                                .overlay {
+                                    ZStack {
+                                        globalTitleOverlay(islandWidth: containerWidth, islandHeight: islandHeight)
+                                            .opacity(shouldRenderExpandedContent ? contentProgress : 0)
+                                            .allowsHitTesting(shouldRenderExpandedContent)
+                                        globalControlsOverlay(islandWidth: containerWidth, islandHeight: islandHeight)
+                                            .opacity(shouldRenderExpandedContent ? contentProgress : 0)
+                                            .allowsHitTesting(shouldRenderExpandedContent)
+                                    }
+                                    .frame(width: containerWidth, height: islandHeight)
+                                }
                             }
                             
                             let pages = activePages
@@ -514,9 +440,6 @@ struct UnifiedNotchContainer: View {
                     slimBoxMenuBarControls
                         .zIndex(50)
                 }
-            } else {
-                boxMenuBarControls
-                    .zIndex(50)
             }
         }
         .scaleEffect(closeScale, anchor: .top)
@@ -1032,7 +955,90 @@ struct UnifiedNotchContainer: View {
                                         }
                                     }
                                 case .box:
-                                    EmptyView()
+                                    if !model.boxFiles.isEmpty || (settings.enableFolderSlots && !settings.folderSlotsPaths.isEmpty) {
+                                        if !model.boxFiles.isEmpty {
+                                            VStack(alignment: alignmentOption == .left ? .leading : .trailing, spacing: -4) {
+                                                HStack(spacing: 12) {
+                                                    Button {
+                                                        DispatchQueue.main.async {
+                                                            withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                                                                if selectedBoxFileIDs.count == model.boxFiles.count {
+                                                                    selectedBoxFileIDs.removeAll()
+                                                                } else {
+                                                                    selectedBoxFileIDs = Set(model.boxFiles.map { $0.id })
+                                                                }
+                                                            }
+                                                        }
+                                                    } label: {
+                                                        Text(selectedBoxFileIDs.count == model.boxFiles.count ? "Deselect" : "Select All")
+                                                            .font(.caption)
+                                                            .foregroundColor(.white.opacity(0.85))
+                                                            .padding(6)
+                                                            .contentShape(Rectangle())
+                                                    }
+                                                    .buttonStyle(.plain)
+                                                    
+                                                    Button {
+                                                        DispatchQueue.main.async {
+                                                            withAnimation {
+                                                                if selectedBoxFileIDs.isEmpty {
+                                                                    model.boxFiles.removeAll()
+                                                                    selectedBoxFileIDs.removeAll()
+                                                                } else {
+                                                                    model.boxFiles.removeAll { selectedBoxFileIDs.contains($0.id) }
+                                                                    selectedBoxFileIDs.removeAll()
+                                                                }
+                                                            }
+                                                        }
+                                                    } label: {
+                                                        Text(selectedBoxFileIDs.isEmpty ? "Clear" : "Clear Selected")
+                                                            .font(.caption)
+                                                            .foregroundColor(.red.opacity(0.9))
+                                                            .padding(6)
+                                                            .contentShape(Rectangle())
+                                                    }
+                                                    .buttonStyle(.plain)
+                                                }
+                                                
+                                                if settings.enableFolderSlots && !settings.folderSlotsPaths.isEmpty {
+                                                    Button {
+                                                        model.isFolderSlotsOpen.toggle()
+                                                        if model.isFolderSlotsOpen {
+                                                            FolderSlotsManager.shared.open(anchor: .zero, model: model, settings: settings)
+                                                        } else {
+                                                            FolderSlotsManager.shared.close()
+                                                        }
+                                                    } label: {
+                                                        Image(systemName: "text.below.folder.fill")
+                                                            .font(.system(size: 13, weight: .semibold))
+                                                            .foregroundColor(model.isFolderSlotsOpen ? Color(settings.accentColor) : .white.opacity(0.85))
+                                                            .padding(.horizontal, 6)
+                                                            .padding(.vertical, 4)
+                                                            .contentShape(Rectangle())
+                                                    }
+                                                    .buttonStyle(.plain)
+                                                }
+                                            }
+                                        } else {
+                                            if settings.enableFolderSlots && !settings.folderSlotsPaths.isEmpty {
+                                                Button {
+                                                    model.isFolderSlotsOpen.toggle()
+                                                    if model.isFolderSlotsOpen {
+                                                        FolderSlotsManager.shared.open(anchor: .zero, model: model, settings: settings)
+                                                    } else {
+                                                        FolderSlotsManager.shared.close()
+                                                    }
+                                                } label: {
+                                                    Image(systemName: "text.below.folder.fill")
+                                                        .font(.system(size: 13, weight: .semibold))
+                                                        .foregroundColor(model.isFolderSlotsOpen ? Color(settings.accentColor) : .white.opacity(0.85))
+                                                        .padding(6)
+                                                        .contentShape(Rectangle())
+                                                }
+                                                .buttonStyle(.plain)
+                                            }
+                                        }
+                                    }
                                 case .chrono:
                                     EmptyView()
                                 case .launcher:
