@@ -90,8 +90,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         let windowPoint = window.convertPoint(fromScreen: globalPoint)
-        let localPoint = window.contentView?.convert(windowPoint, from: nil) ?? windowPoint
-        return isLocalPointInteractive(localPoint, isHover: true)
+        return isLocalPointInteractive(windowPoint, isHover: true)
     }
     
     func isLocalPointInteractive(_ point: NSPoint, isHover: Bool = false) -> Bool {
@@ -103,22 +102,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // y = 0 is ALWAYS the absolute physical bottom of the window.
         let fromTop = window.frame.height - point.y
         
-        let pad: CGFloat = isHover ? 20 : 0
+        let padX: CGFloat = 0 // Strict to the exact visual island width on the X axis
+        let padY: CGFloat = isHover ? 20 : 0
         
-        if fromTop < -pad { return false }
+        if fromTop < -padY { return false }
         let isExpanded = self.model.isExpanded || self.model.isPinned || self.model.expansionProgress > 0
         
         // 1. Toast Mode
         if !isExpanded && self.model.observedFileToast != nil {
             let toastWidth: CGFloat = 180
             let toastHeight: CGFloat = 260
-            let isInsideToastX = abs(point.x - center) <= (toastWidth / 2) + pad
-            let isInsideToastY = fromTop <= toastHeight + pad
+            let isInsideToastX = abs(point.x - center) <= (toastWidth / 2) + padX
+            let isInsideToastY = fromTop <= toastHeight + padY
             return isInsideToastX && isInsideToastY
         }
         
         // 2. Top row (Menu Bar level controls, Notch, Chrono)
-        if fromTop <= 55 + pad {
+        if fromTop <= 55 + padY {
             let notchWidth = self.settings.effectiveNotchWidth
             var activeLeft: CGFloat = 0
             var activeRight: CGFloat = 0
@@ -129,8 +129,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if self.model.isTimerRunning && !self.settings.disableChronoHUD { activeRight = 100 }
             }
             
-            let minX = center - (notchWidth / 2) - activeLeft - pad
-            let maxX = center + (notchWidth / 2) + activeRight + pad
+            let minX = center - (notchWidth / 2) - activeLeft - padX
+            let maxX = center + (notchWidth / 2) + activeRight + padX
             
             if point.x >= minX && point.x <= maxX {
                 return true
@@ -138,20 +138,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             // Global top bar controls (only when expanded)
             if isExpanded {
-                let panelWidth = scaledPanelWidth(for: self.settings)
-                let isFloatingPagerActive = self.settings.showPagers && self.settings.pagerStyle == 1
-                let sidePagerWidth: CGFloat = (isFloatingPagerActive && self.settings.pagerAlignment != 0) ? (self.settings.pagerSize * 2 + self.settings.pagerSpacing * 2) * 2 : 0
-                let containerWidth = max(panelWidth + sidePagerWidth, notchWidth + 320)
-                
-                if abs(point.x - center) <= (containerWidth / 2) + pad {
-                    return true
+                if isHover {
+                    let panelWidth = scaledPanelWidth(for: self.settings)
+                    let isFloatingPagerActive = self.settings.showPagers && self.settings.pagerStyle == 1
+                    let sidePagerWidth: CGFloat = (isFloatingPagerActive && self.settings.pagerAlignment != 0) ? (self.settings.pagerSize * 2 + self.settings.pagerSpacing * 2) * 2 : 0
+                    
+                    let exactWidth = panelWidth + sidePagerWidth
+                    if abs(point.x - center) <= (exactWidth / 2) + padX {
+                        return true
+                    }
+                } else {
+                    let notchRight = center + (notchWidth / 2)
+                    let notchLeft = center - (notchWidth / 2)
+                    
+                    // Tightly bound the clickable areas to where the UI is actually drawn.
+                    let isOverRightUI = point.x >= (notchRight + 4) && point.x <= (notchRight + 160)
+                    let isOverLeftUI = point.x >= (notchLeft - 160) && point.x <= (notchLeft - 4)
+                    
+                    if isOverRightUI || isOverLeftUI {
+                        return true
+                    }
                 }
             }
             
             // Hover preview (settings)
             if self.settings.showHoverPreviews && self.settings.hoverPreviewFocus != .all {
                 let approachWidth = self.settings.clampedApproachWidth
-                if abs(point.x - center) <= (notchWidth / 2) + approachWidth + pad {
+                if abs(point.x - center) <= (notchWidth / 2) + approachWidth + padX {
                     return true
                 }
             }
@@ -165,8 +178,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let panelWidth = scaledPanelWidth(for: self.settings)
         let panelHeight = scaledPanelHeight(for: self.settings)
         
-        let isInsideIslandX = abs(point.x - center) <= (panelWidth / 2) + pad
-        let isInsideIslandY = fromTop <= panelHeight + pad
+        let isInsideIslandX = abs(point.x - center) <= (panelWidth / 2) + padX
+        let isInsideIslandY = fromTop <= panelHeight + padY
         if isInsideIslandX && isInsideIslandY {
             return true
         }
@@ -176,8 +189,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if self.settings.pagerAlignment == 0 {
                 // Bottom pager
                 let pagerAreaHeight: CGFloat = self.settings.pagerSize + 40
-                let isInsidePagerX = abs(point.x - center) <= 150 + pad
-                let isInsidePagerY = fromTop > panelHeight - pad && fromTop <= panelHeight + pagerAreaHeight + pad
+                let isInsidePagerX = abs(point.x - center) <= 150 + padX
+                let isInsidePagerY = fromTop > panelHeight - padY && fromTop <= panelHeight + pagerAreaHeight + padY
                 if isInsidePagerX && isInsidePagerY {
                     return true
                 }
@@ -187,12 +200,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let isInsideSidePagerX: Bool
                 if self.settings.pagerAlignment == 1 { // Left
                     let expectedX = center - (panelWidth / 2) - sidePagerWidth / 2
-                    isInsideSidePagerX = abs(point.x - expectedX) <= (sidePagerWidth / 2) + pad
+                    isInsideSidePagerX = abs(point.x - expectedX) <= (sidePagerWidth / 2) + padX
                 } else { // Right
                     let expectedX = center + (panelWidth / 2) + sidePagerWidth / 2
-                    isInsideSidePagerX = abs(point.x - expectedX) <= (sidePagerWidth / 2) + pad
+                    isInsideSidePagerX = abs(point.x - expectedX) <= (sidePagerWidth / 2) + padX
                 }
-                let isInsideSidePagerY = fromTop <= panelHeight + pad
+                let isInsideSidePagerY = fromTop <= panelHeight + padY
                 if isInsideSidePagerX && isInsideSidePagerY {
                     return true
                 }
@@ -781,7 +794,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let screenRect = cachedScreenFrame
         let isFloatingPagerActive = settings.pagerStyle == 1 && settings.showPagers
         let sidePagerWidth: CGFloat = (isFloatingPagerActive && settings.pagerAlignment != 0) ? (settings.pagerSize * 2 + settings.pagerSpacing * 2) * 2 : 0
-        let defaultWidth = max(panelWidth + sidePagerWidth, notchWidth + 320)
+        let defaultWidth = panelWidth + sidePagerWidth
         let windowWidth = widthOverride ?? defaultWidth
         let windowHeight = heightOverride ?? window.frame.height
         
@@ -847,7 +860,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let screenRect = cachedScreenFrame
         let isFloatingPagerActive = settings.pagerStyle == 1 && settings.showPagers
         let sidePagerWidth: CGFloat = (isFloatingPagerActive && settings.pagerAlignment != 0) ? (settings.pagerSize * 2 + settings.pagerSpacing * 2) * 2 : 0
-        let windowWidth = max(panelWidth + sidePagerWidth, notchWidth + 320)
+        let windowWidth = panelWidth + sidePagerWidth
         let windowHeight = settings.effectiveNotchHeight
         
         let notchX = settings.hardwareNotchX

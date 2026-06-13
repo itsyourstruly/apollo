@@ -19,8 +19,40 @@ struct UnifiedNotchContainer: View {
     @State private var isAddBookmarkPresented = false
     @State private var animatingFromPage: Int? = nil
     
+    @AppStorage(AppStorageKey.peekerAlignment) private var peekerAlignment = 0
+    
     var isSlimModeActive: Bool {
         isSlimBoxInstance
+    }
+    
+    private var peekerOverlayAlignment: Alignment {
+        switch peekerAlignment {
+        case 1: return .bottomLeading
+        case 2: return .bottomTrailing
+        default: return .bottom
+        }
+    }
+    
+    @ViewBuilder
+    private func peekerWidgetOverlay(isPeekerVisible: Bool) -> some View {
+        if isPeekerVisible {
+            HStack(spacing: 8) {
+                PeekerWidgetView(
+                    apps: model.launcherApps,
+                    bookmarks: model.bookmarkItems,
+                    showApps: settings.showLauncherInPeeker,
+                    showBookmarks: settings.showBookmarksInPeeker,
+                    accentColor: Color(settings.accentColor),
+                    itemSize: settings.peekerSize
+                )
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .background(.ultraThinMaterial, in: Capsule())
+            .padding(.bottom, 8)
+            .padding(.leading, peekerAlignment == 1 ? 16 : 0)
+            .padding(.trailing, peekerAlignment == 2 ? 16 : 0)
+        }
     }
     
     var activePages: [IslandPage] {
@@ -224,11 +256,11 @@ struct UnifiedNotchContainer: View {
         let islandHeight: CGFloat = notchHeight
         let pagerRowHeight: CGFloat = (settings.showPagers && !isSlimModeActive) ? 14 : 0
         let pagerBottomInset: CGFloat = (settings.showPagers && !isSlimModeActive) ? 8 : 0
-        let pagerReservedHeight: CGFloat = pagerRowHeight + pagerBottomInset
+        let pagerReservedHeight: CGFloat = 0 // Don't reserve height; float it on top
         let isPeekerVisible: Bool = !isSlimModeActive && ((settings.showLauncherInPeeker && !model.launcherApps.isEmpty) ||
                                                           (settings.showBookmarksInPeeker && !model.bookmarkItems.isEmpty))
-        let peekerHeight: CGFloat = isPeekerVisible ? 24 : 0
-        let contentAreaHeight: CGFloat = max(1, panelHeight - notchHeight - pagerReservedHeight - peekerHeight - (isSlimModeActive ? 0 : 2))
+        let peekerHeight: CGFloat = 0 // Floating on top
+        let contentAreaHeight: CGFloat = max(1, panelHeight - notchHeight - pagerReservedHeight - (isSlimModeActive ? 0 : 2))
         let cornerRadius: CGFloat = safeDimension(max(4, settings.cornerRadius * (0.6 + 0.4 * easedProgress)), fallback: 8)
         let contentProgress: CGFloat = easedProgress.isFinite ? max(0, min(1, (easedProgress - 0.18) / 0.82)) : 0
         let showToastOnly: Bool = (model.observedFileToast != nil || model.isToastDismissing) && !model.isExpanded && !model.isPinned
@@ -249,7 +281,7 @@ struct UnifiedNotchContainer: View {
         let containerHeight: CGFloat = safeDimension(baseContainerHeight + floatingPagerHeightAdjustment, fallback: panelHeight)
         let toastWidth: CGFloat = toastPanelWidth
         let sidePagerWidth: CGFloat = (isFloatingPagerActive && settings.pagerAlignment != 0) ? (settings.pagerSize * 2 + settings.pagerSpacing * 2) * 2 : 0
-        let containerWidth: CGFloat = isSlimModeActive ? currentSlimWidth : max(panelWidth + sidePagerWidth, notchWidth + 320)
+        let containerWidth: CGFloat = isSlimModeActive ? currentSlimWidth : panelWidth + sidePagerWidth
         let closeProgress: CGFloat = max(0, min(1, model.closeGestureProgress))
         let closeEase: CGFloat = closeProgress * closeProgress * (3 - 2 * closeProgress)
         let closeOffset: CGFloat = -44 * closeEase
@@ -345,20 +377,10 @@ struct UnifiedNotchContainer: View {
                             .padding(.top, 2)
                             .opacity(shouldRenderExpandedContent ? contentProgress : 0)
                             .allowsHitTesting(shouldRenderExpandedContent)
-                            
-                            if isPeekerVisible && !isSlimModeActive {
-                                PeekerWidgetView(
-                                    apps: model.launcherApps,
-                                    bookmarks: model.bookmarkItems,
-                                    showApps: settings.showLauncherInPeeker,
-                                    showBookmarks: settings.showBookmarksInPeeker,
-                                    accentColor: Color(settings.accentColor),
-                                    itemSize: settings.peekerSize
-                                )
-                                .frame(height: peekerHeight)
-                                .opacity(shouldRenderExpandedContent ? contentProgress : 0)
-                                .allowsHitTesting(shouldRenderExpandedContent)
-                                .padding(.bottom, 2)
+                            .overlay(alignment: peekerOverlayAlignment) {
+                                peekerWidgetOverlay(isPeekerVisible: isPeekerVisible)
+                                    .opacity(shouldRenderExpandedContent ? contentProgress : 0)
+                                    .allowsHitTesting(shouldRenderExpandedContent)
                             }
                             
                             if settings.showPagers && !isSlimModeActive && settings.pagerStyle == 0 {
@@ -403,6 +425,31 @@ struct UnifiedNotchContainer: View {
                                 }
                             }
                         )
+                    .overlay(alignment: .bottom) {
+                        if settings.showPagers && !isSlimModeActive && settings.pagerStyle == 0 {
+                            let pages = activePages
+                            HStack(spacing: 8) {
+                                ForEach(0..<pages.count, id: \.self) { index in
+                                    Button {
+                                        setPageFromCarousel(index)
+                                    } label: {
+                                        Capsule(style: .continuous)
+                                            .fill(model.currentPage == index ? Color.white : Color.white.opacity(0.28))
+                                            .frame(width: model.currentPage == index ? 24 : 14, height: 4)
+                                            .padding(.vertical, 8)
+                                            .padding(.horizontal, 4)
+                                            .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: pagerRowHeight)
+                            .opacity(easedProgress)
+                            .padding(.bottom, pagerBottomInset + peekerHeight)
+                            .allowsHitTesting(shouldRenderExpandedContent)
+                        }
+                    }
                         .animation(settings.notchOpenAnimation, value: model.expansionProgress)
                         .overlay(alignment: settings.pagerAlignment == 1 ? .topLeading : .topTrailing) {
                             if isFloatingPagerActive && settings.pagerAlignment != 0 {

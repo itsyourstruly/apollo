@@ -401,6 +401,7 @@ enum AppStorageKey {
     static let pagerSize = "pagerSize"
     static let pagerSpacing = "pagerSpacing"
     static let peekerSize = "peekerSize"
+    static let peekerAlignment = "peekerAlignment"
     static let pageOrder = "pageOrder"
     static let openMethod = "openMethod"
     static let bookmarksEnabled = "bookmarksEnabled"
@@ -701,6 +702,10 @@ final class IslandPanel: NSPanel {
 
     override var canBecomeKey: Bool {
         return needsKeyFocusProvider?() ?? false
+    }
+    
+    override func makeKey() {
+        // No-op to silence AppKit warning when rejecting key status
     }
 
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {

@@ -17,6 +17,7 @@ struct SettingsView: View {
     @State private var isWindowVisible = true
     @State private var isUninstallAlertPresented = false
     @AppStorage(AppStorageKey.devicePopupUseAccentSymbols) private var devicePopupUseAccentSymbols = true
+    @AppStorage(AppStorageKey.peekerAlignment) private var peekerAlignment = 0
 
     private static let numberFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
@@ -801,6 +802,13 @@ struct SettingsView: View {
                 
                 Toggle("Show launcher apps in Peeker", isOn: $settings.showLauncherInPeeker)
                 Toggle("Show bookmarks in Peeker", isOn: $settings.showBookmarksInPeeker)
+                
+                Picker("Alignment", selection: $peekerAlignment) {
+                    Text("Center").tag(0)
+                    Text("Left").tag(1)
+                    Text("Right").tag(2)
+                }
+                .pickerStyle(.segmented)
                 
                 HStack {
                     Text("Item Size")

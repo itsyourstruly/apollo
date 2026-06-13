@@ -303,7 +303,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = 0.2.6.4;
+				MARKETING_VERSION = 0.2.6.5;
 				PRODUCT_BUNDLE_IDENTIFIER = amo.apollo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -358,7 +358,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = 0.2.6.4;
+				MARKETING_VERSION = 0.2.6.5;
 				PRODUCT_BUNDLE_IDENTIFIER = amo.apollo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
