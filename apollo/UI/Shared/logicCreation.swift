@@ -260,7 +260,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         safety.schedule(deadline: .now() + 2.0, repeating: 2.0)
         safety.setEventHandler { [weak self] in
             guard let self = self else { return }
-            if self.model.isExpanded && !self.model.isPinned && !self.model.isAddSheetOpen && !self.model.isFolderSlotsOpen {
+            if self.model.isExpanded && !self.model.isPinned && !self.model.isAddSheetOpen {
                 if self.islandOpenMousePollTimer == nil {
                     self.startIslandOpenMousePolling()
                 }
@@ -659,7 +659,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func updateContentActiveState() {
         let shouldBeActive: Bool
-        if model.isExpanded || model.isPinned || model.boxSlimModeActive || (model.expansionProgress > 0) || model.observedFileToast != nil || model.isAddSheetOpen || model.isFolderSlotsOpen {
+        if model.isExpanded || model.isPinned || model.boxSlimModeActive || (model.expansionProgress > 0) || model.observedFileToast != nil || model.isAddSheetOpen {
             shouldBeActive = true
         } else {
             let isHovered: Bool
@@ -1197,7 +1197,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         func closeNotchFromSwipe() {
-            guard !model.isPinned, !model.isFolderSlotsOpen else { return }
+            guard !model.isPinned else { return }
             // Issue 4b: Only suppress proximity if the cursor is currently over the notch zone.
             // Suppressing unconditionally blocks re-open when the cursor is already far away.
             if let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.screens.first {
@@ -1935,7 +1935,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         private func scheduleHoverCloseIfNeeded() {
-            guard !model.isAddSheetOpen, !model.isFolderSlotsOpen else { return }
+            guard !model.isAddSheetOpen else { return }
             guard hoverCloseWorkItem == nil else { return }
             let delay = settings.hoverCloseDelay
             if delay <= 0 {
@@ -1966,7 +1966,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         private func handleIslandOpenMousePollTick() {
-            guard !model.isAddSheetOpen, !model.isFolderSlotsOpen else { return }
+            guard !model.isAddSheetOpen else { return }
             guard model.isExpanded, !model.isPinned, islandWindow != nil else {
                 stopIslandOpenMousePolling()
                 return
@@ -2036,7 +2036,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if model.boxSlimModeActive {
                     return
                 }
-            if model.isAddSheetOpen || model.isFolderSlotsOpen {
+            if model.isAddSheetOpen {
                     hoverCloseWorkItem?.cancel()
                     hoverCloseWorkItem = nil
                     return

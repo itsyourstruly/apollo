@@ -752,10 +752,6 @@ struct UnifiedNotchContainer: View {
     private func unloadCollapsedPageState() {
         unloadInactivePageState(activePage: -1)
         BoxIconCache.shared.cancelQueuedPreviewLoads()
-        if model.isFolderSlotsOpen {
-            FolderSlotsManager.shared.close()
-            model.isFolderSlotsOpen = false
-        }
     }
     
     func emptyDismissableScrollView<Content: View>(
