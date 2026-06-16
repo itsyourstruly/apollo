@@ -229,6 +229,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let initialPage = IslandPage(rawValue: initialRaw) ?? .clipboard
         model.currentPage = activePages.firstIndex(of: initialPage) ?? 0
         setupNotchWindow()
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.calculateScreenNotchDimensions()
+            self.updateNotchWindowFrame()
+            self.updateProximityWakeWindowFrame()
+        }
         setupBatteryWindow()
         setupStatusItem()
         observeSettings()
@@ -790,6 +796,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func updateNotchWindowFrame(widthOverride: CGFloat? = nil, heightOverride: CGFloat? = nil) {
+        calculateScreenNotchDimensions()
         guard let window = notchWindow, cachedScreenFrame != .zero else { return }
         let screenRect = cachedScreenFrame
         let isFloatingPagerActive = settings.pagerStyle == 1 && settings.showPagers
@@ -2172,6 +2179,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         private func showPanel(expanded: Bool, pinned: Bool, preferredPage: Int? = nil) {
+            calculateScreenNotchDimensions()
             guard let window = islandWindow else { return }
             
             // Immediately size window frame when expanding/pinning to avoid layout deadlock and clipping
@@ -2679,6 +2687,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
             
+            calculateScreenNotchDimensions()
             guard newHeight.isFinite, newHeight > 1 else { return }
             
             var targetHeight = newHeight

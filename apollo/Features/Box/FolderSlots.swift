@@ -549,7 +549,7 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
         if QLPreviewPanel.sharedPreviewPanelExists() && QLPreviewPanel.shared().isVisible {
             QLPreviewPanel.shared().orderOut(nil)
         } else {
-            let selectedURLs = currentEntities.filter { selectedIDs.contains($0.id) }.map(\.url)
+            let selectedURLs = displayedEntities.filter { selectedIDs.contains($0.id) }.map(\.url)
             guard !selectedURLs.isEmpty else { return }
             
             let panel = QLPreviewPanel.shared()
@@ -811,25 +811,26 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
     }
     
     func addRootFolder(url: URL) {
-        if let bookmark = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
-            UserDefaults.standard.set(bookmark, forKey: "folder_bookmark_\(url.path)")
+        let cleanURL = url.standardizedFileURL
+        if let bookmark = try? cleanURL.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
+            UserDefaults.standard.set(bookmark, forKey: "folder_bookmark_\(cleanURL.path)")
         }
         
         let settings = AppSettings.shared
-        if !settings.folderSlotsPaths.contains(url.path) {
-            settings.folderSlotsPaths.append(url.path)
+        if !settings.folderSlotsPaths.contains(cleanURL.path) {
+            settings.folderSlotsPaths.append(cleanURL.path)
         }
         
-        let newEntity = FolderSlotEntity(url: url, isDirectory: true, name: url.lastPathComponent, fileSize: 0, dateModified: .distantPast)
-        if !baseEntities.contains(where: { $0.url == url }) {
+        let newEntity = FolderSlotEntity(url: cleanURL, isDirectory: true, name: cleanURL.lastPathComponent, fileSize: 0, dateModified: .distantPast)
+        if !baseEntities.contains(where: { $0.url == cleanURL }) {
             baseEntities.append(newEntity)
-            baseEntities.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            baseEntities = FolderSlotsWorker.sortEntities(baseEntities, option: settings.folderSlotsSortOption, foldersFirst: settings.folderSlotsSortFoldersFirst)
         }
         
         if navigationStack.isEmpty {
-            if !currentEntities.contains(where: { $0.url == url }) {
+            if !currentEntities.contains(where: { $0.url == cleanURL }) {
                 currentEntities.append(newEntity)
-                currentEntities.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+                currentEntities = FolderSlotsWorker.sortEntities(currentEntities, option: settings.folderSlotsSortOption, foldersFirst: settings.folderSlotsSortFoldersFirst)
             }
         }
     }
@@ -1167,7 +1168,9 @@ struct FolderSlotsRootView: View {
                         var isDir: ObjCBool = false
                         if FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir), isDir.boolValue {
                             DispatchQueue.main.async {
-                                manager.addRootFolder(url: fileURL)
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    manager.addRootFolder(url: fileURL)
+                                }
                             }
                         }
                     }
@@ -1353,7 +1356,8 @@ struct FolderSlotStackHeaderView: View {
                 .multilineTextAlignment(.center)
         }
         .padding(4)
-        .frame(width: 100, height: 100)
+        .frame(maxWidth: .infinity)
+        .frame(minHeight: 100, alignment: .top)
         .contentShape(Rectangle())
         .onTapGesture {
             onToggle()
@@ -1457,7 +1461,7 @@ struct FolderSlotItemView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(4)
-        .frame(width: 100)
+        .frame(maxWidth: .infinity)
         .frame(minHeight: 100, alignment: .top)
         .overlay {
             FolderSlotDragSurface(

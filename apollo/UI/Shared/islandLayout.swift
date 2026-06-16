@@ -956,8 +956,8 @@ struct UnifiedNotchContainer: View {
                             }
                         }
                         .fixedSize(horizontal: true, vertical: false)
-                        .frame(width: max(0, geo.size.width - notchRight - 16), alignment: .leading)
-                        .offset(x: notchRight + 12, y: 2)
+                        .frame(width: max(0, geo.size.width - notchRight - 16), height: islandHeight, alignment: .leading)
+                        .offset(x: notchRight + 12)
                     } else {
                         let controls = HStack {
                                 switch page {
@@ -1185,15 +1185,14 @@ struct UnifiedNotchContainer: View {
                                 }
                                     .fixedSize(horizontal: true, vertical: false)
                                 
-                                if alignmentOption == .left {
-                                    controls
-                                        .frame(width: max(0, geo.size.width - notchRight - 16), alignment: .leading)
-                                        .offset(x: notchRight + 12, y: 2)
-                                } else {
-                                    controls
-                                        .frame(width: max(0, notchLeft - 12), alignment: .trailing)
-                                        .offset(y: 2)
-                                }
+                                 if alignmentOption == .left {
+                                     controls
+                                         .frame(width: max(0, geo.size.width - notchRight - 16), height: islandHeight, alignment: .leading)
+                                         .offset(x: notchRight + 12)
+                                 } else {
+                                     controls
+                                         .frame(width: max(0, notchLeft - 12), height: islandHeight, alignment: .trailing)
+                                 }
                         }
                     }
                     .frame(width: islandWidth, height: islandHeight)
@@ -1323,8 +1322,7 @@ struct UnifiedNotchContainer: View {
                                         }
                                     }
                                     .fixedSize(horizontal: true, vertical: false)
-                                    .frame(width: max(0, notchLeft - 12), alignment: .trailing)
-                                    .offset(y: 2)
+                                    .frame(width: max(0, notchLeft - 12), height: islandHeight, alignment: .trailing)
                                 } else {
                                     if symbol != "empty" {
                                         let titleView = Group {
@@ -1376,12 +1374,11 @@ struct UnifiedNotchContainer: View {
                                         
                                         if alignmentOption == .left {
                                             titleView
-                                                .frame(width: max(0, notchLeft - 12), alignment: .trailing)
-                                                .offset(y: 2)
+                                                .frame(width: max(0, notchLeft - 12), height: islandHeight, alignment: .trailing)
                                         } else {
                                             titleView
-                                                .frame(width: max(0, geo.size.width - notchRight - 16), alignment: .leading)
-                                                .offset(x: notchRight + 12, y: 2)
+                                                .frame(width: max(0, geo.size.width - notchRight - 16), height: islandHeight, alignment: .leading)
+                                                .offset(x: notchRight + 12)
                                         }
                                     }
                                 }
