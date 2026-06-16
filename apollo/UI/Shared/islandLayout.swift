@@ -318,9 +318,7 @@ struct UnifiedNotchContainer: View {
                     cornerRadius: settings.cornerRadius
                 )
                 .offset(y: baseNotchHeight - 2)
-                .background(GeometryReader { proxy in
-                    Color.clear.preference(key: ShellHeightKey.self, value: proxy.size.height + (baseNotchHeight - 2))
-                })
+                .preference(key: ShellHeightKey.self, value: toastPanelHeight + notchHeight)
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .zIndex(2)
             }
@@ -468,9 +466,7 @@ struct UnifiedNotchContainer: View {
                             .frame(height: (settings.pagerSize + 22) * easedProgress)
                     }
                 }
-                .background(GeometryReader { proxy in
-                    Color.clear.preference(key: ShellHeightKey.self, value: proxy.size.height)
-                })
+                .preference(key: ShellHeightKey.self, value: containerHeight)
                 .offset(x: islandOffset)
                 // Apply interactive features ONLY to the tight visual components
                 .simultaneousGesture(isSlimModeActive ? nil : horizontalPagingGesture)
@@ -871,10 +867,10 @@ struct UnifiedNotchContainer: View {
                     let notchRight = (geo.size.width + edgeNotchWidth) / 2
                     
                     if page == .customCombined {
-                        VStack(alignment: .leading, spacing: 2) {
-                            let bName = model.bookmarksCurrentFolderID != nil ? (model.bookmarkItems.first(where: { $0.id == model.bookmarksCurrentFolderID })?.name ?? "Folder") : settings.titleText(for: .bookmarks)
-                            let bSym = model.bookmarksCurrentFolderID != nil ? "folder.fill" : settings.titleSymbol(for: .bookmarks, fallback: "globe")
-                            
+                        let bName = model.bookmarksCurrentFolderID != nil ? (model.bookmarkItems.first(where: { $0.id == model.bookmarksCurrentFolderID })?.name ?? "Folder") : settings.titleText(for: .bookmarks)
+                        let bSym = model.bookmarksCurrentFolderID != nil ? "folder.fill" : settings.titleSymbol(for: .bookmarks, fallback: "globe")
+                        
+                        let bTitleView = Group {
                             if model.bookmarksCurrentFolderID != nil {
                                 HStack(spacing: 4) {
                                     if settings.showTitleIcon(for: .bookmarks) {
@@ -894,15 +890,22 @@ struct UnifiedNotchContainer: View {
                                     .textFieldStyle(.plain)
                                     .font(.system(size: settings.titleSize(for: .bookmarks), weight: .bold))
                                     .foregroundColor(Color(settings.titleColor(for: .bookmarks)))
+                                    .frame(height: 18)
                                 }
+                                .frame(height: islandHeight, alignment: .center)
                             } else {
                                 Label(bName, systemImage: bSym)
                                     .conditionalLabelStyle(showIcon: settings.showTitleIcon(for: .bookmarks))
                                     .font(.system(size: settings.titleSize(for: .bookmarks), weight: .bold))
                                     .foregroundColor(Color(settings.titleColor(for: .bookmarks)))
                             }
+                        }
+                        .fixedSize(horizontal: true, vertical: false)
+                        
+                        ZStack(alignment: .leading) {
+                            bTitleView
                             
-                            HStack(spacing: 12) {
+                            HStack(spacing: 8) {
                                 if model.bookmarksCurrentFolderID != nil {
                                     Button {
                                         withAnimation { model.bookmarksCurrentFolderID = nil }
@@ -910,7 +913,7 @@ struct UnifiedNotchContainer: View {
                                         Image(systemName: "chevron.left")
                                             .font(.system(size: 10, weight: .bold))
                                             .foregroundColor(.white.opacity(0.8))
-                                            .padding(6)
+                                            .padding(4)
                                             .contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)
@@ -923,7 +926,7 @@ struct UnifiedNotchContainer: View {
                                         Image(systemName: "plus")
                                             .font(.system(size: 10, weight: .bold))
                                             .foregroundColor(.white.opacity(0.8))
-                                            .padding(6)
+                                            .padding(4)
                                             .contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)
@@ -954,8 +957,8 @@ struct UnifiedNotchContainer: View {
                                     }
                                 }
                             }
+                            .offset(y: 18)
                         }
-                        .fixedSize(horizontal: true, vertical: false)
                         .frame(width: max(0, geo.size.width - notchRight - 16), height: islandHeight, alignment: .leading)
                         .offset(x: notchRight + 12)
                     } else {
@@ -1089,96 +1092,9 @@ struct UnifiedNotchContainer: View {
                                 case .chrono:
                                     EmptyView()
                                 case .launcher:
-                                     HStack(spacing: 12) {
-                                         if model.launcherCurrentFolderID != nil {
-                                             Button {
-                                                 withAnimation { model.launcherCurrentFolderID = nil }
-                                             } label: {
-                                                 Image(systemName: "chevron.left")
-                                                     .foregroundColor(.white)
-                                                     .padding(6)
-                                                     .contentShape(Rectangle())
-                                             }
-                                             .buttonStyle(.plain)
-                                         }
-                                         if settings.showAddAppButton {
-                                             Button {
-                                                 model.isAddSheetOpen = true
-                                                 isAddAppPresented = true
-                                             } label: {
-                                                 Image(systemName: "plus")
-                                                     .foregroundColor(.white)
-                                                     .padding(6)
-                                                     .contentShape(Rectangle())
-                                             }
-                                             .buttonStyle(.plain)
-                                             .popover(isPresented: $isAddAppPresented, arrowEdge: .bottom) {
-                                                 AddAppSheet(isPresented: Binding(
-                                                     get: { self.isAddAppPresented },
-                                                     set: { newValue in
-                                                         self.isAddAppPresented = newValue
-                                                         if !newValue { self.model.isAddSheetOpen = false }
-                                                     }
-                                                 ), onAdd: { app in
-                                                     var newApp = app
-                                                     newApp.parentId = model.launcherCurrentFolderID
-                                                     model.launcherApps.append(newApp)
-                                                     persistLauncherApps(model.launcherApps)
-                                                 })
-                                             }
-                                         }
-                                     }
-                                 case .bookmarks:
-                                     HStack(spacing: 12) {
-                                         if model.bookmarksCurrentFolderID != nil {
-                                             Button {
-                                                 withAnimation { model.bookmarksCurrentFolderID = nil }
-                                             } label: {
-                                                 Image(systemName: "chevron.left")
-                                                     .foregroundColor(.white)
-                                                     .padding(6)
-                                                     .contentShape(Rectangle())
-                                             }
-                                             .buttonStyle(.plain)
-                                         }
-                                         if settings.showAddBookmarkButton {
-                                             Button {
-                                                 model.isAddSheetOpen = true
-                                                 isAddBookmarkPresented = true
-                                             } label: {
-                                                 Image(systemName: "plus")
-                                                     .foregroundColor(.white)
-                                                     .padding(6)
-                                                     .contentShape(Rectangle())
-                                             }
-                                             .buttonStyle(.plain)
-                                             .popover(isPresented: $isAddBookmarkPresented, arrowEdge: .bottom) {
-                                                 AddBookmarkSheet(isPresented: Binding(
-                                                     get: { self.isAddBookmarkPresented },
-                                                     set: { newValue in
-                                                         self.isAddBookmarkPresented = newValue
-                                                         if !newValue { self.model.isAddSheetOpen = false }
-                                                     }
-                                                 ), onAdd: { bookmark in
-                                                     var newBookmark = bookmark
-                                                     newBookmark.parentId = model.bookmarksCurrentFolderID
-                                                     model.bookmarkItems.append(newBookmark)
-                                                     persistBookmarkItems(model.bookmarkItems)
-                                                     
-                                                     fetchFaviconBase64(for: bookmark.urlString) { base64 in
-                                                         if let base64 = base64 {
-                                                             DispatchQueue.main.async {
-                                                                 if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
-                                                                     model.bookmarkItems[idx].iconBase64 = base64
-                                                                     persistBookmarkItems(model.bookmarkItems)
-                                                                 }
-                                                             }
-                                                         }
-                                                     }
-                                                 })
-                                             }
-                                         }
-                                     }
+                                    EmptyView()
+                                case .bookmarks:
+                                    EmptyView()
                                 default:
                                     EmptyView()
                                 }
@@ -1250,10 +1166,10 @@ struct UnifiedNotchContainer: View {
                                 let notchRight = (geo.size.width + edgeNotchWidth) / 2
                                 
                                 if page == .customCombined {
-                                    VStack(alignment: .trailing, spacing: 2) {
-                                        let lName = model.launcherCurrentFolderID != nil ? (model.launcherApps.first(where: { $0.id == model.launcherCurrentFolderID })?.name ?? "Folder") : settings.titleText(for: .launcher)
-                                        let lSym = model.launcherCurrentFolderID != nil ? "folder.fill" : settings.titleSymbol(for: .launcher, fallback: "app.fill")
-                                        
+                                    let lName = model.launcherCurrentFolderID != nil ? (model.launcherApps.first(where: { $0.id == model.launcherCurrentFolderID })?.name ?? "Folder") : settings.titleText(for: .launcher)
+                                    let lSym = model.launcherCurrentFolderID != nil ? "folder.fill" : settings.titleSymbol(for: .launcher, fallback: "app.fill")
+                                    
+                                    let lTitleView = Group {
                                         if model.launcherCurrentFolderID != nil {
                                             HStack(spacing: 4) {
                                                 if settings.showTitleIcon(for: .launcher) {
@@ -1273,22 +1189,30 @@ struct UnifiedNotchContainer: View {
                                                 .textFieldStyle(.plain)
                                                 .font(.system(size: settings.titleSize(for: .launcher), weight: .bold))
                                                 .foregroundColor(Color(settings.titleColor(for: .launcher)))
+                                                .frame(height: 18)
                                             }
+                                            .frame(height: islandHeight, alignment: .center)
                                         } else {
                                             Label(lName, systemImage: lSym)
                                                 .conditionalLabelStyle(showIcon: settings.showTitleIcon(for: .launcher))
                                                 .font(.system(size: settings.titleSize(for: .launcher), weight: .bold))
                                                 .foregroundColor(Color(settings.titleColor(for: .launcher)))
                                         }
+                                    }
+                                    .fixedSize(horizontal: true, vertical: false)
+                                    
+                                    ZStack(alignment: .trailing) {
+                                        lTitleView
                                         
-                                        HStack(spacing: 12) {
+                                        HStack(spacing: 8) {
                                             if model.launcherCurrentFolderID != nil {
                                                 Button {
                                                     withAnimation { model.launcherCurrentFolderID = nil }
                                                 } label: {
                                                     Image(systemName: "chevron.left")
-                                                        .foregroundColor(.white)
-                                                        .padding(6)
+                                                        .font(.system(size: 10, weight: .bold))
+                                                        .foregroundColor(.white.opacity(0.8))
+                                                        .padding(4)
                                                         .contentShape(Rectangle())
                                                 }
                                                 .buttonStyle(.plain)
@@ -1299,8 +1223,9 @@ struct UnifiedNotchContainer: View {
                                                     isAddAppPresented = true
                                                 } label: {
                                                     Image(systemName: "plus")
-                                                        .foregroundColor(.white)
-                                                        .padding(6)
+                                                        .font(.system(size: 10, weight: .bold))
+                                                        .foregroundColor(.white.opacity(0.8))
+                                                        .padding(4)
                                                         .contentShape(Rectangle())
                                                 }
                                                 .buttonStyle(.plain)
@@ -1320,12 +1245,12 @@ struct UnifiedNotchContainer: View {
                                                 }
                                             }
                                         }
+                                        .offset(y: 18)
                                     }
-                                    .fixedSize(horizontal: true, vertical: false)
                                     .frame(width: max(0, notchLeft - 12), height: islandHeight, alignment: .trailing)
                                 } else {
                                     if symbol != "empty" {
-                                        let titleView = Group {
+                                        let titleViewContent = Group {
                                             if page == .launcher, model.launcherCurrentFolderID != nil {
                                                 HStack(spacing: 4) {
                                                     if settings.showTitleIcon(for: .launcher) {
@@ -1345,7 +1270,9 @@ struct UnifiedNotchContainer: View {
                                                     .textFieldStyle(.plain)
                                                     .font(.system(size: settings.titleSize(for: .launcher), weight: .bold))
                                                     .foregroundColor(Color(settings.titleColor(for: .launcher)))
+                                                    .frame(height: 18)
                                                 }
+                                                .frame(height: islandHeight, alignment: .center)
                                             } else if page == .bookmarks, model.bookmarksCurrentFolderID != nil {
                                                 HStack(spacing: 4) {
                                                     if settings.showTitleIcon(for: .bookmarks) {
@@ -1365,21 +1292,116 @@ struct UnifiedNotchContainer: View {
                                                     .textFieldStyle(.plain)
                                                     .font(.system(size: settings.titleSize(for: .bookmarks), weight: .bold))
                                                     .foregroundColor(Color(settings.titleColor(for: .bookmarks)))
+                                                    .frame(height: 18)
                                                 }
+                                                .frame(height: islandHeight, alignment: .center)
                                             } else {
                                                 header(title: title, symbol: symbol, page: page)
                                             }
                                         }
                                         .fixedSize(horizontal: true, vertical: false)
                                         
-                                        if alignmentOption == .left {
-                                            titleView
-                                                .frame(width: max(0, notchLeft - 12), height: islandHeight, alignment: .trailing)
-                                        } else {
-                                            titleView
-                                                .frame(width: max(0, geo.size.width - notchRight - 16), height: islandHeight, alignment: .leading)
-                                                .offset(x: notchRight + 12)
+                                        ZStack(alignment: alignmentOption == .left ? .trailing : .leading) {
+                                            titleViewContent
+                                            
+                                            HStack(spacing: 8) {
+                                                if page == .launcher {
+                                                    if model.launcherCurrentFolderID != nil {
+                                                        Button {
+                                                            withAnimation { model.launcherCurrentFolderID = nil }
+                                                        } label: {
+                                                            Image(systemName: "chevron.left")
+                                                                .font(.system(size: 10, weight: .bold))
+                                                                .foregroundColor(.white.opacity(0.8))
+                                                                .padding(4)
+                                                                .contentShape(Rectangle())
+                                                        }
+                                                        .buttonStyle(.plain)
+                                                    }
+                                                    if settings.showAddAppButton {
+                                                        Button {
+                                                            model.isAddSheetOpen = true
+                                                            isAddAppPresented = true
+                                                        } label: {
+                                                            Image(systemName: "plus")
+                                                                .font(.system(size: 10, weight: .bold))
+                                                                .foregroundColor(.white.opacity(0.8))
+                                                                .padding(4)
+                                                                .contentShape(Rectangle())
+                                                        }
+                                                        .buttonStyle(.plain)
+                                                        .popover(isPresented: $isAddAppPresented, arrowEdge: .bottom) {
+                                                            AddAppSheet(isPresented: Binding(
+                                                                get: { self.isAddAppPresented },
+                                                                set: { newValue in
+                                                                    self.isAddAppPresented = newValue
+                                                                    if !newValue { self.model.isAddSheetOpen = false }
+                                                                }
+                                                            ), onAdd: { app in
+                                                                var newApp = app
+                                                                newApp.parentId = model.launcherCurrentFolderID
+                                                                model.launcherApps.append(newApp)
+                                                                persistLauncherApps(model.launcherApps)
+                                                            })
+                                                        }
+                                                    }
+                                                } else if page == .bookmarks {
+                                                    if model.bookmarksCurrentFolderID != nil {
+                                                        Button {
+                                                            withAnimation { model.bookmarksCurrentFolderID = nil }
+                                                        } label: {
+                                                            Image(systemName: "chevron.left")
+                                                                .font(.system(size: 10, weight: .bold))
+                                                                .foregroundColor(.white.opacity(0.8))
+                                                                .padding(4)
+                                                                .contentShape(Rectangle())
+                                                        }
+                                                        .buttonStyle(.plain)
+                                                    }
+                                                    if settings.showAddBookmarkButton {
+                                                        Button {
+                                                            model.isAddSheetOpen = true
+                                                            isAddBookmarkPresented = true
+                                                        } label: {
+                                                            Image(systemName: "plus")
+                                                                .font(.system(size: 10, weight: .bold))
+                                                                .foregroundColor(.white.opacity(0.8))
+                                                                .padding(4)
+                                                                .contentShape(Rectangle())
+                                                        }
+                                                        .buttonStyle(.plain)
+                                                        .popover(isPresented: $isAddBookmarkPresented, arrowEdge: .bottom) {
+                                                            AddBookmarkSheet(isPresented: Binding(
+                                                                get: { self.isAddBookmarkPresented },
+                                                                set: { newValue in
+                                                                    self.isAddBookmarkPresented = newValue
+                                                                    if !newValue { self.model.isAddSheetOpen = false }
+                                                                }
+                                                            ), onAdd: { bookmark in
+                                                                var newBookmark = bookmark
+                                                                newBookmark.parentId = model.bookmarksCurrentFolderID
+                                                                model.bookmarkItems.append(newBookmark)
+                                                                persistBookmarkItems(model.bookmarkItems)
+                                                                
+                                                                fetchFaviconBase64(for: bookmark.urlString) { base64 in
+                                                                    if let base64 = base64 {
+                                                                        DispatchQueue.main.async {
+                                                                            if let idx = model.bookmarkItems.firstIndex(where: { $0.id == bookmark.id }) {
+                                                                                model.bookmarkItems[idx].iconBase64 = base64
+                                                                                persistBookmarkItems(model.bookmarkItems)
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            })
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            .offset(y: 18)
                                         }
+                                        .frame(width: alignmentOption == .left ? max(0, notchLeft - 12) : max(0, geo.size.width - notchRight - 16), height: islandHeight, alignment: alignmentOption == .left ? .trailing : .leading)
+                                        .offset(x: alignmentOption == .left ? 0 : notchRight + 12)
                                     }
                                 }
                             }
