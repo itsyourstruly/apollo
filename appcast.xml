@@ -3,13 +3,13 @@
     <channel>
         <title>Apollo</title>
         <item>
-            <title>0.2.6.6</title>
-            <pubDate>Tue, 16 Jun 2026 05:45:46 +0000</pubDate>
-            <sparkle:version>33</sparkle:version>
-            <sparkle:shortVersionString>0.2.6.6</sparkle:shortVersionString>
+            <title>0.2.6.7</title>
+            <pubDate>Tue, 16 Jun 2026 18:59:57 +0000</pubDate>
+            <sparkle:version>34</sparkle:version>
+            <sparkle:shortVersionString>0.2.6.7</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://itsyourstruly.github.io/apollo/Apollo-v0.2.6.6.dmg" length="2747363" type="application/octet-stream" sparkle:edSignature="TYaGdjB8nrnpRitH2dfOGfX1+OIhtSOPTKG30+Reoz3FeMuT2HNlKmqg+gVZPNiqbXhxrWACI59+2BwEfTpTAg=="/>
+            <enclosure url="https://itsyourstruly.github.io/apollo/Apollo-v0.2.6.7.dmg" length="2745161" type="application/octet-stream" sparkle:edSignature="gwqFoKjgwtXHWbRjnKCCU7+SHcnBM4lkhN52xgwDkDvN38uj7bW0F1b/IBso+x/NOFEmhkqJ/LnUI4ZYU/B8Bg=="/>
         </item>
     </channel>
 </rss>
