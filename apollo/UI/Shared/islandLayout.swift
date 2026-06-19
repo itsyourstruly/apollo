@@ -267,15 +267,20 @@ struct UnifiedNotchContainer: View {
         let isFloatingPagerActive: Bool = settings.pagerStyle == 1 && settings.showPagers && !isSlimModeActive
         let bottomPagerSpacing: CGFloat = (isFloatingPagerActive && settings.pagerAlignment == 0) ? settings.pagerSpacing : 8
         let floatingPagerHeightAdjustment: CGFloat = (isFloatingPagerActive && settings.pagerAlignment == 0) ? (bottomPagerSpacing * easedProgress + (settings.pagerSize + 22) * easedProgress) : 0
+        let shouldRenderExpandedContent: Bool = model.isExpanded || model.isPinned || isSlimModeActive
         
         let baseContainerHeight: CGFloat = {
-            var height: CGFloat = isSlimModeActive ? currentSlimHeight : (showToastOnly ? max(panelHeight, toastPanelHeight) : panelHeight)
-            if isFloatingPagerActive && settings.pagerAlignment != 0 {
-                let activePagesCount = CGFloat(activePages.count)
-                let verticalPagerHeight = (activePagesCount * settings.pagerSize) + ((activePagesCount - 1) * 12) + 20 + 16
-                height = max(height, verticalPagerHeight)
+            if shouldRenderExpandedContent {
+                var height: CGFloat = isSlimModeActive ? currentSlimHeight : panelHeight
+                if isFloatingPagerActive && settings.pagerAlignment != 0 {
+                    let activePagesCount = CGFloat(activePages.count)
+                    let verticalPagerHeight = (activePagesCount * settings.pagerSize) + ((activePagesCount - 1) * 12) + 20 + 16
+                    height = max(height, verticalPagerHeight)
+                }
+                return height
+            } else {
+                return showToastOnly ? max(panelHeight, toastPanelHeight) : notchHeight
             }
-            return height
         }()
         
         let containerHeight: CGFloat = safeDimension(baseContainerHeight + floatingPagerHeightAdjustment, fallback: panelHeight)
@@ -286,7 +291,6 @@ struct UnifiedNotchContainer: View {
         let closeEase: CGFloat = closeProgress * closeProgress * (3 - 2 * closeProgress)
         let closeOffset: CGFloat = -44 * closeEase
         let closeScale: CGFloat = 1 - (0.14 * closeEase)
-        let shouldRenderExpandedContent: Bool = model.isExpanded || model.isPinned || isSlimModeActive
         
         ZStack(alignment: .top) {
             // Overlay previews so they don't impact the measured height of the island body
@@ -488,7 +492,7 @@ struct UnifiedNotchContainer: View {
         .scaleEffect(closeScale, anchor: .top)
         .offset(y: closeOffset)
         .onChange(of: isNotchFileDropTargeted) { _, targeted in
-            if targeted {
+            if targeted && !isSlimBoxInstance {
                 if let delegate = NSApp.delegate as? AppDelegate {
                     delegate.openBoxPage()
                 }
@@ -774,7 +778,7 @@ struct UnifiedNotchContainer: View {
     
     // MARK: - Drop Handling
     func handleNotchFileDrop(providers: [NSItemProvider]) -> Bool {
-        handleFileDrop(providers: providers, openBoxPage: true)
+        handleFileDrop(providers: providers, openBoxPage: !isSlimBoxInstance)
     }
     
     func handleBoxDrop(providers: [NSItemProvider]) -> Bool {
@@ -784,6 +788,8 @@ struct UnifiedNotchContainer: View {
     func handleFileDrop(providers: [NSItemProvider], openBoxPage: Bool) -> Bool {
         if let delegate = NSApp.delegate as? AppDelegate {
             delegate.slimBoxDidReceiveDropThisSession = true
+            delegate.pendingSlimBoxCloseWorkItem?.cancel()
+            delegate.pendingSlimBoxCloseWorkItem = nil
         }
         let acceptedProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
         guard !acceptedProviders.isEmpty else { return false }

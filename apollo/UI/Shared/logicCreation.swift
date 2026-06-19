@@ -11,6 +11,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var isDragSessionActive = false
     var slimBoxWindow: IslandPanel?
     var slimBoxDidReceiveDropThisSession = false
+    var pendingSlimBoxCloseWorkItem: DispatchWorkItem?
     private var lastDragChangeCount = -1
     private var memoryPressureSource: DispatchSourceMemoryPressure?
     private var idleCompactionWorkItem: DispatchWorkItem?
@@ -640,15 +641,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &settingsCancellables)
             
-        Publishers.CombineLatest3(
+        Publishers.CombineLatest(
             model.$isStopwatchRunning,
-            model.$isTimerRunning,
-            settings.$disableChronoHUD
+            model.$isTimerRunning
         )
-        .sink { [weak self] isStopwatch, isTimer, disableHUD in
-            let needsActivity = (isStopwatch || isTimer) && !disableHUD
+        .sink { [weak self] isStopwatch, isTimer in
+            let needsActivity = isStopwatch || isTimer
             if needsActivity && self?.chronoActivity == nil {
-                self?.chronoActivity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .latencyCritical], reason: "Chrono HUD Active")
+                self?.chronoActivity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .latencyCritical, .idleSystemSleepDisabled, .idleDisplaySleepDisabled], reason: "Chrono Active")
             } else if !needsActivity && self?.chronoActivity != nil {
                 if let activity = self?.chronoActivity { ProcessInfo.processInfo.endActivity(activity) }
                 self?.chronoActivity = nil
@@ -1460,7 +1460,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             lastDragPoint = nil
             slimBoxOpenPosition = nil
             model.boxDragActive = false
-            model.boxSlimModeActive = false
+            if !model.boxSlimModeActive {
+                model.boxSlimModeActive = false
+            }
             handleLegacyProximityWakeExitedFallback()
         }
         
@@ -1513,12 +1515,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             window.isCloseButtonVisible = { [weak self] in
                 guard let self = self else { return false }
-                return !self.model.boxFiles.isEmpty && self.settings.boxSlimModeKeepOpen
+                return !self.model.boxFiles.isEmpty
             }
             
             window.isCollapseButtonVisible = { [weak self] in
                 guard let self = self else { return false }
-                return self.model.boxFiles.count > 1 && self.settings.boxSlimModeKeepOpen
+                return self.model.boxFiles.count > 1
             }
             
             let containerView = UnifiedNotchContainer(model: model, settings: settings, isSlimBoxInstance: true)
@@ -1712,20 +1714,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 
                 if isDragSessionActive {
                     if !isLeftButtonPressed {
+                        let wasSlimActive = model.boxSlimModeActive
                         isDragSessionActive = false
                         stopFastDragTracking()
                         resetDragTrackingState()
-                        if model.boxSlimModeActive {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-                                guard let self = self else { return }
-                                if self.slimBoxDidReceiveDropThisSession {
-                                    self.slimBoxDidReceiveDropThisSession = false
-                                    return
+                        
+                        if wasSlimActive {
+                            let globalPoint = NSEvent.mouseLocation
+                            var droppedInside = false
+                            if let slimWindow = self.slimBoxWindow {
+                                let cushionFrame = slimWindow.frame.insetBy(dx: -30, dy: -30)
+                                if cushionFrame.contains(globalPoint) {
+                                    droppedInside = true
                                 }
-                                let isHovered = self.slimBoxWindow?.frame.contains(NSEvent.mouseLocation) ?? false
-                                if !isHovered {
+                            }
+                            
+                            self.pendingSlimBoxCloseWorkItem?.cancel()
+                            
+                            if droppedInside {
+                                self.slimBoxDidReceiveDropThisSession = true
+                                self.pendingSlimBoxCloseWorkItem = nil
+                            } else {
+                                let workItem = DispatchWorkItem { [weak self] in
+                                    guard let self = self else { return }
+                                    if self.slimBoxDidReceiveDropThisSession {
+                                        self.slimBoxDidReceiveDropThisSession = false
+                                        self.pendingSlimBoxCloseWorkItem = nil
+                                        return
+                                    }
                                     self.hideSlimBox()
+                                    self.pendingSlimBoxCloseWorkItem = nil
                                 }
+                                self.pendingSlimBoxCloseWorkItem = workItem
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
                             }
                         }
                     }
@@ -1752,6 +1773,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         private func startFastDragTracking() {
+            pendingSlimBoxCloseWorkItem?.cancel()
+            pendingSlimBoxCloseWorkItem = nil
             slimBoxDidReceiveDropThisSession = false
             fastDragTrackingTimer?.cancel()
             
@@ -1793,28 +1816,48 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         private func trackDragCursorLocation() {
             guard settings.boxSlimModeEnabled else { return }
-            guard !model.boxSlimModeActive else { return }
             
             let isLeftButtonPressed = (NSEvent.pressedMouseButtons & (1 << 0)) != 0
             if !isLeftButtonPressed {
+                let wasSlimActive = model.boxSlimModeActive
                 isDragSessionActive = false
                 stopFastDragTracking()
                 resetDragTrackingState()
-                if model.boxSlimModeActive {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-                        guard let self = self else { return }
-                        if self.slimBoxDidReceiveDropThisSession {
-                            self.slimBoxDidReceiveDropThisSession = false
-                            return
+                
+                if wasSlimActive {
+                    let globalPoint = NSEvent.mouseLocation
+                    var droppedInside = false
+                    if let slimWindow = self.slimBoxWindow {
+                        let cushionFrame = slimWindow.frame.insetBy(dx: -30, dy: -30)
+                        if cushionFrame.contains(globalPoint) {
+                            droppedInside = true
                         }
-                        let isHovered = self.slimBoxWindow?.frame.contains(NSEvent.mouseLocation) ?? false
-                        if !isHovered {
+                    }
+                    
+                    self.pendingSlimBoxCloseWorkItem?.cancel()
+                    
+                    if droppedInside {
+                        self.slimBoxDidReceiveDropThisSession = true
+                        self.pendingSlimBoxCloseWorkItem = nil
+                    } else {
+                        let workItem = DispatchWorkItem { [weak self] in
+                            guard let self = self else { return }
+                            if self.slimBoxDidReceiveDropThisSession {
+                                self.slimBoxDidReceiveDropThisSession = false
+                                self.pendingSlimBoxCloseWorkItem = nil
+                                return
+                            }
                             self.hideSlimBox()
+                            self.pendingSlimBoxCloseWorkItem = nil
                         }
+                        self.pendingSlimBoxCloseWorkItem = workItem
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
                     }
                 }
                 return
             }
+            
+            guard !model.boxSlimModeActive else { return }
             
             guard !model.isExpanded else { return }
             
@@ -1858,7 +1901,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     
                     if directionChanges >= 4 {
                         triggerSlimBoxMode()
-                        stopFastDragTracking()
                     }
                 }
                 lastDragPoint = globalPoint
@@ -1869,7 +1911,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     let item = DispatchWorkItem { [weak self] in
                         guard let self = self else { return }
                         self.triggerSlimBoxMode()
-                        self.stopFastDragTracking()
                     }
                     boxDragHoldWorkItem = item
                     DispatchQueue.main.asyncAfter(deadline: .now() + holdDuration, execute: item)

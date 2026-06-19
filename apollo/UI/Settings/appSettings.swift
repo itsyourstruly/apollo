@@ -2064,7 +2064,11 @@ final class AppSettings: ObservableObject {
             boxSlimModePosition = defaults.integer(forKey: "boxSlimModePosition")
         }
 
-        boxSlimModeKeepOpen = defaults.bool(forKey: "boxSlimModeKeepOpen")
+        if defaults.object(forKey: "boxSlimModeKeepOpen") == nil {
+            boxSlimModeKeepOpen = true
+        } else {
+            boxSlimModeKeepOpen = defaults.bool(forKey: "boxSlimModeKeepOpen")
+        }
 
         if defaults.object(forKey: "boxSlimModeExpandDirection") == nil {
             boxSlimModeExpandDirection = 0
