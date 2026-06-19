@@ -104,7 +104,7 @@ final class BoxIconCache {
             guard let source = CGImageSourceCreateWithURL(url as CFURL, options) else { return nil }
             let thumbnailOptions: CFDictionary = [
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceShouldCacheImmediately: false,
+                kCGImageSourceShouldCacheImmediately: true,
                 kCGImageSourceCreateThumbnailWithTransform: true,
                 kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
             ] as CFDictionary

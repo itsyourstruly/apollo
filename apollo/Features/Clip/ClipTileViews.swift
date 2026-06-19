@@ -61,7 +61,7 @@ extension UnifiedNotchContainer {
                         .padding(.top, 8)
                         .padding(.bottom, 4)
                     }
-                    .frame(width: wd, alignment: .center)
+                    .frame(width: wd, height: height, alignment: .center)
                 }
             }
             .frame(width: width, height: height, alignment: .top)
@@ -142,6 +142,8 @@ extension UnifiedNotchContainer {
 
         @State private var loadedPreview: NSImage? = nil
         @State private var isLoadingPreview = false
+        @State private var imageRequestID: UUID?
+        @State private var imageLoadTask: Task<Void, Never>?
 
         static func == (lhs: ClipboardTile, rhs: ClipboardTile) -> Bool {
             lhs.item.id == rhs.item.id &&
@@ -208,11 +210,13 @@ extension UnifiedNotchContainer {
                 loadPreviewIfNeeded()
             }
             .onChange(of: item.id) { _, _ in
+                cancelPreviewLoad()
                 loadedPreview = nil
                 isLoadingPreview = false
                 loadPreviewIfNeeded()
             }
             .onDisappear {
+                cancelPreviewLoad()
                 loadedPreview = nil
                 isLoadingPreview = false
             }
@@ -241,6 +245,15 @@ extension UnifiedNotchContainer {
             return !item.isDirectory(firstPath)
         }
 
+        private func cancelPreviewLoad() {
+            imageLoadTask?.cancel()
+            imageLoadTask = nil
+            if let id = imageRequestID {
+                BoxIconCache.shared.cancelRequest(id)
+                imageRequestID = nil
+            }
+        }
+
         private func loadPreviewIfNeeded() {
             guard shouldShowSingleFilePreview,
                   let url = previewURL else { return }
@@ -253,10 +266,18 @@ extension UnifiedNotchContainer {
             }
 
             guard !isLoadingPreview else { return }
-            isLoadingPreview = true
-            BoxIconCache.shared.requestDisplayImage(for: url, targetSize: targetSize) { image in
-                isLoadingPreview = false
-                loadedPreview = image
+            
+            imageLoadTask?.cancel()
+            imageLoadTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                guard !Task.isCancelled else { return }
+                self.isLoadingPreview = true
+                self.imageRequestID = BoxIconCache.shared.requestDisplayImage(for: url, targetSize: targetSize) { image in
+                    if !Task.isCancelled {
+                        self.loadedPreview = image
+                        self.isLoadingPreview = false
+                    }
+                }
             }
         }
     }

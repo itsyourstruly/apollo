@@ -417,6 +417,7 @@ struct CalendarPageContent: View, Equatable {
                                             }
                                         }
                                     }
+                                    .frame(maxHeight: max(1, height - 20))
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -459,6 +460,7 @@ struct CalendarPageContent: View, Equatable {
                                         }
                                     }
                                 }
+                                .frame(maxHeight: max(1, height - 30))
                             }
                         }
                         .padding(.horizontal, 10)
@@ -530,6 +532,7 @@ struct CalendarPageContent: View, Equatable {
                                         }
                                     }
                                 }
+                                .frame(maxHeight: max(1, height - 42))
                             }
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

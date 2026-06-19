@@ -250,6 +250,7 @@ struct BookmarksPageContent: View, Equatable {
                         .padding(.horizontal, 6)
                     }
                 }
+                .frame(width: width, height: showHeader ? max(1, height - 26) : height, alignment: .center)
                 .padding(.top, showHeader ? 0 : 16)
             }
         }

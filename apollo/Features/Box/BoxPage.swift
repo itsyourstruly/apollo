@@ -275,7 +275,7 @@ struct BoxPageContent: View, Equatable {
                             .padding(.horizontal, 8)
                             .frame(width: width, alignment: .center)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        .frame(width: width, height: safeH, alignment: .center)
                     }
                 }
                 .frame(width: width, height: safeH, alignment: .top)

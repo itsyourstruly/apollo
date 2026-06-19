@@ -493,6 +493,53 @@ final class AppIconCache {
         cache.countLimit = 100
     }
     
+    func cachedIcon(forPath path: String) -> NSImage? {
+        lock.lock()
+        defer { lock.unlock() }
+        return cache.object(forKey: path as NSString)
+    }
+    
+    func loadIconAsync(forPath path: String, completion: @escaping (NSImage?) -> Void) {
+        lock.lock()
+        let nsPath = path as NSString
+        if let cached = cache.object(forKey: nsPath) {
+            lock.unlock()
+            completion(cached)
+            return
+        }
+        if missingPaths.contains(path) {
+            lock.unlock()
+            completion(nil)
+            return
+        }
+        lock.unlock()
+        
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            if FileManager.default.fileExists(atPath: path) {
+                let img = autoreleasepool {
+                    NSWorkspace.shared.icon(forFile: path)
+                }
+                self.lock.lock()
+                self.cache.setObject(img, forKey: nsPath)
+                self.lock.unlock()
+                
+                DispatchQueue.main.async {
+                    completion(img)
+                }
+            } else {
+                self.lock.lock()
+                self.missingPaths.insert(path)
+                self.lock.unlock()
+                
+                DispatchQueue.main.async {
+                    completion(nil)
+                }
+            }
+        }
+    }
+    
     func icon(forPath path: String) -> NSImage? {
         lock.lock()
         defer { lock.unlock() }

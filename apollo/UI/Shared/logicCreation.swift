@@ -8,6 +8,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var clipboardMonitorTask: Task<Void, Never>?
     private var dragPollingTimer: DispatchSourceTimer?
     private var fastDragTrackingTimer: DispatchSourceTimer?
+    private var globalDragMonitor: Any?
+    private var userActivityMonitor: Any?
+    private var lastUserActivityTime = ProcessInfo.processInfo.systemUptime
     private var isDragSessionActive = false
     var slimBoxWindow: IslandPanel?
     var slimBoxDidReceiveDropThisSession = false
@@ -95,13 +98,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func isLocalPointInteractive(_ point: NSPoint, isHover: Bool = false) -> Bool {
-        guard let window = islandWindow else { return false }
+        guard let window = islandWindow, let contentView = window.contentView else { return false }
         
-        let center = window.frame.width / 2
+        let bounds = contentView.bounds
+        let center = bounds.width / 2
         
         // hitTest points are injected in the unflipped superview coordinate system (NSThemeFrame).
         // y = 0 is ALWAYS the absolute physical bottom of the window.
-        let fromTop = window.frame.height - point.y
+        let fromTop = bounds.height - point.y
         
         let padX: CGFloat = 0 // Strict to the exact visual island width on the X axis
         let padY: CGFloat = isHover ? 20 : 0
@@ -241,7 +245,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         observeSettings()
         startMemoryPressureMonitoring()
         startGlobalProximityTracking()
-        startGlobalDragPolling()
+        setupGlobalDragMonitor()
         startBackgroundStateTracking()
         DevicePopupManager.shared.start()
         model.clipboardItems = loadClipboardHistory()
@@ -257,18 +261,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         persistBookmarkItems(model.bookmarkItems)
         refreshNativeState()
         
-        let safety = DispatchSource.makeTimerSource(queue: .main)
-        safety.schedule(deadline: .now() + 2.0, repeating: 2.0)
-        safety.setEventHandler { [weak self] in
-            guard let self = self else { return }
-            if self.model.isExpanded && !self.model.isPinned && !self.model.isAddSheetOpen {
-                if self.islandOpenMousePollTimer == nil {
-                    self.startIslandOpenMousePolling()
-                }
-            }
+        userActivityMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] _ in
+            self?.lastUserActivityTime = ProcessInfo.processInfo.systemUptime
         }
-        safety.resume()
-        self.safetyTimer = safety
         
         // Bind back decoupled settings data events
         NotificationCenter.default.addObserver(forName: NSNotification.Name("apolloDataChanged"), object: nil, queue: .main) { [weak self] _ in
@@ -630,12 +625,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if enabled {
                     // Pass `enabled` directly – @Published fires during willSet so the
                     // property itself still holds the old value at this point.
-                    self.startGlobalDragPolling(forceEnabled: true)
+                    self.setupGlobalDragMonitor(forceEnabled: true)
                 } else {
-                self.dragPollingTimer?.cancel()
-                self.dragPollingTimer = nil
-                    self.stopFastDragTracking()
-                    self.resetDragTrackingState()
+                    self.removeGlobalDragMonitor()
                     self.hideSlimBox()
                 }
             }
@@ -1061,7 +1053,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if currentCount != self.lastClipboardChangeCount {
                     self.pollClipboardFromPasteboard(force: false)
                 }
-                try? await Task.sleep(nanoseconds: 350_000_000)
+                
+                let now = ProcessInfo.processInfo.systemUptime
+                let isUserActive = (now - self.lastUserActivityTime) < 8.0
+                let isIslandActive = self.model.isExpanded || self.model.isPinned
+                
+                let sleepInterval: UInt64
+                if isIslandActive || isUserActive {
+                    sleepInterval = 200_000_000 // 200ms when user is active or island is open
+                } else {
+                    sleepInterval = 2_000_000_000 // 2.0s when user is idle (saves battery/CPU)
+                }
+                
+                try? await Task.sleep(nanoseconds: sleepInterval)
             }
         }
     }
@@ -1683,76 +1687,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.orderOut(nil)
         }
         
-        private func startGlobalDragPolling(forceEnabled: Bool? = nil) {
-            dragPollingTimer?.cancel()
-            // Use the caller-supplied value when available (avoids @Published willSet race);
-            // otherwise fall back to reading the setting directly (e.g. at launch).
+        private func setupGlobalDragMonitor(forceEnabled: Bool? = nil) {
+            removeGlobalDragMonitor()
             let isEnabled = forceEnabled ?? settings.boxSlimModeEnabled
             guard isEnabled else { return }
             
-            let timer = DispatchSource.makeTimerSource(queue: .main)
-            timer.schedule(deadline: .now(), repeating: .milliseconds(500))
-            timer.setEventHandler { [weak self] in
-                self?.pollGlobalDragState()
+            globalDragMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { [weak self] event in
+                guard let self = self else { return }
+                if event.type == .leftMouseDragged {
+                    self.handleGlobalMouseDragged(event)
+                } else if event.type == .leftMouseUp {
+                    self.handleGlobalMouseUp(event)
+                }
             }
-            timer.resume()
-            dragPollingTimer = timer
         }
         
-        private func pollGlobalDragState() {
-            autoreleasepool {
-                guard settings.boxSlimModeEnabled else {
-                    if isDragSessionActive {
-                        isDragSessionActive = false
-                        stopFastDragTracking()
-                        resetDragTrackingState()
-                    }
-                    return
-                }
-                
-                let isLeftButtonPressed = (NSEvent.pressedMouseButtons & (1 << 0)) != 0
-                
-                if isDragSessionActive {
-                    if !isLeftButtonPressed {
-                        let wasSlimActive = model.boxSlimModeActive
-                        isDragSessionActive = false
-                        stopFastDragTracking()
-                        resetDragTrackingState()
-                        
-                        if wasSlimActive {
-                            let globalPoint = NSEvent.mouseLocation
-                            var droppedInside = false
-                            if let slimWindow = self.slimBoxWindow {
-                                let cushionFrame = slimWindow.frame.insetBy(dx: -30, dy: -30)
-                                if cushionFrame.contains(globalPoint) {
-                                    droppedInside = true
-                                }
-                            }
-                            
-                            self.pendingSlimBoxCloseWorkItem?.cancel()
-                            
-                            if droppedInside {
-                                self.slimBoxDidReceiveDropThisSession = true
-                                self.pendingSlimBoxCloseWorkItem = nil
-                            } else {
-                                let workItem = DispatchWorkItem { [weak self] in
-                                    guard let self = self else { return }
-                                    if self.slimBoxDidReceiveDropThisSession {
-                                        self.slimBoxDidReceiveDropThisSession = false
-                                        self.pendingSlimBoxCloseWorkItem = nil
-                                        return
-                                    }
-                                    self.hideSlimBox()
-                                    self.pendingSlimBoxCloseWorkItem = nil
-                                }
-                                self.pendingSlimBoxCloseWorkItem = workItem
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
-                            }
-                        }
-                    }
-                    return
-                }
-                
+        private func removeGlobalDragMonitor() {
+            if let monitor = globalDragMonitor {
+                NSEvent.removeMonitor(monitor)
+                globalDragMonitor = nil
+            }
+            isDragSessionActive = false
+            stopFastDragTracking()
+            resetDragTrackingState()
+        }
+        
+        private func handleGlobalMouseDragged(_ event: NSEvent) {
+            guard settings.boxSlimModeEnabled else { return }
+            if !isDragSessionActive {
                 let dragPboard = dragPasteboard
                 let currentChangeCount = dragPboard.changeCount
                 
@@ -1763,11 +1725,54 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         $0 == .fileURL || $0.rawValue == "public.file-url" || $0.rawValue == "NSFilenamesPboardType"
                     }) ?? false
                     
-                    if hasFileTypes && isLeftButtonPressed {
+                    if hasFileTypes {
                         isDragSessionActive = true
                         slimBoxDidReceiveDropThisSession = false
                         startFastDragTracking()
                     }
+                }
+            }
+            
+            if isDragSessionActive {
+                trackDragCursorLocation()
+            }
+        }
+        
+        private func handleGlobalMouseUp(_ event: NSEvent) {
+            guard isDragSessionActive else { return }
+            let wasSlimActive = model.boxSlimModeActive
+            isDragSessionActive = false
+            stopFastDragTracking()
+            resetDragTrackingState()
+            
+            if wasSlimActive {
+                let globalPoint = NSEvent.mouseLocation
+                var droppedInside = false
+                if let slimWindow = self.slimBoxWindow {
+                    let cushionFrame = slimWindow.frame.insetBy(dx: -30, dy: -30)
+                    if cushionFrame.contains(globalPoint) {
+                        droppedInside = true
+                    }
+                }
+                
+                self.pendingSlimBoxCloseWorkItem?.cancel()
+                
+                if droppedInside {
+                    self.slimBoxDidReceiveDropThisSession = true
+                    self.pendingSlimBoxCloseWorkItem = nil
+                } else {
+                    let workItem = DispatchWorkItem { [weak self] in
+                        guard let self = self else { return }
+                        if self.slimBoxDidReceiveDropThisSession {
+                            self.slimBoxDidReceiveDropThisSession = false
+                            self.pendingSlimBoxCloseWorkItem = nil
+                            return
+                        }
+                        self.hideSlimBox()
+                        self.pendingSlimBoxCloseWorkItem = nil
+                    }
+                    self.pendingSlimBoxCloseWorkItem = workItem
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
                 }
             }
         }
@@ -1776,7 +1781,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             pendingSlimBoxCloseWorkItem?.cancel()
             pendingSlimBoxCloseWorkItem = nil
             slimBoxDidReceiveDropThisSession = false
-            fastDragTrackingTimer?.cancel()
             
             dragWiggleAccumulator = 0
             lastDxSign = 0
@@ -1787,19 +1791,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             lastDragTime = ProcessInfo.processInfo.systemUptime
             boxDragHoldWorkItem?.cancel()
             boxDragHoldWorkItem = nil
-            
-            let timer = DispatchSource.makeTimerSource(queue: .main)
-            timer.schedule(deadline: .now(), repeating: .milliseconds(30))
-            timer.setEventHandler { [weak self] in
-                self?.trackDragCursorLocation()
-            }
-            timer.resume()
-            fastDragTrackingTimer = timer
         }
         
         private func stopFastDragTracking() {
-            fastDragTrackingTimer?.cancel()
-            fastDragTrackingTimer = nil
+            boxDragHoldWorkItem?.cancel()
+            boxDragHoldWorkItem = nil
         }
         
         private func resetDragTrackingState() {
@@ -1993,17 +1989,40 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         private func startIslandOpenMousePolling() {
             guard islandOpenMousePollTimer == nil else { return }
             let timer = DispatchSource.makeTimerSource(queue: .main)
-            timer.schedule(deadline: .now() + .milliseconds(50), repeating: .milliseconds(50), leeway: .milliseconds(10))
+            timer.schedule(deadline: .now() + .milliseconds(120), repeating: .milliseconds(120), leeway: .milliseconds(20))
             timer.setEventHandler { [weak self] in
                 self?.handleIslandOpenMousePollTick()
             }
             islandOpenMousePollTimer = timer
             timer.resume()
+            startSafetyTimer()
         }
         
         private func stopIslandOpenMousePolling() {
             islandOpenMousePollTimer?.cancel()
             islandOpenMousePollTimer = nil
+            stopSafetyTimer()
+        }
+        
+        private func startSafetyTimer() {
+            safetyTimer?.cancel()
+            let safety = DispatchSource.makeTimerSource(queue: .main)
+            safety.schedule(deadline: .now() + 2.0, repeating: 2.0)
+            safety.setEventHandler { [weak self] in
+                guard let self = self else { return }
+                if self.model.isExpanded && !self.model.isPinned && !self.model.isAddSheetOpen {
+                    if self.islandOpenMousePollTimer == nil {
+                        self.startIslandOpenMousePolling()
+                    }
+                }
+            }
+            safety.resume()
+            self.safetyTimer = safety
+        }
+        
+        private func stopSafetyTimer() {
+            safetyTimer?.cancel()
+            safetyTimer = nil
         }
         
         private func handleIslandOpenMousePollTick() {
@@ -2813,10 +2832,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         func applicationWillTerminate(_ notification: Notification) {
-            dragPollingTimer?.cancel()
-            dragPollingTimer = nil
-            fastDragTrackingTimer?.cancel()
-            fastDragTrackingTimer = nil
+            removeGlobalDragMonitor()
+            if let monitor = userActivityMonitor {
+                NSEvent.removeMonitor(monitor)
+                userActivityMonitor = nil
+            }
             slimBoxWindow?.orderOut(nil)
             slimBoxWindow = nil
             cancelIdleCompaction()

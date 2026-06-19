@@ -33,7 +33,7 @@ struct AddAppSheet: View {
                 }
                 
                 ScrollView {
-                    VStack(spacing: 4) {
+                    LazyVStack(spacing: 4) {
                         ForEach(filtered) { app in
                             Button {
                                 onAdd(app)

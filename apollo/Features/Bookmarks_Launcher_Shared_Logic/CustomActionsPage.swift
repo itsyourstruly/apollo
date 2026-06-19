@@ -7,17 +7,67 @@ struct CustomAppIconView: View {
     let appPath: String
     let size: CGFloat
 
+    @State private var loadedIcon: NSImage? = nil
+    @State private var isLoading = false
+    @State private var loadTask: Task<Void, Never>? = nil
+
     var body: some View {
-        if let cachedImage = AppIconCache.shared.icon(forPath: appPath) {
-            Image(nsImage: cachedImage)
-                .resizable()
-                .frame(width: size, height: size)
-                .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
-        } else {
-            Image(systemName: "app.fill")
-                .resizable()
-                .frame(width: size, height: size)
-                .foregroundColor(.white.opacity(0.4))
+        Group {
+            if let icon = loadedIcon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: size, height: size)
+                    .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
+            } else {
+                Image(systemName: "app.fill")
+                    .resizable()
+                    .frame(width: size, height: size)
+                    .foregroundColor(.white.opacity(0.4))
+            }
+        }
+        .onAppear {
+            loadIcon()
+        }
+        .onChange(of: appPath) { _, _ in
+            reloadIcon()
+        }
+        .onDisappear {
+            cancelLoad()
+            loadedIcon = nil
+        }
+    }
+
+    private func cancelLoad() {
+        loadTask?.cancel()
+        loadTask = nil
+    }
+
+    private func reloadIcon() {
+        cancelLoad()
+        loadedIcon = nil
+        isLoading = false
+        loadIcon()
+    }
+
+    private func loadIcon() {
+        if let cached = AppIconCache.shared.cachedIcon(forPath: appPath) {
+            self.loadedIcon = cached
+            self.isLoading = false
+            return
+        }
+
+        guard !isLoading else { return }
+        isLoading = true
+        loadTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            guard !Task.isCancelled else { return }
+            
+            AppIconCache.shared.loadIconAsync(forPath: appPath) { icon in
+                if !Task.isCancelled {
+                    self.loadedIcon = icon
+                    self.isLoading = false
+                }
+            }
         }
     }
 }
@@ -27,23 +77,77 @@ struct BookmarkIconView: View {
     let size: CGFloat
     let accentColor: Color
     
+    @State private var loadedImage: NSImage? = nil
+    @State private var isLoading = false
+    @State private var loadTask: Task<Void, Never>? = nil
+
     var body: some View {
-        if let base64 = bookmark.iconBase64,
-           let image = BookmarkIconCache.shared.image(forBase64: base64) {
-            Image(nsImage: image)
-                .resizable()
+        Group {
+            if let image = loadedImage {
+                Image(nsImage: image)
+                    .resizable()
+                    .frame(width: size, height: size)
+                    .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
+            } else {
+                let char = bookmark.name.first?.uppercased() ?? "B"
+                ZStack {
+                    RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                        .fill(accentColor.opacity(0.2))
+                    Text(char)
+                        .font(.system(size: size * 0.55, weight: .bold))
+                        .foregroundColor(accentColor)
+                }
                 .frame(width: size, height: size)
-                .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
-        } else {
-            let char = bookmark.name.first?.uppercased() ?? "B"
-            ZStack {
-                RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
-                    .fill(accentColor.opacity(0.2))
-                Text(char)
-                    .font(.system(size: size * 0.55, weight: .bold))
-                    .foregroundColor(accentColor)
             }
-            .frame(width: size, height: size)
+        }
+        .onAppear {
+            loadImage()
+        }
+        .onChange(of: bookmark.iconBase64) { _, _ in
+            reloadImage()
+        }
+        .onDisappear {
+            cancelLoad()
+            loadedImage = nil
+        }
+    }
+
+    private func cancelLoad() {
+        loadTask?.cancel()
+        loadTask = nil
+    }
+
+    private func reloadImage() {
+        cancelLoad()
+        loadedImage = nil
+        isLoading = false
+        loadImage()
+    }
+
+    private func loadImage() {
+        guard let base64 = bookmark.iconBase64, !base64.isEmpty else {
+            self.loadedImage = nil
+            return
+        }
+
+        if let cached = BookmarkIconCache.shared.cachedImage(forBase64: base64) {
+            self.loadedImage = cached
+            self.isLoading = false
+            return
+        }
+
+        guard !isLoading else { return }
+        isLoading = true
+        loadTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            guard !Task.isCancelled else { return }
+            
+            BookmarkIconCache.shared.loadImageAsync(forBase64: base64) { image in
+                if !Task.isCancelled {
+                    self.loadedImage = image
+                    self.isLoading = false
+                }
+            }
         }
     }
 }
