@@ -1105,11 +1105,11 @@ struct UnifiedNotchContainer: View {
                                 
                                  if alignmentOption == .left {
                                      controls
-                                         .frame(width: max(0, geo.size.width - notchRight - 16), height: islandHeight, alignment: .leading)
+                                         .frame(width: max(0, geo.size.width - notchRight - 16), height: islandHeight, alignment: .topLeading)
                                          .offset(x: notchRight + 12)
                                  } else {
                                      controls
-                                         .frame(width: max(0, notchLeft - 12), height: islandHeight, alignment: .trailing)
+                                         .frame(width: max(0, notchLeft - 12), height: islandHeight, alignment: .topTrailing)
                                  }
                         }
                     }
