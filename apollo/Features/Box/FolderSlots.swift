@@ -13,6 +13,17 @@ struct FolderSlotEntity: Identifiable, Hashable, Sendable {
     let name: String
     let fileSize: Int64
     let dateModified: Date
+    /// Non-nil only for root-level folder slots that live on a special volume.
+    let driveIconSymbol: String?
+    
+    init(url: URL, isDirectory: Bool, name: String, fileSize: Int64, dateModified: Date, driveIconSymbol: String? = nil) {
+        self.url = url
+        self.isDirectory = isDirectory
+        self.name = name
+        self.fileSize = fileSize
+        self.dateModified = dateModified
+        self.driveIconSymbol = driveIconSymbol
+    }
     
     var placeholderSymbol: String {
         if isDirectory { return "folder.fill" }
@@ -34,6 +45,11 @@ struct FolderSlotEntity: Identifiable, Hashable, Sendable {
             return "doc.fill"
         }
     }
+}
+
+struct OperationStatus: Identifiable, Equatable {
+    let id = UUID()
+    let message: String
 }
 
 enum FolderSlotDisplayItem: Identifiable, Hashable {
@@ -278,6 +294,45 @@ final class FolderSlotsWorker: Sendable {
     }
 }
 
+// MARK: - Drive Volume Classifier
+
+/// Classifies a folder URL into a drive kind and returns the matching SF Symbol,
+/// or `nil` if the folder lives on the boot volume (a regular local folder).
+func classifyFolderDriveSymbol(url: URL) -> String? {
+    let path = url.path
+    
+    // 1. macOS unified cloud-storage location (Google Drive, OneDrive, Dropbox, Box, etc.)
+    let cloudStorageBase = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/CloudStorage").path
+    if path.hasPrefix(cloudStorageBase) {
+        return "externaldrive.fill.badge.icloud"
+    }
+    
+    // 2. Legacy cloud-agent mount points under /Volumes/ by name
+    if path.hasPrefix("/Volumes/") {
+        let cloudKeywords = ["googledrive", "google drive", "dropbox", "onedrive",
+                             "box drive", "icloud", "pcloud", "mega"]
+        let lowerPath = path.lowercased()
+        for keyword in cloudKeywords where lowerPath.contains(keyword) {
+            return "externaldrive.fill.badge.icloud"
+        }
+    }
+    
+    // 3. Everything not under /Volumes/ is on the boot volume — a regular local folder.
+    guard path.hasPrefix("/Volumes/") else { return nil }
+    
+    // 4. Under /Volumes/: check whether the volume is networked or local external storage.
+    if let values = try? url.resourceValues(forKeys: [.volumeIsLocalKey]) {
+        if !(values.volumeIsLocal ?? true) {
+            // Remote / networked volume → local server
+            return "externaldrive.fill.badge.wifi"
+        }
+    }
+    
+    // Local non-boot volume → external storage device (USB, SD card, etc.)
+    return "externaldrive"
+}
+
 // MARK: - Panel Configuration
 
 final class FolderSlotsWindow: NSWindow {
@@ -349,6 +404,7 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
     private var searchTask: Task<Void, Never>?
     private var activeRootURLs: [URL] = []
     @Published var expandedStacks = Set<String>()
+    @Published var operationStatus: OperationStatus? = nil
     private weak var activeModel: NotchMenuModel?
     private var currentNavigationTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
@@ -520,9 +576,9 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
             
             var isDir: ObjCBool = false
             if FileManager.default.fileExists(atPath: targetURL.path, isDirectory: &isDir) {
-                entities.append(FolderSlotEntity(url: targetURL, isDirectory: isDir.boolValue, name: targetURL.lastPathComponent, fileSize: 0, dateModified: .distantPast))
+                entities.append(FolderSlotEntity(url: targetURL, isDirectory: isDir.boolValue, name: targetURL.lastPathComponent, fileSize: 0, dateModified: .distantPast, driveIconSymbol: classifyFolderDriveSymbol(url: targetURL)))
             } else if isSecured {
-                entities.append(FolderSlotEntity(url: targetURL, isDirectory: true, name: targetURL.lastPathComponent, fileSize: 0, dateModified: .distantPast))
+                entities.append(FolderSlotEntity(url: targetURL, isDirectory: true, name: targetURL.lastPathComponent, fileSize: 0, dateModified: .distantPast, driveIconSymbol: classifyFolderDriveSymbol(url: targetURL)))
             }
         }
         
@@ -821,7 +877,7 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
             settings.folderSlotsPaths.append(cleanURL.path)
         }
         
-        let newEntity = FolderSlotEntity(url: cleanURL, isDirectory: true, name: cleanURL.lastPathComponent, fileSize: 0, dateModified: .distantPast)
+        let newEntity = FolderSlotEntity(url: cleanURL, isDirectory: true, name: cleanURL.lastPathComponent, fileSize: 0, dateModified: .distantPast, driveIconSymbol: classifyFolderDriveSymbol(url: cleanURL))
         if !baseEntities.contains(where: { $0.url == cleanURL }) {
             baseEntities.append(newEntity)
             baseEntities = FolderSlotsWorker.sortEntities(baseEntities, option: settings.folderSlotsSortOption, foldersFirst: settings.folderSlotsSortFoldersFirst)
@@ -831,6 +887,77 @@ final class FolderSlotsManager: NSObject, NSWindowDelegate, ObservableObject {
             if !currentEntities.contains(where: { $0.url == cleanURL }) {
                 currentEntities.append(newEntity)
                 currentEntities = FolderSlotsWorker.sortEntities(currentEntities, option: settings.folderSlotsSortOption, foldersFirst: settings.folderSlotsSortFoldersFirst)
+            }
+        }
+    }
+    
+    func removeRootFolder(url: URL) {
+        let cleanURL = url.standardizedFileURL
+        let settings = AppSettings.shared
+        settings.folderSlotsPaths.removeAll { $0 == cleanURL.path }
+        baseEntities.removeAll { $0.url == cleanURL }
+        if navigationStack.isEmpty {
+            currentEntities.removeAll { $0.url == cleanURL }
+        }
+        UserDefaults.standard.removeObject(forKey: "folder_bookmark_\(cleanURL.path)")
+    }
+    
+    func performDragOperation(sourceURL: URL, destinationURL: URL, completion: @escaping (Error?) -> Void) {
+        let isMove = AppSettings.shared.folderSlotsMovementType == 1
+        let destDirName = destinationURL.deletingLastPathComponent().lastPathComponent
+        let destLabel = destDirName.isEmpty ? "destination" : destDirName
+        
+        let initialMsg = isMove ? "Moving to \(destLabel)..." : "Copying to \(destLabel)..."
+        
+        DispatchQueue.main.async {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                self.operationStatus = OperationStatus(message: initialMsg)
+            }
+        }
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            let fm = FileManager.default
+            var opError: Error? = nil
+            do {
+                if fm.fileExists(atPath: destinationURL.path) {
+                    try? fm.removeItem(at: destinationURL)
+                }
+                
+                if isMove {
+                    try fm.moveItem(at: sourceURL, to: destinationURL)
+                    
+                    DispatchQueue.main.async {
+                        self.removeRootFolder(url: sourceURL)
+                        self.refreshCurrentDirectory()
+                    }
+                } else {
+                    try fm.copyItem(at: sourceURL, to: destinationURL)
+                }
+            } catch {
+                opError = error
+                NSLog("Drag operation error: \(error.localizedDescription)")
+            }
+            
+            DispatchQueue.main.async {
+                if opError == nil {
+                    let finalMsg = isMove ? "Moved to \(destLabel)" : "Copied to \(destLabel)"
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        self.operationStatus = OperationStatus(message: finalMsg)
+                    }
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        if self.operationStatus?.message == finalMsg {
+                            withAnimation(.easeOut(duration: 0.25)) {
+                                self.operationStatus = nil
+                            }
+                        }
+                    }
+                } else {
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        self.operationStatus = nil
+                    }
+                }
+                completion(opError)
             }
         }
     }
@@ -1007,194 +1134,213 @@ struct FolderSlotsRootView: View {
     @StateObject private var breadcrumbScrollManager = BreadcrumbScrollManager()
     
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.white.opacity(0.8))
-                    .frame(width: 20, height: 20)
-                    .background(Color.white.opacity(0.15), in: Circle())
-                    .overlay { WindowControlSurface { manager.close() } }
-                
-                if !manager.navigationStack.isEmpty {
-                    Image(systemName: "chevron.left")
+        ZStack(alignment: .bottom) {
+            VStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(.white.opacity(0.8))
                         .frame(width: 20, height: 20)
                         .background(Color.white.opacity(0.15), in: Circle())
-                        .overlay {
-                            WindowControlSurface {
-                                manager.navigateBack()
-                            manager.selectedIDs.removeAll()
-                            manager.lastSelectedID = nil
+                        .overlay { WindowControlSurface { manager.close() } }
+                    
+                    if !manager.navigationStack.isEmpty {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.white.opacity(0.8))
+                            .frame(width: 20, height: 20)
+                            .background(Color.white.opacity(0.15), in: Circle())
+                            .overlay {
+                                WindowControlSurface {
+                                    manager.navigateBack()
+                                manager.selectedIDs.removeAll()
+                                manager.lastSelectedID = nil
+                                }
                             }
-                        }
-                }
-                
-                ScrollViewReader { scrollProxy in
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 4) {
-                            Button {
-                                manager.navigateToRoot()
-                            } label: {
-                                Text("Folder Slots")
-                                    .foregroundColor(manager.navigationStack.isEmpty ? accentColor : .white.opacity(0.8))
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.8)
-                            }
-                            .buttonStyle(.plain)
-                            .id(-1)
-                            
-                            ForEach(Array(manager.navigationStack.enumerated()), id: \.offset) { index, url in
-                                Text("/")
-                                    .foregroundColor(.white.opacity(0.4))
-                                
+                    }
+                    
+                    ScrollViewReader { scrollProxy in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 4) {
                                 Button {
-                                    manager.navigateToStackIndex(index)
+                                    manager.navigateToRoot()
                                 } label: {
-                                    Text(url.path == "/" ? "Macintosh HD" : url.lastPathComponent)
-                                        .foregroundColor(index == manager.navigationStack.count - 1 ? accentColor : .white.opacity(0.8))
+                                    Text("Folder Slots")
+                                        .foregroundColor(manager.navigationStack.isEmpty ? accentColor : .white.opacity(0.8))
                                         .lineLimit(1)
                                         .minimumScaleFactor(0.8)
-                                        .frame(maxWidth: 160)
                                 }
                                 .buttonStyle(.plain)
-                                .id(index)
+                                .id(-1)
+                                
+                                ForEach(Array(manager.navigationStack.enumerated()), id: \.offset) { index, url in
+                                    Text("/")
+                                        .foregroundColor(.white.opacity(0.4))
+                                    
+                                    Button {
+                                        manager.navigateToStackIndex(index)
+                                    } label: {
+                                        Text(url.path == "/" ? "Macintosh HD" : url.lastPathComponent)
+                                            .foregroundColor(index == manager.navigationStack.count - 1 ? accentColor : .white.opacity(0.8))
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.8)
+                                            .frame(maxWidth: 160)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .id(index)
+                                }
+                            }
+                            .font(.system(size: 12, weight: .semibold))
+                            .padding(.horizontal, 2)
+                        }
+                        .onHover { hovering in
+                            breadcrumbScrollManager.isHovering = hovering
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    NativeSearchBar(text: $manager.searchQuery)
+                        .frame(width: 180)
+                        .onChange(of: manager.searchQuery) { _, newValue in
+                            manager.performSearch(query: newValue)
+                        }
+                }
+                .frame(height: 28)
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
+                
+                if manager.isNavigating {
+                    ProgressView().controlSize(.regular)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if manager.isSearching && manager.searchResults.isEmpty {
+                    ProgressView().controlSize(.regular)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if manager.displayedEntities.isEmpty {
+                    Text(manager.searchQuery.isEmpty ? (manager.navigationStack.isEmpty ? "No folders configured.\nAdd them in Settings." : "Folder is empty.") : "No results found.")
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                        .onTapGesture { manager.resignSearchFocus() }
+                } else {
+                    ScrollView(.vertical, showsIndicators: true) {
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8, alignment: .top), count: columns), spacing: 8) {
+                            ForEach(manager.groupedItems) { group in
+                                Section(header: groupHeader(title: group.title)) {
+                                    ForEach(group.items) { item in
+                                        switch item {
+                                        case .entity(let entity):
+                                            FolderSlotItemView(
+                                                entity: entity,
+                                                isSelected: manager.selectedIDs.contains(entity.id),
+                                                showPath: !manager.searchQuery.isEmpty && !manager.showCurrentEntitiesDespiteSearch,
+                                                onSingleClick: { isShiftPressed in
+                                                    handleSingleClick(on: entity, isShiftPressed: isShiftPressed)
+                                                },
+                                                onDoubleClick: { handleDoubleClick(on: entity) },
+                                                onRemove: manager.navigationStack.isEmpty ? {
+                                                    manager.removeRootFolder(url: entity.url)
+                                                } : nil
+                                            )
+                                        case .stackHeader(let ext, let count, let isExpanded, let topEntities):
+                                            FolderSlotStackHeaderView(
+                                                ext: ext,
+                                                count: count,
+                                                isExpanded: isExpanded,
+                                                topEntities: topEntities,
+                                                onToggle: {
+                                                manager.resignSearchFocus()
+                                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                    if isExpanded { manager.expandedStacks.remove(ext) }
+                                                    else { manager.expandedStacks.insert(ext) }
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
-                        .font(.system(size: 12, weight: .semibold))
-                        .padding(.horizontal, 2)
+                        .padding(.horizontal, 10)
+                        .padding(.top, 4)
+                        .padding(.bottom, 10)
                     }
-                    .onHover { hovering in
-                        breadcrumbScrollManager.isHovering = hovering
+                    .background(
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture { manager.resignSearchFocus() }
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(VisualEffectView(material: .hudWindow, blendingMode: .behindWindow))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.15), lineWidth: 1))
+            .overlay(
+                Group {
+                    if isDropTargeted {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.white.opacity(0.1))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(Color.white.opacity(0.5), lineWidth: 2)
+                            )
                     }
                 }
-                
-                Spacer()
-                
-                NativeSearchBar(text: $manager.searchQuery)
-                    .frame(width: 180)
-                    .onChange(of: manager.searchQuery) { _, newValue in
-                        manager.performSearch(query: newValue)
-                    }
-            }
-            .frame(height: 28)
-            .padding(.horizontal, 12)
-            .padding(.top, 10)
-            .padding(.bottom, 6)
-            
-            if manager.isNavigating {
-                ProgressView().controlSize(.regular)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if manager.isSearching && manager.searchResults.isEmpty {
-                ProgressView().controlSize(.regular)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if manager.displayedEntities.isEmpty {
-                Text(manager.searchQuery.isEmpty ? (manager.navigationStack.isEmpty ? "No folders configured.\nAdd them in Settings." : "Folder is empty.") : "No results found.")
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .contentShape(Rectangle())
-                    .onTapGesture { manager.resignSearchFocus() }
-            } else {
-                ScrollView(.vertical, showsIndicators: true) {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8, alignment: .top), count: columns), spacing: 8) {
-                        ForEach(manager.groupedItems) { group in
-                            Section(header: groupHeader(title: group.title)) {
-                                ForEach(group.items) { item in
-                                    switch item {
-                                    case .entity(let entity):
-                                        FolderSlotItemView(
-                                            entity: entity,
-                                            isSelected: manager.selectedIDs.contains(entity.id),
-                                            onSingleClick: { isShiftPressed in
-                                                handleSingleClick(on: entity, isShiftPressed: isShiftPressed)
-                                            },
-                                            onDoubleClick: { handleDoubleClick(on: entity) }
-                                        )
-                                    case .stackHeader(let ext, let count, let isExpanded, let topEntities):
-                                        FolderSlotStackHeaderView(
-                                            ext: ext,
-                                            count: count,
-                                            isExpanded: isExpanded,
-                                            topEntities: topEntities,
-                                            onToggle: {
-                                            manager.resignSearchFocus()
-                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                                if isExpanded { manager.expandedStacks.remove(ext) }
-                                                else { manager.expandedStacks.insert(ext) }
-                                                }
-                                            }
-                                        )
+            )
+            .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
+                if manager.navigationStack.isEmpty {
+                    var handled = false
+                    for provider in providers where provider.canLoadObject(ofClass: URL.self) {
+                        handled = true
+                        _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                            guard let fileURL = url else { return }
+                            var isDir: ObjCBool = false
+                            if FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir), isDir.boolValue {
+                                DispatchQueue.main.async {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                        manager.addRootFolder(url: fileURL)
                                     }
                                 }
                             }
                         }
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.top, 4)
-                    .padding(.bottom, 10)
-                }
-                .background(
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .onTapGesture { manager.resignSearchFocus() }
-                )
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(VisualEffectView(material: .hudWindow, blendingMode: .behindWindow))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.15), lineWidth: 1))
-        .overlay(
-            Group {
-                if isDropTargeted {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.white.opacity(0.1))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(Color.white.opacity(0.5), lineWidth: 2)
-                        )
-                }
-            }
-        )
-        .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
-            if manager.navigationStack.isEmpty {
-                var handled = false
-                for provider in providers where provider.canLoadObject(ofClass: URL.self) {
-                    handled = true
-                    _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                        guard let fileURL = url else { return }
-                        var isDir: ObjCBool = false
-                        if FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir), isDir.boolValue {
-                            DispatchQueue.main.async {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    manager.addRootFolder(url: fileURL)
+                    return handled
+                } else {
+                    guard let targetURL = manager.navigationStack.last else { return false }
+                    var handled = false
+                    for provider in providers where provider.canLoadObject(ofClass: URL.self) {
+                        handled = true
+                        _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                            guard let fileURL = url else { return }
+                            let destURL = manager.uniqueURL(for: fileURL, in: targetURL)
+                            do {
+                                try FileManager.default.copyItem(at: fileURL, to: destURL)
+                                DispatchQueue.main.async {
+                                    manager.refreshCurrentDirectory()
                                 }
+                            } catch {
+                                NSLog("Drop copy error: \(error.localizedDescription)")
                             }
                         }
                     }
+                    return handled
                 }
-                return handled
-            } else {
-                guard let targetURL = manager.navigationStack.last else { return false }
-                var handled = false
-                for provider in providers where provider.canLoadObject(ofClass: URL.self) {
-                    handled = true
-                    _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                        guard let fileURL = url else { return }
-                        let destURL = manager.uniqueURL(for: fileURL, in: targetURL)
-                        do {
-                            try FileManager.default.copyItem(at: fileURL, to: destURL)
-                            DispatchQueue.main.async {
-                                manager.refreshCurrentDirectory()
-                            }
-                        } catch {
-                            NSLog("Drop copy error: \(error.localizedDescription)")
-                        }
-                    }
-                }
-                return handled
+            }
+            
+            if let status = manager.operationStatus {
+                Text(status.message)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.black.opacity(0.85), in: Capsule())
+                    .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 1))
+                    .shadow(color: Color.black.opacity(0.3), radius: 5, y: 3)
+                    .padding(.bottom, 16)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
     }
@@ -1378,7 +1524,9 @@ struct FolderSlotThumbnailView: View {
     
     var body: some View {
         ZStack {
-            if let image = loadedImage {
+            if let driveSymbol = entity.driveIconSymbol {
+                driveIconView(symbol: driveSymbol)
+            } else if let image = loadedImage {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -1390,9 +1538,17 @@ struct FolderSlotThumbnailView: View {
                     .frame(width: size, height: size)
             }
         }
-        .onAppear { loadImage() }
+        .onAppear { if entity.driveIconSymbol == nil { loadImage() } }
         .onDisappear { cancelImageLoad(); loadedImage = nil }
-        .onChange(of: entity.id) { _, _ in reloadImage() }
+        .onChange(of: entity.id) { _, _ in if entity.driveIconSymbol == nil { reloadImage() } }
+    }
+    
+    @ViewBuilder
+    private func driveIconView(symbol: String) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: size * 0.62, weight: .medium))
+            .foregroundColor(.white.opacity(0.85))
+            .frame(width: size, height: size)
     }
     
     private func cancelImageLoad() {
@@ -1443,8 +1599,11 @@ struct FolderSlotThumbnailView: View {
 struct FolderSlotItemView: View {
     let entity: FolderSlotEntity
     let isSelected: Bool
+    /// When `true`, shows the parent directory path beneath the file name.
+    let showPath: Bool
     let onSingleClick: (Bool) -> Void
     let onDoubleClick: () -> Void
+    let onRemove: (() -> Void)?
     
     var body: some View {
         VStack(spacing: 4) {
@@ -1459,6 +1618,17 @@ struct FolderSlotItemView: View {
                 .lineLimit(isSelected ? nil : 2)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+            
+            if showPath {
+                Text(isSelected
+                     ? entity.url.deletingLastPathComponent().path
+                     : abbreviatedParentPath(entity.url))
+                    .font(.system(size: 9))
+                    .foregroundColor(.white.opacity(0.4))
+                    .lineLimit(isSelected ? nil : 2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(4)
         .frame(maxWidth: .infinity)
@@ -1477,7 +1647,25 @@ struct FolderSlotItemView: View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.writeObjects([entity.url as NSURL])
             }
+            if let onRemove = onRemove {
+                Button("Remove") {
+                    onRemove()
+                }
+            }
         }
+    }
+    
+    /// Returns the parent directory path abbreviated to at most 4 components.
+    /// If there are more levels above, they are replaced with `../`.
+    private func abbreviatedParentPath(_ url: URL) -> String {
+        let components = url.deletingLastPathComponent()
+            .pathComponents
+            .filter { $0 != "/" }
+        let maxComponents = 4
+        guard components.count > maxComponents else {
+            return url.deletingLastPathComponent().path
+        }
+        return "../" + components.suffix(maxComponents).joined(separator: "/")
     }
 }
 
@@ -1557,7 +1745,11 @@ struct FolderSlotDragSurface: NSViewRepresentable {
             let currentPoint = convert(event.locationInWindow, from: nil)
             if hypot(currentPoint.x - mouseDownPoint.x, currentPoint.y - mouseDownPoint.y) > 3 {
                 isDragging = true
-                let item = NSDraggingItem(pasteboardWriter: url as NSURL)
+                
+                let fileType = fileTypeIdentifier(for: url)
+                let provider = NSFilePromiseProvider(fileType: fileType, delegate: self)
+                let item = NSDraggingItem(pasteboardWriter: provider)
+                
                 let icon = NSWorkspace.shared.icon(forFile: url.path)
                 icon.size = NSSize(width: 32, height: 32)
                 item.setDraggingFrame(NSRect(x: 0, y: 0, width: 32, height: 32), contents: icon)
@@ -1576,7 +1768,36 @@ struct FolderSlotDragSurface: NSViewRepresentable {
         }
         
         func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-            return .copy
+            let isMove = AppSettings.shared.folderSlotsMovementType == 1
+            return isMove ? .move : .copy
+        }
+    }
+}
+
+private func fileTypeIdentifier(for url: URL) -> String {
+    var isDir: ObjCBool = false
+    if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
+        return UTType.folder.identifier
+    }
+    if let type = UTType(filenameExtension: url.pathExtension) {
+        return type.identifier
+    }
+    return UTType.data.identifier
+}
+
+extension FolderSlotDragSurface.DragView: NSFilePromiseProviderDelegate {
+    func filePromiseProvider(_ filePromiseProvider: NSFilePromiseProvider, fileNameForType fileType: String) -> String {
+        return url?.lastPathComponent ?? "Folder"
+    }
+
+    func filePromiseProvider(_ filePromiseProvider: NSFilePromiseProvider, writePromiseTo url: URL, completionHandler: @escaping (Error?) -> Void) {
+        guard let sourceURL = self.url else {
+            completionHandler(NSError(domain: "FolderSlotsDrag", code: 1, userInfo: [NSLocalizedDescriptionKey: "Source URL is nil"]))
+            return
+        }
+        
+        FolderSlotsManager.shared.performDragOperation(sourceURL: sourceURL, destinationURL: url) { error in
+            completionHandler(error)
         }
     }
 }

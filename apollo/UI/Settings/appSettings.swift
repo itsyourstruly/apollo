@@ -1325,6 +1325,13 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    /// 0 = Copy (default), 1 = Move
+    @Published var folderSlotsMovementType: Int {
+        didSet {
+            enqueueDefaultSet(folderSlotsMovementType, forKey: AppStorageKey.folderSlotsMovementType)
+        }
+    }
+
     @Published var folderSlotsPaths: [String] {
         didSet {
             var seen = Set<String>()
@@ -2387,6 +2394,12 @@ final class AppSettings: ObservableObject {
         folderSlotsGroupByType = false
     } else {
         folderSlotsGroupByType = defaults.bool(forKey: AppStorageKey.folderSlotsGroupByType)
+    }
+
+    if defaults.object(forKey: AppStorageKey.folderSlotsMovementType) == nil {
+        folderSlotsMovementType = 0 // 0: Copy (default), 1: Move
+    } else {
+        folderSlotsMovementType = defaults.integer(forKey: AppStorageKey.folderSlotsMovementType)
     }
 
     folderSlotsPaths = defaults.stringArray(forKey: AppStorageKey.folderSlotsPaths) ?? []

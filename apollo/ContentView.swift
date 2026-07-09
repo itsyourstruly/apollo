@@ -263,6 +263,7 @@ enum AppStorageKey {
     static let folderSlotsStackFolders = "folderSlotsStackFolders"
     static let folderSlotsStackThreshold = "folderSlotsStackThreshold"
     static let folderSlotsGroupByType = "folderSlotsGroupByType"
+    static let folderSlotsMovementType = "folderSlotsMovementType"
 
     static let devicePopupEnabled = "devicePopupEnabled"
     static let devicePopupDelay = "devicePopupDelay"

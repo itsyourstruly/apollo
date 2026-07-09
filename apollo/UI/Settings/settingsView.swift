@@ -676,6 +676,12 @@ struct SettingsView: View {
                         
                         Toggle("Put each file type in its own row", isOn: $settings.folderSlotsGroupByType)
                         
+                        Picker("Movement type", selection: $settings.folderSlotsMovementType) {
+                            Text("Copy").tag(0)
+                            Text("Move").tag(1)
+                        }
+                        .pickerStyle(.segmented)
+                        
                         Picker("Expand Direction", selection: $settings.folderSlotsDirection) {
                             Text("Left").tag(0)
                             Text("Right").tag(1)
