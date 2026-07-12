@@ -7,6 +7,7 @@ An island that sits in your notch.
 - Clipboard Manager 
 - Write quick notes
 - Quickly store files
+- Save folders to browse or search through
 - Start a stopwatch or timer
 - Launch apps
 - Open bookmarked websites
