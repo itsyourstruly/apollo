@@ -16,7 +16,7 @@ An island that sits in your notch.
 
 ## Overview
 
-Apollo was made with the intent of using the notch in a way. The notch felt it had unused potential, and I saw an opportunity to create a space where I could quickly access tools I use every day. I started out trying other apps I found for things like a clipboard manager, or somewhere to drop a file to move it around easier. Looking for a way to put these things together into something I didn't need an extra movement for, and the notch looked like a great place to put this. It brings apps and other tools to one place in an island. 
+The notch felt it had unused potential, and I saw an opportunity to create a space where I could quickly access tools I use every day. I started out trying other apps I found for things like a clipboard manager, or somewhere to drop a file to move it around easier. Looking for a way to put these things together into something I didn't need an extra movement for, and the notch looked like a great place to put this. It brings apps and other tools to one place in an island. 
 
 ## Requirements: 
 
