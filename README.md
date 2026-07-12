@@ -4,17 +4,17 @@ An island that sits in your notch.
 
 --
 
-Features:
+## Features
 
--- Clipboard Manager 
--- Write quick notes
--- Quickly store files
--- Start a stopwatch or timer
--- Launch apps
--- Open bookmarked websites
--- Calendar to view events
--- Battery Indicator wrapped around the Notch
--- Device connection popups
+- Clipboard Manager 
+- Write quick notes
+- Quickly store files
+- Start a stopwatch or timer
+- Launch apps
+- Open bookmarked websites
+- Calendar to view events
+- Battery Indicator wrapped around the Notch
+- Device connection popups
 
 --
 
